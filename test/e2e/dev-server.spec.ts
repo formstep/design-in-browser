@@ -1,0 +1,127 @@
+// The plugin inside different dev servers: a strict CSP, a server open to the network, two apps in one
+// project, HMR off, a production build, and a dev server that goes down mid-save.
+import fs from 'node:fs'
+import type { AddressInfo } from 'node:net'
+import path from 'node:path'
+import { expect, test } from '@playwright/test'
+import { createServer } from 'vite'
+import designInBrowser from '../../dist/vite.mjs'
+import { repo, appRoot, tmp, project, appUrl, vite, context, page, freePort, startVite, stopAppServer, startAppServer, dock, comment, useHarness, viteCache } from './harness.ts'
+
+useHarness()
+
+test('the overlay works on a page whose CSP forbids inline styles', async () => {
+  const strict = await context.newPage()
+  const errors: string[] = []
+  strict.on('console', (message) => message.type() === 'error' && errors.push(message.text()))
+  await strict.goto(new URL('/strict.html', appUrl).href)
+  await expect(strict.locator('dib-overlay')).toBeAttached()
+  // Proof the CSP is enforced: the page's own inline style is blocked.
+  await expect(strict.locator('.plan')).toHaveCSS('border-radius', '0px')
+  await strict.keyboard.press('Alt+Shift+C')
+  await expect(strict.locator('dib-overlay .tools')).toHaveCSS('background-color', 'rgb(31, 31, 31)')
+  await strict.locator('h1').click()
+  await expect(strict.locator('dib-overlay .composer')).toHaveCSS('border-radius', '16px')
+  await strict.locator('dib-overlay .composer textarea').fill('Under a strict CSP')
+  await strict.locator('dib-overlay .composer textarea').press('Enter')
+  await strict.keyboard.press('Escape')
+  const pin = strict.locator('dib-overlay .pins .pin-wrap[data-status="draft"]:not([hidden])')
+  await expect(pin.locator('.pin')).toHaveCSS('border-bottom-left-radius', '0px')
+  await pin.locator('.pin').click()
+  await expect(pin.locator('.thread')).toBeVisible()
+  await pin.getByRole('button', { name: 'Remove comment' }).click()
+  await expect(pin).toHaveCount(0)
+  expect(errors.filter((text) => /design-in-browser|dib-/.test(text))).toEqual([])
+  await strict.close()
+})
+
+test('a dev server that listens beyond localhost leaves the page alone', async () => {
+  const exposed = await startVite('0.0.0.0', await freePort())
+  try {
+    const port = (exposed.httpServer!.address() as AddressInfo).port
+    const other = await context.newPage()
+    await other.goto(`http://localhost:${port}/`)
+    await expect(other.locator('h1')).toBeVisible()
+    await other.waitForTimeout(500)
+    await expect(other.locator('dib-overlay')).toHaveCount(0)
+    await other.close()
+  } finally {
+    await exposed.close()
+  }
+})
+
+test('two apps in one project keep their own stacks', async () => {
+  const twoPort = await freePort()
+  const two = await createServer({
+    root: path.join(repo, 'test/e2e/app-two'),
+    configFile: false,
+    cacheDir: viteCache(twoPort),
+    logLevel: 'error',
+    plugins: [designInBrowser({ projectRoot: project })],
+    server: { port: twoPort, strictPort: true },
+  })
+  await two.listen()
+  try {
+    const other = await context.newPage()
+    await other.goto(`http://localhost:${twoPort}/`)
+    await other.locator('dib-dock .launcher').click()
+    await other.keyboard.press('Alt+Shift+C')
+    await other.locator('.note').click()
+    await other.locator('dib-overlay .composer textarea').fill('Only in the second app')
+    await other.locator('dib-overlay .composer textarea').press('Enter')
+    await expect(dock(other).getByTestId('draft-item')).toHaveCount(1)
+    await expect(dock().getByTestId('draft-item')).toHaveCount(0)
+    expect(fs.readdirSync(path.join(project, '.design-in-browser')).filter((name) => name.startsWith('page-state.')).length).toBe(2)
+    await other.close()
+  } finally {
+    await two.close()
+  }
+})
+
+test('with HMR off the page is left alone', async () => {
+  const offPort = await freePort()
+  const off = await createServer({
+    root: path.join(repo, 'test/e2e/app-two'),
+    configFile: false,
+    cacheDir: viteCache(offPort),
+    logLevel: 'error',
+    plugins: [designInBrowser({ projectRoot: project })],
+    server: { port: offPort, strictPort: true, hmr: false },
+  })
+  await off.listen()
+  try {
+    const other = await context.newPage()
+    const errors: string[] = []
+    other.on('pageerror', (error) => errors.push(error.message))
+    await other.goto(`http://localhost:${offPort}/`)
+    await expect(other.locator('h1')).toBeVisible()
+    await other.waitForTimeout(500)
+    await expect(other.locator('dib-overlay')).toHaveCount(0)
+    expect(errors).toEqual([])
+    await other.close()
+  } finally {
+    await off.close()
+  }
+})
+
+test('a comment survives a save that fails while the dev server is down', async () => {
+  await page.goto(appUrl)
+  await page.keyboard.press('Alt+Shift+C')
+  await page.locator('.lede').click()
+  await stopAppServer()
+  const composer = page.locator('dib-overlay .composer')
+  await composer.locator('textarea').fill('Text I typed before noticing')
+  await composer.locator('textarea').press('Enter')
+  await expect(composer).toBeVisible({ timeout: 8000 })
+  await expect(composer.locator('textarea')).toHaveValue('Text I typed before noticing')
+  await expect(composer.locator('.composer-error')).toContainText('Couldn’t save')
+  await startAppServer()
+})
+
+test('a build with a <Variants> group left in the code fails and says why', async () => {
+  const { build } = await import('vite')
+  process.env.DIB_BUILD_OUT = path.join(tmp, 'build-out')
+  await expect(build({ root: appRoot, configFile: path.join(appRoot, 'vite.config.ts'), logLevel: 'silent' })).rejects.toThrow(
+    /A <Variants> group from design-in-browser\/react is still in the code/,
+  )
+})
