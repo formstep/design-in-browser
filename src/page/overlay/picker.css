@@ -1,0 +1,51 @@
+/* --- selection ------------------------------------------------------------------------ */
+
+.highlight {
+  position: fixed;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  border: 2px solid var(--blue);
+  border-radius: 2px;
+  pointer-events: none;
+  transition:
+    transform 80ms var(--ease-out),
+    width 80ms var(--ease-out),
+    height 80ms var(--ease-out);
+}
+
+/* Selected while commenting: the same line, square, with a faint fill. No handles: nothing here resizes,
+   so the canvas's resize handles would promise something the overlay can't do. */
+.highlight.selected {
+  border-radius: 0;
+  background: rgb(37 125 224 / 0.06);
+}
+
+.tag {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: -2px;
+  display: flex;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: var(--control);
+  box-shadow: var(--shadow-float);
+  color: var(--ink);
+  font: 500 12px/16px var(--font);
+  white-space: nowrap;
+}
+
+.highlight.below .tag {
+  top: calc(100% + 6px);
+  bottom: auto;
+}
+
+.highlight.selected .tag {
+  display: none;
+}
+
+.tag-size {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}

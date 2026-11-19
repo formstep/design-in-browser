@@ -1,0 +1,120 @@
+/* --- tool pill while picking ----------------------------------------------------------- */
+
+/* Centred in the part of the window the dock leaves free. */
+.toolbar {
+  position: fixed;
+  bottom: 16px;
+  left: calc((100% - var(--reserved-right, 0px)) / 2);
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: var(--shadow-float);
+  pointer-events: auto;
+  animation: rise 160ms var(--ease-out);
+}
+
+.tool {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink-2);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tool:hover {
+  background: var(--control);
+  color: var(--ink);
+}
+
+.tool.active {
+  background: var(--blue-tint);
+  color: var(--blue-ink);
+}
+
+.tool.ask {
+  padding: 0 12px;
+  background: var(--blue-tint);
+  color: var(--blue-ink);
+  font-weight: 500;
+}
+
+.tool.ask:hover,
+.tool.ask[aria-pressed='true'] {
+  background: var(--blue-tint-2);
+  color: var(--blue-ink);
+}
+
+.tools-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--line);
+}
+
+.tools-count {
+  padding: 0 8px;
+  color: var(--ink-3);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tools-count:empty {
+  display: none;
+}
+
+/* "Ask <agent>": a note about the whole page, typed in a bar above the pill. */
+.askbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(560px, calc(100vw - 32px));
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 8px 0 14px;
+  border-radius: var(--radius-composer);
+  background: var(--control);
+  box-shadow: var(--shadow-float);
+  pointer-events: auto;
+  animation: rise 140ms var(--ease-out);
+}
+
+.askbar:focus-within {
+  box-shadow: var(--focus-glow), var(--shadow-float);
+}
+
+.askbar input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  caret-color: var(--blue);
+  font: 15px/20px var(--font);
+}
+
+.askbar input::placeholder {
+  color: var(--ink-3);
+}

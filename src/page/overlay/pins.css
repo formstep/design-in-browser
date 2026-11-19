@@ -1,0 +1,208 @@
+/* --- pins -------------------------------------------------------------------------------- */
+
+/* The pin's sharp bottom-left corner sits on the point that was clicked. */
+.pin-wrap {
+  position: fixed;
+  top: 0;
+  left: 0;
+  pointer-events: auto;
+}
+
+.pin {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 16px 16px 16px 0;
+  background: var(--blue);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.3);
+  cursor: pointer;
+  transform-origin: 0 100%;
+  animation: pin-in 200ms var(--ease-out);
+  transition: transform 120ms var(--ease-out);
+}
+
+.pin:hover,
+.pin-wrap.open .pin {
+  transform: scale(1.08);
+}
+
+.pin:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* The disc stands where a design tool's comment shows the commenter's avatar. */
+.disc {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--disc);
+  color: #fff;
+  font: 600 11px/1 var(--font);
+  font-variant-numeric: tabular-nums;
+}
+
+.disc .icon {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.6;
+}
+
+.pin-wrap[data-status='pending'] .pin,
+.pin-wrap[data-status='answered'] .pin,
+.pin-wrap[data-status='skipped'] .pin {
+  background: var(--control);
+  box-shadow:
+    inset 0 0 0 1px var(--ring-2),
+    0 2px 6px rgb(0 0 0 / 0.3);
+}
+
+.pin-wrap[data-status='done'] .disc {
+  background: var(--done);
+}
+
+.pin-wrap[data-status='question'] .disc {
+  background: var(--question);
+  color: var(--on-question);
+}
+
+/* --- pin card: the comment and the agent's reply, like a canvas comment thread ------------- */
+
+/* Always laid out (hidden, not removed) so pins.ts can measure it and place it fully on screen. */
+.thread {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  left: 40px;
+  width: 300px;
+  max-height: min(340px, calc(100vh - 16px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  translate: 0 4px;
+  transition:
+    opacity 140ms var(--ease-out),
+    translate 140ms var(--ease-out),
+    visibility 0s 140ms;
+}
+
+.pin-wrap.flip-x .thread {
+  right: 40px;
+  left: auto;
+}
+
+.pin-wrap:hover .thread,
+.pin-wrap:focus-within .thread,
+.pin-wrap.open .thread {
+  visibility: visible;
+  opacity: 1;
+  translate: 0 0;
+  transition-delay: 0s;
+}
+
+.thread:focus-within {
+  box-shadow: var(--focus-glow), var(--shadow-card);
+}
+
+.entry + .entry {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.entry-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.when {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.status {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.pin-wrap[data-status='done'] .status {
+  color: var(--done-ink);
+}
+
+.pin-wrap[data-status='question'] .status {
+  color: var(--question);
+}
+
+.entry-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.entry.agent .entry-text {
+  font: 14px/20px var(--serif);
+}
+
+.remove {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: -4px -6px -4px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.remove:hover {
+  background: var(--control);
+  color: var(--ink);
+}
+
+.reply-field {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 7px 7px 7px 12px;
+  border-radius: var(--radius-bubble);
+  background: var(--control);
+  box-shadow: inset 0 0 0 1px var(--ring-2);
+}
+
+.reply-field textarea {
+  min-height: 20px;
+  padding: 3px 0;
+}
+
+.send {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: var(--blue);
+  color: #fff;
+  cursor: pointer;
+}

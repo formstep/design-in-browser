@@ -1,0 +1,189 @@
+/* --- comment card ------------------------------------------------------------------------ */
+
+.composer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 300px;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  pointer-events: auto;
+  animation: rise 140ms var(--ease-out);
+}
+
+.composer:focus-within {
+  box-shadow: var(--focus-glow), var(--shadow-card);
+}
+
+.target {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  margin: 0 0 8px;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.target-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* The "@<agent>" chip sits on the textarea's first line; the textarea indents its text past it
+   (composer.ts fits the indent to the chip's width once the agent's name is known). */
+.field {
+  position: relative;
+}
+
+.chip {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 11px;
+  background: var(--blue-tint);
+  color: var(--blue-ink);
+  pointer-events: none;
+}
+
+textarea {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  max-height: 220px;
+  box-sizing: border-box;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  caret-color: var(--blue);
+  font: 14px/20px var(--font);
+  resize: none;
+  field-sizing: content;
+}
+
+/* Until fitted: clears an "@Claude"-sized chip, the longest agent name, plus the gap before the caret. */
+.field textarea {
+  text-indent: 82px;
+}
+
+textarea::placeholder {
+  color: var(--ink-3);
+}
+
+.composer-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  cursor: pointer;
+  user-select: none;
+}
+
+.check input {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 1px solid var(--ring-2);
+  border-radius: 5px;
+  background: var(--control);
+  cursor: pointer;
+}
+
+.check input:checked {
+  border-color: var(--blue);
+  background: var(--blue);
+}
+
+.check input:checked::after {
+  content: '';
+  width: 9px;
+  height: 5px;
+  margin-top: -2px;
+  border: 2px solid #fff;
+  border-top: 0;
+  border-right: 0;
+  rotate: -45deg;
+}
+
+.check input:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.hint {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.composer-error {
+  margin: 10px 0 0;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: var(--danger-tint);
+  color: var(--danger-ink);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+/* --- comment card: comment or ask for alternatives ---------------------------------------- */
+
+.modes {
+  display: flex;
+  gap: 2px;
+  margin: -4px -6px 8px;
+}
+
+.mode {
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.mode:hover {
+  color: var(--ink);
+}
+
+.mode[aria-selected='true'] {
+  background: var(--control);
+  color: var(--ink);
+}
+
+.count-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.count-label {
+  color: var(--ink-2);
+  font-size: 13px;
+}

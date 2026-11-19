@@ -1,0 +1,103 @@
+/* Shared by every part of the overlay, after tokens.css in its shadow root: fonts, focus, keys, the
+   segmented control, and motion. The overlay's look is inspired by Claude Design's canvas: a blue selection
+   outline, comment pins at the click point, a dark comment card, and a bottom tool pill while picking. */
+
+/* The host's inline `all: initial` resets inherited fonts, so each top-level part sets its own. */
+.highlight,
+.toolbar,
+.composer,
+.pin-wrap {
+  font: 14px/20px var(--font);
+  color: var(--ink);
+  text-align: left;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--blue-tint-2);
+}
+
+.icon {
+  display: block;
+  flex: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* Controls only: text fields show focus through their card's ring and glow. */
+button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--control);
+  color: var(--ink-2);
+  font: 500 11px/18px var(--font);
+  text-align: center;
+}
+
+/* A segmented row: the alternatives count, and choice tweaks. */
+.choices {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-control);
+  background: var(--control);
+}
+
+.choice {
+  min-width: 28px;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.choice:hover {
+  color: var(--ink);
+}
+
+.choice[aria-pressed='true'] {
+  background: var(--blue-tint-2);
+  color: var(--blue-ink);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+
+@keyframes pin-in {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

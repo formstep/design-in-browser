@@ -1,4 +1,4 @@
-/* The dock reads as Claude's chat: a thread of sent batches and the agent's replies,
+/* The dock reads like a chat with the agent, inspired by Claude's: a thread of sent batches and the agent's replies,
    with the composer pinned at the bottom holding the stacked comments.
    Loaded after tokens.css into the dock's own shadow root. */
 
@@ -292,7 +292,7 @@ kbd {
   gap: 12px;
 }
 
-/* You: a bubble on the right, as in Claude's chat. */
+/* You: a bubble on the right, as in a chat app. */
 .you {
   display: grid;
   justify-items: end;
@@ -370,7 +370,7 @@ kbd {
   color: var(--ink-3);
 }
 
-/* The agent's working state shimmers, as in Claude Design; the sweep is the state, so it only runs with motion on. */
+/* The agent's working state shimmers, inspired by Claude Design; the sweep is the state, so it only runs with motion on. */
 @media (prefers-reduced-motion: no-preference) {
   .working {
     background: linear-gradient(90deg, var(--ink-3) 30%, var(--ink) 50%, var(--ink-3) 70%) 0 0 / 300% 100%;

@@ -1,24 +1,27 @@
-// The dock: a chat with the coding agent inside the app's own page, styled after Claude's chat.
-// Each sent batch is your message, the agent's replies follow it, and the composer at the bottom holds
-// the stacked comments plus an optional note. It has its own shadow root, apart from the overlay's.
+// The dock: a chat with the coding agent inside the app's page, opened from a launcher in the bottom-right
+// corner (Alt+Shift+D). The header names the session, the thread shows sent batches and the agent's replies,
+// and the composer at the bottom holds the stacked comments plus an optional note.
 // Lists are rebuilt only when their data changes, so the periodic render never wipes text being typed.
-import { FALLBACK_AGENT, START_COMMAND, type Batch, type BatchComment, type DraftComment, type SessionInfo } from '../../shared/protocol.ts'
+import { FALLBACK_AGENT, START_COMMAND, type SessionInfo } from '../../shared/protocol.ts'
 import { capturePage } from '../capture.ts'
-import dockCss from './dock.css'
-import { fillIcons, icon, type IconName } from '../icons.ts'
-import { isPicking, onModeChange, registerUiHost, setReservedRight, togglePicker } from '../overlay/overlay.ts'
+import { newComment } from '../comments.ts'
+import { fillIcons } from '../icons.ts'
+import { isPicking, onModeChange, togglePicker } from '../overlay/mode.ts'
 import { defaultSession, onStateChange, readState, sendOp, type PageState } from '../store.ts'
-import tokensCss from '../tokens.css'
+import { el, iconNode, query } from '../ui/dom.ts'
+import { frameScheduler, keepKeys, submitOnEnter } from '../ui/events.ts'
+import { plural } from '../ui/format.ts'
+import { registerUiHost, setReservedRight } from '../ui/layout.ts'
+import { createShadowHost } from '../ui/shadow-host.ts'
+import dockCss from './dock.css'
+import { answerPlaces, turns, where } from './thread.ts'
 
 const DOCK_WIDTH = 380
 const OPEN_KEY = 'design-in-browser:dock-open'
+const PICK_SHORTCUT = /mac/i.test(navigator.platform) ? '⌥⇧C' : 'Alt+Shift+C'
 
-const host = document.createElement('dib-dock')
-host.style.cssText = 'all: initial; position: fixed; inset: 0; pointer-events: none; z-index: 2147483647;'
-const root = host.attachShadow({ mode: 'open' })
-const sheet = new CSSStyleSheet()
-sheet.replaceSync(tokensCss + dockCss)
-root.adoptedStyleSheets = [sheet]
+const { host, root } = createShadowHost('dib-dock', dockCss)
+registerUiHost(host)
 root.innerHTML = `
 <button type="button" class="launcher" data-testid="launcher" aria-label="Open Design in Browser" title="Comments (⌥⇧D)">
   <span data-icon="comment" data-size="18"></span><span class="launcher-count"></span>
@@ -65,11 +68,9 @@ root.innerHTML = `
     </form>
   </footer>
 </aside>`
-document.documentElement.append(host)
-registerUiHost(host)
+fillIcons(root)
 
-const $ = <T extends Element>(selector: string) => root.querySelector(selector) as T
-
+const $ = <T extends Element>(selector: string) => query<T>(root, selector)
 const launcher = $<HTMLButtonElement>('.launcher')
 const launcherCount = $<HTMLElement>('.launcher-count')
 const dock = $<HTMLElement>('.dock')
@@ -85,7 +86,7 @@ const introTitle = $<HTMLElement>('.intro-title')
 const introText = $<HTMLElement>('.intro-text')
 const commandButton = $<HTMLButtonElement>('.command')
 const copied = $<HTMLElement>('.copied')
-const turns = $<HTMLElement>('.turns')
+const turnList = $<HTMLElement>('.turns')
 const notice = $<HTMLElement>('.notice')
 const errorLine = $<HTMLElement>('.error')
 const errorText = $<HTMLElement>('.error-text')
@@ -96,13 +97,11 @@ const pickButton = $<HTMLButtonElement>('.pick')
 const count = $<HTMLElement>('.count')
 const sendButton = $<HTMLButtonElement>('.send')
 
-const isMac = /mac/i.test(navigator.platform)
-$<HTMLElement>('.shortcut').textContent = isMac ? '⌥⇧C' : 'Alt+Shift+C'
+$<HTMLElement>('.shortcut').textContent = PICK_SHORTCUT
 $<HTMLElement>('.command-text').textContent = START_COMMAND
-fillIcons(root)
+keepKeys(dock)
 
-// Keys typed into the dock belong to it, not to the app's shortcuts.
-for (const type of ['keydown', 'keyup', 'keypress']) dock.addEventListener(type, (event) => event.stopPropagation())
+const scheduleRender = frameScheduler(render)
 
 // --- open and close ------------------------------------------------------------------
 
@@ -134,27 +133,14 @@ window.addEventListener(
     if (!(event.altKey && event.shiftKey && event.code === 'KeyD')) return
     event.preventDefault()
     event.stopImmediatePropagation()
+    // `hidden` can also be "until-found"; the attribute alone says whether the dock is closed.
     setOpen(dock.hasAttribute('hidden'))
   },
   true,
 )
 
-type Props = { className?: string; textContent?: string; title?: string; value?: string; type?: string; rows?: number; placeholder?: string }
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Props = {}, children: Array<Node | string> = []): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag)
-  Object.assign(node, props)
-  node.append(...children)
-  return node
-}
-
-function iconNode(name: IconName, size = 16): Element {
-  const holder = document.createElement('span')
-  holder.innerHTML = icon(name, size)
-  return holder.firstElementChild!
-}
-
 const hostsOf = (session: SessionInfo) => session.origins.map((origin) => new URL(origin).host).join(', ')
+const describeSession = (session: SessionInfo) => [session.projectRoot, hostsOf(session)].filter(Boolean).join(' · ')
 
 // --- header and intro ---------------------------------------------------------------
 
@@ -165,7 +151,7 @@ function renderHeader(state: PageState, session: SessionInfo | null): void {
   top.dataset.state = !connected || !session ? 'offline' : session.listening ? 'listening' : 'queued'
   stateLabel.textContent = !connected ? 'Offline' : !session ? 'No session' : session.listening ? `${session.agent} is listening` : 'Not listening'
   project.textContent = session ? session.label : 'Design in Browser'
-  project.title = session ? [session.projectRoot, hostsOf(session)].filter(Boolean).join(' · ') : ''
+  project.title = session ? describeSession(session) : ''
 
   // A picker when there is a choice to make, or when no session works on this project: then the user
   // picks one, and nothing is sent by guesswork.
@@ -175,28 +161,28 @@ function renderHeader(state: PageState, session: SessionInfo | null): void {
   const signature = JSON.stringify([session === null, state.sessions.map((entry) => [entry.id, entry.label, entry.agent, entry.origins])])
   if (signature !== renderedSessions) {
     renderedSessions = signature
-    sessionSelect.replaceChildren(
-      ...(session ? [] : [el('option', { value: '', textContent: 'Choose a session' })]),
-      ...state.sessions.map((entry) =>
-        el('option', { value: entry.id, textContent: `${entry.label} · ${entry.agent}`, title: [entry.projectRoot, hostsOf(entry)].filter(Boolean).join(' · ') }),
-      ),
-    )
+    const option = (value: string, text: string, title = '') => {
+      const node = el('option', { textContent: text, title })
+      node.value = value
+      return node
+    }
+    sessionSelect.replaceChildren(...(session ? [] : [option('', 'Choose a session')]), ...state.sessions.map((entry) => option(entry.id, `${entry.label} · ${entry.agent}`, describeSession(entry))))
   }
   // A render that read state before the user's pick landed must not flip the select back under them.
   if (root.activeElement !== sessionSelect) sessionSelect.value = session?.id ?? ''
   pickerText.textContent = session ? `${session.label} · ${session.agent}` : 'Choose a session'
 }
 
-function renderIntro(state: PageState, session: SessionInfo | null, hasTurns: boolean): void {
+function renderIntro(state: PageState, session: SessionInfo | null): void {
   const needsStart = state.connection === 'offline' || !session
-  intro.hidden = hasTurns && !needsStart
+  intro.hidden = state.batches.length > 0 && !needsStart
   commandButton.hidden = !needsStart
-  if (state.connection === 'offline' || !session) {
+  if (needsStart) {
     introTitle.textContent = state.connection === 'offline' ? 'Not connected to a coding agent' : 'No agent session'
     introText.textContent = 'Connect a session from your project. In Claude Code, run:'
   } else {
     introTitle.textContent = 'Comment on your app'
-    introText.textContent = `Click Comment or press ${isMac ? '⌥⇧C' : 'Alt+Shift+C'}, then click anything on the page. ${session.agent} answers here.`
+    introText.textContent = `Click Comment or press ${PICK_SHORTCUT}, then click anything on the page. ${session.agent} answers here.`
   }
 }
 
@@ -208,15 +194,12 @@ commandButton.addEventListener('click', async () => {
 
 // --- composer -----------------------------------------------------------------------
 
-function where(comment: DraftComment | BatchComment): string {
-  const path = new URL(comment.page.url).pathname
-  if (!comment.element) return `Page · ${path}`
-  const { tag, id, classes, text } = comment.element
-  const name = `${tag}${id ? `#${id}` : ''}${classes.slice(0, 1).map((entry) => `.${entry}`).join('')}`
-  return [name, text ? `“${text}”` : '', path].filter(Boolean).join(' · ')
-}
-
 let renderedDraft = ''
+
+/** The agent that asked a question: the one that owns its batch. Batch ids repeat per project, so match the project too. */
+function askedBy(state: PageState, session: SessionInfo | null, batchId: string): string {
+  return state.batches.find((batch) => batch.id === batchId && batch.projectRoot === session?.projectRoot)?.agent ?? session?.agent ?? FALLBACK_AGENT
+}
 
 function renderComposer(state: PageState, session: SessionInfo | null, canSend: boolean): void {
   const ready = state.draft.filter((comment) => comment.text.trim() !== '').length
@@ -224,7 +207,7 @@ function renderComposer(state: PageState, session: SessionInfo | null, canSend: 
   sendButton.disabled = !canSend || state.sending || (ready === 0 && !typed)
   sendButton.title = canSend ? '' : 'Connect an agent session to send'
   sendButton.setAttribute('aria-label', `Send to ${session?.agent ?? FALLBACK_AGENT}`)
-  count.textContent = ready ? `${ready} ${ready === 1 ? 'comment' : 'comments'}` : ''
+  count.textContent = ready ? plural(ready, 'comment', 'comments') : ''
   errorLine.hidden = !state.lastError
   errorText.textContent = state.lastError ?? ''
 
@@ -235,32 +218,20 @@ function renderComposer(state: PageState, session: SessionInfo | null, canSend: 
 
   draftList.replaceChildren(
     ...state.draft.map((comment, index) => {
-      const field = el('textarea', { rows: 1, value: comment.text, placeholder: comment.inReplyTo ? 'Your answer' : 'What should change?' })
-      field.dataset.id = comment.id
-      field.setAttribute('aria-label', `Comment ${index + 1}`)
+      const field = el('textarea', { attrs: { rows: '1', placeholder: comment.inReplyTo ? 'Your answer' : 'What should change?', 'aria-label': `Comment ${index + 1}`, 'data-id': comment.id } })
+      field.value = comment.text
       field.addEventListener('change', () => void sendOp({ type: 'update-comment', id: comment.id, text: field.value }))
-      const remove = el('button', { type: 'button', className: 'icon-button', title: 'Remove comment' }, [iconNode('close', 14)])
-      remove.setAttribute('aria-label', `Remove comment ${index + 1}`)
+      const remove = el('button', { className: 'icon-button', title: 'Remove comment', attrs: { type: 'button', 'aria-label': `Remove comment ${index + 1}` } }, [iconNode('close', 14)])
       remove.addEventListener('click', () => void sendOp({ type: 'remove-comment', id: comment.id }))
-      const item = el('li', { className: 'draft' }, [
-        el('div', { className: 'draft-head' }, [
-          el('span', { className: 'num', textContent: String(index + 1) }),
-          el('span', { className: 'draft-where', textContent: where(comment), title: comment.element?.selector ?? comment.page.url }),
-          remove,
-        ]),
-        ...(comment.inReplyTo ? [el('p', { className: 'draft-context' }, [el('b', { textContent: `${askedBy(state, session, comment.inReplyTo.batchId)} asked: ` }), comment.inReplyTo.question])] : []),
+      const context = comment.inReplyTo ? [el('p', { className: 'draft-context' }, [el('b', { textContent: `${askedBy(state, session, comment.inReplyTo.batchId)} asked: ` }), comment.inReplyTo.question])] : []
+      return el('li', { className: 'draft', attrs: { 'data-testid': 'draft-item' } }, [
+        el('div', { className: 'draft-head' }, [el('span', { className: 'num', textContent: String(index + 1) }), el('span', { className: 'draft-where', textContent: where(comment), title: comment.element?.selector ?? comment.page.url }), remove]),
+        ...context,
         field,
       ])
-      item.dataset.testid = 'draft-item'
-      return item
     }),
   )
   if (focused) draftList.querySelector<HTMLTextAreaElement>(`textarea[data-id="${CSS.escape(focused)}"]`)?.focus()
-}
-
-/** The agent that asked a question: the one that owns its batch. Batch ids repeat per project, so match the project too. */
-function askedBy(state: PageState, session: SessionInfo | null, batchId: string): string {
-  return state.batches.find((batch) => batch.id === batchId && batch.projectRoot === session?.projectRoot)?.agent ?? session?.agent ?? FALLBACK_AGENT
 }
 
 async function send(): Promise<void> {
@@ -270,8 +241,7 @@ async function send(): Promise<void> {
   const ready = state.draft.some((comment) => comment.text.trim() !== '')
   if (!session || state.connection !== 'connected' || state.sending || (!ready && text === '')) return
   if (text !== '') {
-    const note: DraftComment = { id: crypto.randomUUID(), text, page: capturePage(), element: null, inReplyTo: null, createdAt: new Date().toISOString() }
-    await sendOp({ type: 'add-comment', comment: note })
+    await sendOp({ type: 'add-comment', comment: newComment({ text, page: capturePage(), element: null }) })
     message.value = ''
   }
   await sendOp({ type: 'send', sessionId: session.id })
@@ -282,179 +252,39 @@ compose.addEventListener('submit', (event) => {
   event.preventDefault()
   void send()
 })
-message.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
-    event.preventDefault()
-    void send()
-  }
-})
-message.addEventListener('input', () => scheduleRender())
+submitOnEnter(message, () => void send())
+message.addEventListener('input', scheduleRender)
 
 // --- thread ---------------------------------------------------------------------------
 
-const statusWord: Record<BatchComment['status'], string> = {
-  pending: 'Waiting',
-  done: 'Done',
-  question: 'Question',
-  skipped: 'Skipped',
-  variants: 'Alternatives',
-}
-
-const time = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
-const dayAndTime = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-const when = (iso: string) => {
-  const date = new Date(iso)
-  return (date.toDateString() === new Date().toDateString() ? time : dayAndTime).format(date)
-}
-
-/** Answers being typed under the agent's questions, by comment id. Kept outside the DOM so a rebuild doesn't lose them. */
-const answerDrafts = new Map<string, string>()
 let renderedTurns = ''
 let scrollToEnd = true
+/** True while the reader is at the end of the thread; then growth anywhere (new replies, a taller composer) keeps the end in view. */
+let atEnd = true
 
-/** Where each question's answer is: in the composer, or sent in a batch. */
-function answers(state: PageState): Map<string, string> {
-  const found = new Map<string, string>()
-  for (const batch of state.batches) {
-    for (const comment of batch.comments) if (comment.inReplyTo) found.set(comment.inReplyTo.commentId, `Answered in batch ${batch.id}.`)
-  }
-  for (const comment of state.draft) if (comment.inReplyTo) found.set(comment.inReplyTo.commentId, 'Your answer is in the composer, ready to send.')
-  return found
-}
-
-/** Scrolls the page to a `<Variants>` group, where its switcher is. */
-function showOnPage(group: string): HTMLElement {
-  const link = el('button', { type: 'button', className: 'show-group', textContent: 'Show on page' })
-  link.dataset.testid = 'show-group'
-  link.addEventListener('click', () => {
-    const wrapper = document.querySelector(`dib-variants[data-group="${CSS.escape(group)}"]`)
-    wrapper?.firstElementChild?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-  })
-  return link
-}
-
-function answerForm(batch: Batch, comment: BatchComment): HTMLFormElement {
-  const field = el('textarea', { rows: 1, value: answerDrafts.get(comment.id) ?? '', placeholder: `Answer ${batch.agent}` })
-  field.dataset.answer = comment.id
-  field.dataset.testid = 'answer-field'
-  field.setAttribute('aria-label', `Answer to: ${comment.reply ?? comment.text}`)
-  field.addEventListener('input', () => answerDrafts.set(comment.id, field.value))
-  const submitButton = el('button', { type: 'submit', className: 'send', title: 'Add answer' }, [iconNode('arrowUp', 15)])
-  submitButton.setAttribute('aria-label', 'Add answer')
-  const form = el('form', { className: 'answer' }, [field, submitButton])
-  const submit = async () => {
-    const text = field.value.trim()
-    if (text === '') {
-      field.focus()
-      return
-    }
-    answerDrafts.delete(comment.id)
-    await sendOp({
-      type: 'add-comment',
-      comment: {
-        id: crypto.randomUUID(),
-        text,
-        page: comment.page,
-        element: comment.element,
-        inReplyTo: { batchId: batch.id, commentId: comment.id, comment: comment.text, question: comment.reply ?? '' },
-        createdAt: new Date().toISOString(),
-      },
-    })
-  }
-  form.addEventListener('submit', (event) => {
-    event.preventDefault()
-    void submit()
-  })
-  field.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
-      event.preventDefault()
-      void submit()
-    }
-  })
-  return form
-}
-
-function agentSide(batch: Batch, answered: Map<string, string>): HTMLElement {
-  const side = el('div', { className: 'agent' })
-  if (batch.status === 'queued') {
-    side.append(el('p', { className: 'waiting', textContent: `Waiting for ${batch.agent}` }))
-    return side
-  }
-  const replied = batch.comments.map((comment, index) => ({ comment, index })).filter(({ comment }) => comment.status !== 'pending')
-  if (replied.length > 0) {
-    side.append(
-      el(
-        'ol',
-        { className: 'replies' },
-        replied.map(({ comment, index }) => {
-          // The numbered disc ties a reply to its comment; only a question or a skip gets a visible label.
-          const label =
-            comment.status === 'done'
-              ? el('span', { className: 'visually-hidden', textContent: `Done, comment ${index + 1}: ` })
-              : el('p', { className: 'reply-label', textContent: statusWord[comment.status] })
-          const body = el('div', {}, [label, el('p', { className: 'reply-text', textContent: comment.reply ?? '' })])
-          const followup = answered.get(comment.id)
-          if (comment.status === 'question') body.append(followup ? el('p', { className: 'followup', textContent: followup }) : answerForm(batch, comment))
-          if (comment.status === 'variants' && comment.group) body.append(showOnPage(comment.group))
-          const item = el('li', { className: 'reply' }, [el('span', { className: 'num', textContent: String(index + 1) }), body])
-          item.dataset.status = comment.status
-          return item
-        }),
-      ),
-    )
-  }
-  if (batch.status === 'fetched') side.append(el('p', { className: 'working', textContent: replied.length > 0 ? 'Working on the rest' : 'Working on it' }))
-  if (batch.summary) side.append(el('p', { className: 'summary', textContent: batch.summary }))
-  return side
-}
-
-function renderTurns(state: PageState, batches: Batch[]): void {
-  const answered = answers(state)
-  const signature = JSON.stringify([batches, [...answered]])
+function renderTurns(state: PageState): void {
+  const answered = answerPlaces(state)
+  const signature = JSON.stringify([state.batches, [...answered]])
   if (signature === renderedTurns) return
   renderedTurns = signature
   const focused = root.activeElement instanceof HTMLTextAreaElement ? root.activeElement.dataset.answer : undefined
-
-  turns.replaceChildren(
-    ...[...batches].reverse().map((batch) => {
-      const you = el('div', { className: 'you' }, [
-        el('div', { className: 'bubble' }, [
-          el(
-            'ol',
-            { className: 'bubble-comments' },
-            batch.comments.map((comment, index) =>
-              el('li', {}, [
-                el('p', { className: 'ref' }, [el('span', { className: 'num', textContent: String(index + 1) }), el('span', { className: 'ref-text', textContent: where(comment) })]),
-                el('p', { className: 'comment-text', textContent: comment.text }),
-              ]),
-            ),
-          ),
-        ]),
-        el('p', { className: 'meta', textContent: `Batch ${batch.id} · ${when(batch.createdAt)}` }),
-      ])
-      const turn = el('article', { className: 'turn' }, [you, agentSide(batch, answered)])
-      turn.dataset.batch = batch.id
-      return turn
-    }),
-  )
-  if (focused) turns.querySelector<HTMLTextAreaElement>(`textarea[data-answer="${CSS.escape(focused)}"]`)?.focus()
+  turnList.replaceChildren(...turns(state.batches, answered))
+  if (focused) turnList.querySelector<HTMLTextAreaElement>(`textarea[data-answer="${CSS.escape(focused)}"]`)?.focus()
   if (scrollToEnd) atEnd = true
   scrollToEnd = false
   keepEnd()
 }
 
-/** True while the reader is at the end of the thread; then growth anywhere (new replies, a taller composer) keeps the end in view. */
-let atEnd = true
 thread.addEventListener('scroll', () => {
   atEnd = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 40
 })
 function keepEnd(): void {
   if (atEnd) thread.scrollTop = thread.scrollHeight
 }
-new ResizeObserver(keepEnd).observe(root.querySelector('.bottom')!)
-new ResizeObserver(keepEnd).observe(turns)
+new ResizeObserver(keepEnd).observe($('.bottom'))
+new ResizeObserver(keepEnd).observe(turnList)
 
-// --- render loop -----------------------------------------------------------------
+// --- render ----------------------------------------------------------------------------
 
 function render(): void {
   const state = readState()
@@ -473,23 +303,14 @@ function render(): void {
     : `${session?.agent ?? FALLBACK_AGENT} isn’t listening right now. What you send waits until it’s back.`
 
   renderComposer(state, session, connected)
-  renderIntro(state, session, state.batches.length > 0)
-  renderTurns(state, state.batches)
-}
-
-let frame = 0
-function scheduleRender(): void {
-  if (frame) return
-  frame = requestAnimationFrame(() => {
-    frame = 0
-    render()
-  })
+  renderIntro(state, session)
+  renderTurns(state)
 }
 
 sessionSelect.addEventListener('change', () => {
   if (sessionSelect.value) void sendOp({ type: 'pick-session', sessionId: sessionSelect.value })
 })
-pickButton.addEventListener('click', () => togglePicker())
+pickButton.addEventListener('click', togglePicker)
 
 onStateChange(scheduleRender)
 onModeChange(scheduleRender)

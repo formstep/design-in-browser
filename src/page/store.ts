@@ -1,7 +1,8 @@
 // The page's view of the plugin's state, kept current over Vite's HMR socket.
 // Operations go to the plugin and resolve on its ack. Vite drops a send while its socket is down without
 // telling the caller, so every operation has its own timeout: a failed save must surface, not vanish.
-import { PAGE_EVENT, type OpAck, type OpRequest, type PageOp, type PageState } from '../shared/page-protocol.ts'
+import { defaultSession, PAGE_EVENT, type OpAck, type OpRequest, type PageOp, type PageState } from '../shared/page-protocol.ts'
+import { FALLBACK_AGENT, type DraftComment, type SessionInfo } from '../shared/protocol.ts'
 
 export { defaultSession } from '../shared/page-protocol.ts'
 export type { PageState } from '../shared/page-protocol.ts'
@@ -72,4 +73,21 @@ export function sendOp(op: PageOp): Promise<void> {
       reject(error instanceof Error ? error : new Error(String(error)))
     }
   })
+}
+
+/** The agent this page talks to, as the UI names it: "Claude", "OpenCode", or "Agent" when none is connected. */
+export function agentName(state: PageState = current): string {
+  return defaultSession(state)?.agent ?? FALLBACK_AGENT
+}
+
+/** The session a send would reach now: none while the plugin is offline. */
+export function connectedSession(state: PageState = current): SessionInfo | null {
+  return state.connection === 'connected' ? defaultSession(state) : null
+}
+
+/** Adds a comment to the stack and, with `send`, sends the stack when a session is connected. */
+export async function addComment(comment: DraftComment, send: boolean): Promise<void> {
+  await sendOp({ type: 'add-comment', comment })
+  const session = connectedSession()
+  if (send && session) await sendOp({ type: 'send', sessionId: session.id })
 }
