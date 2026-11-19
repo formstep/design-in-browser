@@ -88,7 +88,11 @@ test('alternatives: tweaks change the version live and stay set', async () => {
       const { x, y, width, height } = range.getBoundingClientRect()
       return { x, y, width, height }
     })
-    const apart = cardBox.x >= box.x + box.width || cardBox.x + cardBox.width <= box.x || cardBox.y >= box.y + box.height || cardBox.y + cardBox.height <= box.y
+    const apart =
+      cardBox.x >= box.x + box.width ||
+      cardBox.x + cardBox.width <= box.x ||
+      cardBox.y >= box.y + box.height ||
+      cardBox.y + cardBox.height <= box.y
     expect(apart).toBe(true)
   }
   await card.locator('input[data-tweak="badge"]').uncheck()
@@ -145,14 +149,20 @@ test('alternatives: a pick sends the version with every tweak value, and the swi
   })
   expect(pick.text).toBe('Use “Tinted card” for hero (Padding 80px, New badge off, Align center)')
   // The agent applies it; here the wrapper stays (nothing edits the fixture), so the switcher comes back.
-  await callTool(shim, 'live_reply', { batchId: batch.id, replies: [{ commentId: pick.id, status: 'done', message: 'Tinted card is in, with your values.' }] })
+  await callTool(shim, 'live_reply', {
+    batchId: batch.id,
+    replies: [{ commentId: pick.id, status: 'done', message: 'Tinted card is in, with your values.' }],
+  })
   await expect(hero.getByTestId('variant-count')).toHaveText('1 / 2')
 })
 
 test('alternatives: ask for them, comment on a version, and see the agent hand them over', async () => {
   // Ask for one alternative of an element.
   await page.keyboard.press('Alt+Shift+C')
-  await page.locator('.plan').first().click({ position: { x: 20, y: 20 } })
+  await page
+    .locator('.plan')
+    .first()
+    .click({ position: { x: 20, y: 20 } })
   const composer = page.locator('dib-overlay .composer')
   await composer.getByRole('tab', { name: 'Alternatives' }).click()
   await composer.getByRole('button', { name: '1', exact: true }).click()

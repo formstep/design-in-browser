@@ -38,7 +38,8 @@ function setRequest(next: Request): void {
   request = next
   for (const tab of root.querySelectorAll<HTMLButtonElement>('.mode')) tab.setAttribute('aria-selected', String(tab.dataset.mode === next))
   countRow.hidden = next !== 'alternatives'
-  for (const choice of countRow.querySelectorAll<HTMLButtonElement>('.choice')) choice.setAttribute('aria-pressed', String(Number(choice.dataset.count) === alternativeCount))
+  for (const choice of countRow.querySelectorAll<HTMLButtonElement>('.choice'))
+    choice.setAttribute('aria-pressed', String(Number(choice.dataset.count) === alternativeCount))
   countLabel.textContent = alternativeCount === 1 ? 'How many · shown as before / after' : 'How many'
   textarea.placeholder = next === 'alternatives' ? 'What should they try? (optional)' : ''
   placeComposer()
@@ -126,7 +127,9 @@ async function submit(): Promise<void> {
   }
   const send = sendOnAdd.checked
   if (send && !connectedSession()) {
-    showError(`No agent session is connected to send to. Untick the box to keep it with your comments, or connect a session (in Claude Code: ${START_COMMAND}).`)
+    showError(
+      `No agent session is connected to send to. Untick the box to keep it with your comments, or connect a session (in Claude Code: ${START_COMMAND}).`
+    )
     return
   }
   const { element, offset, after } = mode

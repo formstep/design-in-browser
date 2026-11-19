@@ -87,7 +87,7 @@ function devServer(options: DesignInBrowserOptions): Plugin {
         enabled = loopbackOnly(server.httpServer?.address())
         if (!enabled) {
           server.config.logger.warn(
-            `[${PRODUCT_NAME}] Off: this dev server listens beyond localhost (--host), so anyone on the network could send text into your agent's session. Run it on localhost to use it.`,
+            `[${PRODUCT_NAME}] Off: this dev server listens beyond localhost (--host), so anyone on the network could send text into your agent's session. Run it on localhost to use it.`
           )
           return
         }

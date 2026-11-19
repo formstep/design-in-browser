@@ -56,7 +56,10 @@ export function buildSelector(element: Element): string {
 
 /** `button.primary.large` style label, for people and for the agent. */
 export function label(element: Element): string {
-  const classes = [...element.classList].slice(0, 3).map((name) => `.${name}`).join('')
+  const classes = [...element.classList]
+    .slice(0, 3)
+    .map((name) => `.${name}`)
+    .join('')
   const id = element.id ? `#${element.id}` : ''
   return `${element.localName}${id}${classes}`
 }

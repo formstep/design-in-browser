@@ -136,7 +136,7 @@ window.addEventListener(
     // `hidden` can also be "until-found"; the attribute alone says whether the dock is closed.
     setOpen(dock.hasAttribute('hidden'))
   },
-  true,
+  true
 )
 
 const hostsOf = (session: SessionInfo) => session.origins.map((origin) => new URL(origin).host).join(', ')
@@ -149,7 +149,13 @@ let renderedSessions = ''
 function renderHeader(state: PageState, session: SessionInfo | null): void {
   const connected = state.connection === 'connected'
   top.dataset.state = !connected || !session ? 'offline' : session.listening ? 'listening' : 'queued'
-  stateLabel.textContent = !connected ? 'Offline' : !session ? 'No session' : session.listening ? `${session.agent} is listening` : 'Not listening'
+  stateLabel.textContent = !connected
+    ? 'Offline'
+    : !session
+      ? 'No session'
+      : session.listening
+        ? `${session.agent} is listening`
+        : 'Not listening'
   project.textContent = session ? session.label : 'Design in Browser'
   project.title = session ? describeSession(session) : ''
 
@@ -166,7 +172,10 @@ function renderHeader(state: PageState, session: SessionInfo | null): void {
       node.value = value
       return node
     }
-    sessionSelect.replaceChildren(...(session ? [] : [option('', 'Choose a session')]), ...state.sessions.map((entry) => option(entry.id, `${entry.label} · ${entry.agent}`, describeSession(entry))))
+    sessionSelect.replaceChildren(
+      ...(session ? [] : [option('', 'Choose a session')]),
+      ...state.sessions.map((entry) => option(entry.id, `${entry.label} · ${entry.agent}`, describeSession(entry)))
+    )
   }
   // A render that read state before the user's pick landed must not flip the select back under them.
   if (root.activeElement !== sessionSelect) sessionSelect.value = session?.id ?? ''
@@ -218,18 +227,40 @@ function renderComposer(state: PageState, session: SessionInfo | null, canSend: 
 
   draftList.replaceChildren(
     ...state.draft.map((comment, index) => {
-      const field = el('textarea', { attrs: { rows: '1', placeholder: comment.inReplyTo ? 'Your answer' : 'What should change?', 'aria-label': `Comment ${index + 1}`, 'data-id': comment.id } })
+      const field = el('textarea', {
+        attrs: {
+          rows: '1',
+          placeholder: comment.inReplyTo ? 'Your answer' : 'What should change?',
+          'aria-label': `Comment ${index + 1}`,
+          'data-id': comment.id,
+        },
+      })
       field.value = comment.text
       field.addEventListener('change', () => void sendOp({ type: 'update-comment', id: comment.id, text: field.value }))
-      const remove = el('button', { className: 'icon-button', title: 'Remove comment', attrs: { type: 'button', 'aria-label': `Remove comment ${index + 1}` } }, [iconNode('close', 14)])
+      const remove = el(
+        'button',
+        { className: 'icon-button', title: 'Remove comment', attrs: { type: 'button', 'aria-label': `Remove comment ${index + 1}` } },
+        [iconNode('close', 14)]
+      )
       remove.addEventListener('click', () => void sendOp({ type: 'remove-comment', id: comment.id }))
-      const context = comment.inReplyTo ? [el('p', { className: 'draft-context' }, [el('b', { textContent: `${askedBy(state, session, comment.inReplyTo.batchId)} asked: ` }), comment.inReplyTo.question])] : []
+      const context = comment.inReplyTo
+        ? [
+            el('p', { className: 'draft-context' }, [
+              el('b', { textContent: `${askedBy(state, session, comment.inReplyTo.batchId)} asked: ` }),
+              comment.inReplyTo.question,
+            ]),
+          ]
+        : []
       return el('li', { className: 'draft', attrs: { 'data-testid': 'draft-item' } }, [
-        el('div', { className: 'draft-head' }, [el('span', { className: 'num', textContent: String(index + 1) }), el('span', { className: 'draft-where', textContent: where(comment), title: comment.element?.selector ?? comment.page.url }), remove]),
+        el('div', { className: 'draft-head' }, [
+          el('span', { className: 'num', textContent: String(index + 1) }),
+          el('span', { className: 'draft-where', textContent: where(comment), title: comment.element?.selector ?? comment.page.url }),
+          remove,
+        ]),
         ...context,
         field,
       ])
-    }),
+    })
   )
   if (focused) draftList.querySelector<HTMLTextAreaElement>(`textarea[data-id="${CSS.escape(focused)}"]`)?.focus()
 }

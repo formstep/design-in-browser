@@ -8,7 +8,14 @@ import fs from 'node:fs'
 import http from 'node:http'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { z } from 'zod'
-import { LISTENER_REPLACED_CLOSE_CODE, PRODUCT_NAME, type DaemonToPlugin, type Health, type ShimRequest, type ShimResponse } from '../shared/protocol.ts'
+import {
+  LISTENER_REPLACED_CLOSE_CODE,
+  PRODUCT_NAME,
+  type DaemonToPlugin,
+  type Health,
+  type ShimRequest,
+  type ShimResponse,
+} from '../shared/protocol.ts'
 import { BUILD_ID, config, tokenPath } from '../node/config.ts'
 import { draftCommentSchema } from './schemas.ts'
 import * as state from './state.ts'
@@ -135,7 +142,11 @@ function handlePluginMessage(socket: WebSocket, raw: string): void {
   const message = parsed.data
   switch (message.type) {
     case 'hello':
-      send(socket, { type: 'state', sessions: state.allSessions().map(state.sessionInfo), batches: state.recentBatches(message.projectRoot) })
+      send(socket, {
+        type: 'state',
+        sessions: state.allSessions().map(state.sessionInfo),
+        batches: state.recentBatches(message.projectRoot),
+      })
       return
     case 'ping':
       send(socket, { type: 'pong' })

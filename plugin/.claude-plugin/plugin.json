@@ -2,13 +2,7 @@
   "name": "design-in-browser",
   "version": "0.1.0",
   "description": "Comment on your local app's UI in Chrome and have this Claude Code session act on the comments live.",
-  "keywords": [
-    "design",
-    "browser",
-    "chrome-extension",
-    "ui",
-    "review"
-  ],
+  "keywords": ["design", "browser", "chrome-extension", "ui", "review"],
   "author": {
     "name": "Onur"
   }

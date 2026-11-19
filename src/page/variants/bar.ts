@@ -29,7 +29,10 @@ const action = (name: string, label: string) => ({ 'data-action': name, 'aria-la
 function steadyText(target: HTMLElement, shown: string, all: string[]): void {
   target.classList.add('steady')
   const spares = [...new Set(all.filter((option) => option !== shown))]
-  target.replaceChildren(el('span', { className: 'steady-shown', textContent: shown }), ...spares.map((option) => el('span', { className: 'steady-spare', textContent: option, attrs: { 'aria-hidden': 'true' } })))
+  target.replaceChildren(
+    el('span', { className: 'steady-shown', textContent: shown }),
+    ...spares.map((option) => el('span', { className: 'steady-spare', textContent: option, attrs: { 'aria-hidden': 'true' } }))
+  )
 }
 
 function segment(label: string, name: string, pressed: boolean, className = 'segment'): HTMLButtonElement {
@@ -41,7 +44,10 @@ export function bar(model: BarModel): HTMLElement {
   const element = el('div', { className: 'variant-bar', attrs: { role: 'toolbar', 'aria-label': `Versions of ${group}` } })
   const name = el('span', { className: 'variant-group', html: icon('layers', 14) }, [group])
   if (model.pick) {
-    element.append(name, el('span', { className: 'variant-picked', textContent: `Picked “${model.pick.label}” · waiting for ${model.agent}` }))
+    element.append(
+      name,
+      el('span', { className: 'variant-picked', textContent: `Picked “${model.pick.label}” · waiting for ${model.agent}` })
+    )
     return element
   }
   const alternatives = labels.length - 1
@@ -59,18 +65,37 @@ export function bar(model: BarModel): HTMLElement {
     element.append(
       el('span', { className: 'segments' }, [before, shown]),
       button({ className: 'variant-step', html: icon('chevronLeft', 16), attrs: action('prev', 'Previous alternative') }),
-      el('span', { className: 'variant-count', textContent: `${model.alternative} / ${alternatives}`, attrs: { 'data-testid': 'variant-count' } }),
-      button({ className: 'variant-step', html: icon('chevronRight', 16), attrs: action('next', 'Next alternative') }),
+      el('span', {
+        className: 'variant-count',
+        textContent: `${model.alternative} / ${alternatives}`,
+        attrs: { 'data-testid': 'variant-count' },
+      }),
+      button({ className: 'variant-step', html: icon('chevronRight', 16), attrs: action('next', 'Next alternative') })
     )
     if (index === 0) element.classList.add('on-before')
   }
   if (model.hasTweaks && index > 0) {
-    element.append(button({ className: 'variant-tweaks', html: `${icon('sliders', 15)}<span>Tweaks</span>`, attrs: { ...action('tweaks', 'Tweaks'), 'aria-pressed': String(model.tweaksOpen) } }))
+    element.append(
+      button({
+        className: 'variant-tweaks',
+        html: `${icon('sliders', 15)}<span>Tweaks</span>`,
+        attrs: { ...action('tweaks', 'Tweaks'), 'aria-pressed': String(model.tweaksOpen) },
+      })
+    )
   } else if (model.reserveTweaks) {
-    element.append(el('span', { className: 'variant-tweaks reserved', html: `${icon('sliders', 15)}<span>Tweaks</span>`, attrs: { 'aria-hidden': 'true' } }))
+    element.append(
+      el('span', {
+        className: 'variant-tweaks reserved',
+        html: `${icon('sliders', 15)}<span>Tweaks</span>`,
+        attrs: { 'aria-hidden': 'true' },
+      })
+    )
   }
   const keepAfter = alternatives === 1 ? 'Keep after' : 'Use this'
-  const use = button({ className: 'variant-use', attrs: action('use', index === 0 ? 'Keep before' : `Use ${labels[index] ?? 'this version'}`) })
+  const use = button({
+    className: 'variant-use',
+    attrs: action('use', index === 0 ? 'Keep before' : `Use ${labels[index] ?? 'this version'}`),
+  })
   steadyText(use, index === 0 ? 'Keep before' : keepAfter, ['Keep before', keepAfter])
   element.append(use)
   return element

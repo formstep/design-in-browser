@@ -89,9 +89,13 @@ export function queueBatch(sessionId: string, comments: DraftComment[]): Batch {
   if (!session) throw new Error(`That agent session has ended. Connect a session again (in Claude Code: ${START_COMMAND}), then send.`)
   // An answer must reach the project whose batch asked the question.
   const known = projectBatches(session.projectRoot)
-  const misrouted = comments.some(({ inReplyTo }) => inReplyTo && !known.get(inReplyTo.batchId)?.comments.some((original) => original.id === inReplyTo.commentId))
+  const misrouted = comments.some(
+    ({ inReplyTo }) => inReplyTo && !known.get(inReplyTo.batchId)?.comments.some((original) => original.id === inReplyTo.commentId)
+  )
   if (misrouted) {
-    throw new Error(`An answer goes to the project that asked the question, not ${path.basename(session.projectRoot)}. Pick that project's session and send again.`)
+    throw new Error(
+      `An answer goes to the project that asked the question, not ${path.basename(session.projectRoot)}. Pick that project's session and send again.`
+    )
   }
   ensureJournal(session.projectRoot)
   const batch: Batch = {
@@ -135,7 +139,8 @@ function requireSession(sessionId: string): Session {
 
 export function connect(params: ConnectParams, shim: WebSocket): { session: Session; result: ConnectResult } {
   if (!path.isAbsolute(params.projectRoot)) throw new Error(`projectRoot must be absolute: ${params.projectRoot}`)
-  if (!fs.statSync(params.projectRoot, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`projectRoot is not a directory: ${params.projectRoot}`)
+  if (!fs.statSync(params.projectRoot, { throwIfNoEntry: false })?.isDirectory())
+    throw new Error(`projectRoot is not a directory: ${params.projectRoot}`)
   const journalDir = ensureJournal(params.projectRoot)
   // A repeated connect updates the session in place: listener close handlers hold on to this object.
   const session: Session = sessions.get(params.sessionId) ?? {
@@ -216,12 +221,18 @@ export function reply(params: ReplyParams): Batch {
 
 export function status(sessionId: string, devServersConnected: number): StatusResult {
   const session = requireSession(sessionId)
-  const open = [...projectBatches(session.projectRoot).values()].filter((batch) => batch.sessionId === session.id && batch.status !== 'done')
+  const open = [...projectBatches(session.projectRoot).values()].filter(
+    (batch) => batch.sessionId === session.id && batch.status !== 'done'
+  )
   return {
     sessionId,
     listening: session.listener !== null,
     devServersConnected,
     unfetched: unfetchedFor(session).map((batch) => batch.id),
-    open: open.map((batch) => ({ id: batch.id, status: batch.status, pending: batch.comments.filter((comment) => comment.status === 'pending').length })),
+    open: open.map((batch) => ({
+      id: batch.id,
+      status: batch.status,
+      pending: batch.comments.filter((comment) => comment.status === 'pending').length,
+    })),
   }
 }

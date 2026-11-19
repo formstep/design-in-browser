@@ -31,6 +31,7 @@ export function isPick<T extends { intent?: Intent }>(comment: T): comment is T 
 /** Ids of the agent's questions that already have an answer, sent or still in the stack. */
 export function answeredIds(draft: DraftComment[], batches: Batch[]): Set<string> {
   const ids = new Set<string>()
-  for (const comment of [...draft, ...batches.flatMap((batch) => batch.comments)]) if (comment.inReplyTo) ids.add(comment.inReplyTo.commentId)
+  for (const comment of [...draft, ...batches.flatMap((batch) => batch.comments)])
+    if (comment.inReplyTo) ids.add(comment.inReplyTo.commentId)
   return ids
 }

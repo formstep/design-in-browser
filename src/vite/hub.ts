@@ -102,7 +102,10 @@ export class Hub {
       return message
     }
     const clientBatchId = crypto.randomUUID()
-    this.inFlight.set(clientBatchId, comments.map((comment) => comment.id))
+    this.inFlight.set(
+      clientBatchId,
+      comments.map((comment) => comment.id)
+    )
     this.post({ type: 'send-batch', clientBatchId, sessionId, comments })
     this.update({ sending: true, lastError: null })
     return null
@@ -172,7 +175,14 @@ export class Hub {
       case 'batch-accepted': {
         const sent = new Set(this.inFlight.get(message.clientBatchId) ?? [])
         this.inFlight.delete(message.clientBatchId)
-        this.update({ draft: this.state.draft.filter((comment) => !sent.has(comment.id)), batches: this.upsert(message.batch), sending: this.inFlight.size > 0 }, true)
+        this.update(
+          {
+            draft: this.state.draft.filter((comment) => !sent.has(comment.id)),
+            batches: this.upsert(message.batch),
+            sending: this.inFlight.size > 0,
+          },
+          true
+        )
         return
       }
       case 'batch-updated':
@@ -203,7 +213,9 @@ export class Hub {
       const saved = JSON.parse(fs.readFileSync(this.savedFile, 'utf8')) as Partial<Saved>
       return { ...empty, ...saved }
     } catch (error) {
-      console.warn(`[design-in-browser] Starting with an empty comment stack: could not read ${this.savedFile} (${error instanceof Error ? error.message : String(error)}).`)
+      console.warn(
+        `[design-in-browser] Starting with an empty comment stack: could not read ${this.savedFile} (${error instanceof Error ? error.message : String(error)}).`
+      )
       return empty
     }
   }
@@ -212,7 +224,10 @@ export class Hub {
     ensureJournal(this.state.projectRoot)
     const { draft, pickedSessionId, sendOnAdd, variantChoices, tweakValues } = this.state
     const tmp = `${this.savedFile}.tmp`
-    fs.writeFileSync(tmp, JSON.stringify({ draft, pickedSessionId, sendOnAdd, variantChoices, tweakValues } satisfies Saved, null, 2) + '\n')
+    fs.writeFileSync(
+      tmp,
+      JSON.stringify({ draft, pickedSessionId, sendOnAdd, variantChoices, tweakValues } satisfies Saved, null, 2) + '\n'
+    )
     fs.renameSync(tmp, this.savedFile)
   }
 }

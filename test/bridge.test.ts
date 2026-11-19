@@ -11,13 +11,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import WebSocket from 'ws'
 import { defaultSession, sameProject, type PageState } from '../src/shared/page-protocol.ts'
-import {
-  agentLabel,
-  LISTENER_REPLACED_CLOSE_CODE,
-  type Batch,
-  type DaemonToPlugin,
-  type DraftComment,
-} from '../src/shared/protocol.ts'
+import { agentLabel, LISTENER_REPLACED_CLOSE_CODE, type Batch, type DaemonToPlugin, type DraftComment } from '../src/shared/protocol.ts'
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dib-test-'))
 const home = path.join(tmp, 'home')
@@ -76,7 +70,10 @@ function inbox<T>(socket: WebSocket, parse: (raw: string) => T): Inbox<T> {
         return Promise.resolve(items[index]!)
       }
       return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error(`timed out waiting for ${match.toString()}; got ${JSON.stringify(items).slice(0, 600)}`)), timeoutMs)
+        const timer = setTimeout(
+          () => reject(new Error(`timed out waiting for ${match.toString()}; got ${JSON.stringify(items).slice(0, 600)}`)),
+          timeoutMs
+        )
         waiters.push({ match, resolve: (item) => (clearTimeout(timer), (seen = items.length), resolve(item)) })
       })
     },
@@ -96,7 +93,9 @@ function open<T>(url: string, parse: (raw: string) => T, origin?: string): Promi
 }
 
 const openDevServer = () =>
-  open<DaemonToPlugin>(`ws://127.0.0.1:${port}/page?token=${fs.readFileSync(path.join(home, 'token'), 'utf8').trim()}`, (raw) => JSON.parse(raw))
+  open<DaemonToPlugin>(`ws://127.0.0.1:${port}/page?token=${fs.readFileSync(path.join(home, 'token'), 'utf8').trim()}`, (raw) =>
+    JSON.parse(raw)
+  )
 
 const openListener = (url: string) => open<string>(url, (raw) => raw)
 
@@ -184,7 +183,10 @@ test('a full round trip: send, doorbell, fetch, reply', async () => {
 
   const fetched = JSON.parse(await callTool(client, 'live_get_batch')) as Batch
   assert.equal(fetched.status, 'fetched')
-  assert.deepEqual(fetched.comments.map((c) => c.text), ['Make the title bigger', 'Use the brand color here'])
+  assert.deepEqual(
+    fetched.comments.map((c) => c.text),
+    ['Make the title bigger', 'Use the brand color here']
+  )
   await devServer.inbox.next((m) => m.type === 'batch-updated' && m.batch.status === 'fetched')
   assert.equal(await callTool(client, 'live_get_batch'), 'No unfetched batch.')
 
@@ -206,11 +208,15 @@ test('a full round trip: send, doorbell, fetch, reply', async () => {
     [
       ['done', 'Title is now 40px.'],
       ['question', 'Accent or primary?'],
-    ],
+    ]
   )
   assert.equal(done.batch.summary, 'One change, one question.')
 
-  const events = fs.readFileSync(path.join(journal, 'journal.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line).type)
+  const events = fs
+    .readFileSync(path.join(journal, 'journal.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line).type)
   assert.deepEqual(events, ['created', 'fetched', 'replied', 'replied'])
 
   listener.socket.close()
@@ -288,7 +294,10 @@ test('an answer is refused by a session whose project never asked the question',
   devServer.socket.send(JSON.stringify({ type: 'hello' }))
   const state = await devServer.inbox.next((m) => m.type === 'state' && m.sessions.length > 0)
   const sessionId = state.type === 'state' ? state.sessions[0]!.id : assert.fail()
-  const answer = { ...comment('Purple'), inReplyTo: { batchId: '999', commentId: 'nope', comment: 'Use the accent', question: 'Which one?' } }
+  const answer = {
+    ...comment('Purple'),
+    inReplyTo: { batchId: '999', commentId: 'nope', comment: 'Use the accent', question: 'Which one?' },
+  }
   devServer.socket.send(JSON.stringify({ type: 'send-batch', clientBatchId: 'c4', sessionId, comments: [answer] }))
   const error = await devServer.inbox.next((m) => m.type === 'error')
   assert.ok(error.type === 'error' && error.message.startsWith('An answer goes to the project that asked the question'))
@@ -308,7 +317,15 @@ test('the dock routes to the session on its project, or to none', () => {
   assert.ok(sameProject('/repo', '/repo/apps/web'))
   assert.ok(sameProject('/repo/apps/web/', '/repo'))
   assert.ok(!sameProject('/repo', '/repo-other'))
-  const session = (id: string, projectRoot: string, connectedAt: string) => ({ id, label: id, agent: 'Claude', projectRoot, origins: [], listening: true, connectedAt })
+  const session = (id: string, projectRoot: string, connectedAt: string) => ({
+    id,
+    label: id,
+    agent: 'Claude',
+    projectRoot,
+    origins: [],
+    listening: true,
+    connectedAt,
+  })
   const state: PageState = {
     connection: 'connected',
     projectRoot: '/repo/apps/web',
@@ -348,7 +365,12 @@ test('the MCP server leaves when its agent closes stdio, so no ghost session sta
   const { spawn } = await import('node:child_process')
   const child = spawn(process.execPath, ['plugin/dist/mcp.mjs'], { stdio: ['pipe', 'pipe', 'ignore'], env })
   const send = (message: object) => child.stdin.write(JSON.stringify(message) + '\n')
-  send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '0' } } })
+  send({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '0' } },
+  })
   await new Promise((resolve) => setTimeout(resolve, 200))
   send({ jsonrpc: '2.0', method: 'notifications/initialized' })
   send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'live_connect', arguments: { projectRoot: project } } })

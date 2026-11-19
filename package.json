@@ -4,8 +4,15 @@
   "private": true,
   "description": "Comment on your local app's UI in Chrome and send it to a running coding agent session.",
   "type": "module",
-  "engines": {
-    "node": ">=22.18"
+  "exports": {
+    "./vite": {
+      "types": "./dist/vite.d.mts",
+      "import": "./dist/vite.mjs"
+    },
+    "./react": {
+      "types": "./dist/react.d.mts",
+      "import": "./dist/react.mjs"
+    }
   },
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -39,14 +46,7 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.8"
   },
-  "exports": {
-    "./vite": {
-      "types": "./dist/vite.d.mts",
-      "import": "./dist/vite.mjs"
-    },
-    "./react": {
-      "types": "./dist/react.d.mts",
-      "import": "./dist/react.mjs"
-    }
+  "engines": {
+    "node": ">=22.18"
   }
 }

@@ -27,7 +27,7 @@ export function Variant(_props: VariantProps): ReactNode {
 export function Variants({ group, children }: { group: string; children?: ReactNode }): ReactNode {
   useSyncExternalStore(subscribe, () => bridge().revision)
   const versions = Children.toArray(children).filter(
-    (child): child is ReactElement<VariantProps> => isValidElement(child) && child.type === Variant,
+    (child): child is ReactElement<VariantProps> => isValidElement(child) && child.type === Variant
   )
   const labels = versions.map((version) => version.props.label)
   const specs = versions.map((version) => version.props.tweaks ?? {})

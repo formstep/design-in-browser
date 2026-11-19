@@ -4,7 +4,21 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
 import type { Batch } from '../../src/shared/protocol.ts'
-import { tmp, appUrl, shim, context, page, doorbells, stopAppServer, startAppServer, callTool, startShim, dock, comment, useHarness } from './harness.ts'
+import {
+  tmp,
+  appUrl,
+  shim,
+  context,
+  page,
+  doorbells,
+  stopAppServer,
+  startAppServer,
+  callTool,
+  startShim,
+  dock,
+  comment,
+  useHarness,
+} from './harness.ts'
 
 useHarness()
 
@@ -54,7 +68,9 @@ test('pick, comment, send, and see the reply on the page', async () => {
     ],
   })
   await expect(dock().getByTestId('sent')).toContainText('Headline is now 40px, weight 800.')
-  await expect.poll(() => pins.evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).dataset.status))).toEqual(['done', 'question'])
+  await expect
+    .poll(() => pins.evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).dataset.status)))
+    .toEqual(['done', 'question'])
 })
 
 test('answer a question from the dock and from a pin', async () => {
@@ -73,7 +89,10 @@ test('answer a question from the dock and from a pin', async () => {
   const second = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
   expect(second.comments[0]!.inReplyTo?.batchId).toBe('001')
 
-  await callTool(shim, 'live_reply', { batchId: '002', replies: [{ commentId: second.comments[0]!.id, status: 'question', message: 'Which shade, 500 or 600?' }] })
+  await callTool(shim, 'live_reply', {
+    batchId: '002',
+    replies: [{ commentId: second.comments[0]!.id, status: 'question', message: 'Which shade, 500 or 600?' }],
+  })
   const asking = page.locator('dib-overlay .pin-wrap[data-status="question"]')
   await asking.locator('.pin').click()
   await expect(asking.locator('.thread')).toContainText('Which shade, 500 or 600?')
@@ -94,7 +113,10 @@ test('answer a question from the dock and from a pin', async () => {
   // The agent closes the first question once it acts on the answer: the pin and the dock follow.
   const first = (JSON.parse(await callTool(shim, 'live_get_batch', { batchId: '001' })) as Batch).comments[1]!
   await expect(page.locator('dib-overlay .pin-wrap[data-status="answered"]')).toHaveCount(1)
-  await callTool(shim, 'live_reply', { batchId: '001', replies: [{ commentId: first.id, status: 'done', message: 'The free plan button is accent purple now.' }] })
+  await callTool(shim, 'live_reply', {
+    batchId: '001',
+    replies: [{ commentId: first.id, status: 'done', message: 'The free plan button is accent purple now.' }],
+  })
   await expect(page.locator('dib-overlay .pin-wrap[data-status="answered"]')).toHaveCount(0)
   await expect(dock().getByTestId('sent')).toContainText('The free plan button is accent purple now.')
 })
@@ -181,7 +203,7 @@ test('the dock picks the session working on this project and keeps a manual pick
     await expect(dock().locator('.picker-text')).toHaveText('elsewhere · OpenCode')
     await dock().getByTestId('message').fill('For the other agent')
     await dock().getByTestId('message').press('Enter')
-    await expect.poll(async () => JSON.parse((await callTool(second, 'live_status'))).unfetched.length).toBe(1)
+    await expect.poll(async () => JSON.parse(await callTool(second, 'live_status')).unfetched.length).toBe(1)
     expect(await callTool(shim, 'live_get_batch')).toBe('No unfetched batch.')
   } finally {
     await second.close()

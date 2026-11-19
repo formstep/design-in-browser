@@ -45,10 +45,12 @@ export function writeBatch(batch: Batch): void {
 export function readBatches(projectRoot: string): Batch[] {
   const dir = batchesDir(projectRoot)
   if (!fs.existsSync(dir)) return []
-  return fs
-    .readdirSync(dir)
-    .filter((name) => /^\d+\.json$/.test(name))
-    .sort()
-    // Batches written before agents were named have no `agent`.
-    .map((name) => ({ agent: FALLBACK_AGENT, ...(JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8')) as Omit<Batch, 'agent'>) }))
+  return (
+    fs
+      .readdirSync(dir)
+      .filter((name) => /^\d+\.json$/.test(name))
+      .sort()
+      // Batches written before agents were named have no `agent`.
+      .map((name) => ({ agent: FALLBACK_AGENT, ...(JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8')) as Omit<Batch, 'agent'>) }))
+  )
 }

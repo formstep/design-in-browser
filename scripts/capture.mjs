@@ -32,7 +32,11 @@ process.env.DIB_HOME = path.join(tmp, 'home')
 process.env.DIB_PROJECT_ROOT = project
 const { createServer } = await import('vite')
 const appPort = await freePort()
-const vite = await createServer({ root: path.join(repo, 'test/e2e/app'), configFile: path.join(repo, 'test/e2e/app/vite.config.ts'), server: { port: appPort, strictPort: true } })
+const vite = await createServer({
+  root: path.join(repo, 'test/e2e/app'),
+  configFile: path.join(repo, 'test/e2e/app/vite.config.ts'),
+  server: { port: appPort, strictPort: true },
+})
 await vite.listen()
 const appUrl = `http://localhost:${appPort}/`
 
@@ -53,14 +57,19 @@ await page.locator('dib-dock .launcher').click()
 await shot('dock-1-offline')
 
 const shim = new Client({ name: 'claude-code', version: '0' })
-await shim.connect(new StdioClientTransport({ command: process.execPath, args: [path.join(repo, 'plugin/dist/mcp.mjs')], env: process.env }))
-const call = async (name, args = {}) => (await shim.callTool({ name, arguments: args }, undefined, { timeout: 15_000 })).content.map((part) => part.text).join('\n')
+await shim.connect(
+  new StdioClientTransport({ command: process.execPath, args: [path.join(repo, 'plugin/dist/mcp.mjs')], env: process.env })
+)
+const call = async (name, args = {}) =>
+  (await shim.callTool({ name, arguments: args }, undefined, { timeout: 15_000 })).content.map((part) => part.text).join('\n')
 const connected = await call('live_connect', { projectRoot: project })
 const listenUrl = /ws:\/\/\S+\/listen\/\S+/.exec(connected)[0].replace(/,$/, '')
 await dock.getByTestId('status').filter({ hasText: 'Not listening' }).waitFor()
 await shot('dock-2-not-listening')
 const other = new Client({ name: 'opencode', version: '0' })
-await other.connect(new StdioClientTransport({ command: process.execPath, args: [path.join(repo, 'plugin/dist/mcp.mjs')], env: process.env }))
+await other.connect(
+  new StdioClientTransport({ command: process.execPath, args: [path.join(repo, 'plugin/dist/mcp.mjs')], env: process.env })
+)
 fs.mkdirSync(path.join(tmp, 'acme-admin'))
 await other.callTool({ name: 'live_connect', arguments: { projectRoot: path.join(tmp, 'acme-admin') } })
 await dock.getByTestId('session').locator('option').nth(1).waitFor({ state: 'attached' })
@@ -86,7 +95,10 @@ const comment = async (selector, text, name) => {
   await page.locator('dib-overlay .composer textarea').press('Enter')
 }
 await comment('h1', 'Make the headline bolder and larger', 'overlay-3-comment-card')
-await comment('[data-testid="starter-cta"]', 'Use the accent color for the free plan button so it reads as the recommended plan, and make the label say "Start for free"')
+await comment(
+  '[data-testid="starter-cta"]',
+  'Use the accent color for the free plan button so it reads as the recommended plan, and make the label say "Start for free"'
+)
 await comment('.lede', 'Shorter subtitle')
 await page.keyboard.press('Escape')
 await page.mouse.move(300, 600)
@@ -95,12 +107,19 @@ await dock.getByTestId('send').click()
 await shot('dock-6-queued')
 
 const batch = JSON.parse(await call('live_get_batch'))
-await call('live_reply', { batchId: batch.id, replies: [{ commentId: batch.comments[0].id, status: 'done', message: 'Headline is now 40px, weight 800.' }] })
+await call('live_reply', {
+  batchId: batch.id,
+  replies: [{ commentId: batch.comments[0].id, status: 'done', message: 'Headline is now 40px, weight 800.' }],
+})
 await shot('dock-7-working')
 await call('live_reply', {
   batchId: batch.id,
   replies: [
-    { commentId: batch.comments[1].id, status: 'question', message: 'Accent purple or the green from the logo? The button sits on white, so both pass contrast.' },
+    {
+      commentId: batch.comments[1].id,
+      status: 'question',
+      message: 'Accent purple or the green from the logo? The button sits on white, so both pass contrast.',
+    },
     { commentId: batch.comments[2].id, status: 'skipped', message: 'The subtitle is already one line at every breakpoint.' },
   ],
   summary: 'One change, one question, one skipped.',
@@ -136,7 +155,9 @@ await browser.close()
 listener.terminate()
 await shim.close()
 const token = fs.readFileSync(path.join(tmp, 'home/token'), 'utf8').trim()
-await fetch(`http://127.0.0.1:${process.env.DIB_PORT}/shutdown`, { method: 'POST', headers: { authorization: `Bearer ${token}` } }).catch(() => {})
+await fetch(`http://127.0.0.1:${process.env.DIB_PORT}/shutdown`, { method: 'POST', headers: { authorization: `Bearer ${token}` } }).catch(
+  () => {}
+)
 await vite.close()
 fs.rmSync(tmp, { recursive: true, force: true })
 console.log(`screenshots in ${outDir}`)

@@ -195,7 +195,10 @@ function setTweak(group: string, index: number, id: string, value: TweakValue): 
   const pendingKey = `${key}/${id}`
   unsaved.set(pendingKey, value)
   clearTimeout(saveTimers.get(pendingKey))
-  saveTimers.set(pendingKey, setTimeout(() => void sendOp({ type: 'set-tweak', group, index, id, value }).catch(() => {}), SAVE_DELAY_MS))
+  saveTimers.set(
+    pendingKey,
+    setTimeout(() => void sendOp({ type: 'set-tweak', group, index, id, value }).catch(() => {}), SAVE_DELAY_MS)
+  )
 }
 
 /** Sends the pick: the version shown, with every tweak as the user left it. */

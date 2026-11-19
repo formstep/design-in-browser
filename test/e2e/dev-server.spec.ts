@@ -6,7 +6,22 @@ import path from 'node:path'
 import { expect, test } from '@playwright/test'
 import { createServer } from 'vite'
 import designInBrowser from '../../dist/vite.mjs'
-import { repo, appRoot, tmp, project, appUrl, context, page, freePort, startVite, stopAppServer, startAppServer, dock, useHarness, viteCache } from './harness.ts'
+import {
+  repo,
+  appRoot,
+  tmp,
+  project,
+  appUrl,
+  context,
+  page,
+  freePort,
+  startVite,
+  stopAppServer,
+  startAppServer,
+  dock,
+  useHarness,
+  viteCache,
+} from './harness.ts'
 
 useHarness()
 
@@ -122,6 +137,6 @@ test('a build with a <Variants> group left in the code fails and says why', asyn
   const { build } = await import('vite')
   process.env.DIB_BUILD_OUT = path.join(tmp, 'build-out')
   await expect(build({ root: appRoot, configFile: path.join(appRoot, 'vite.config.ts'), logLevel: 'silent' })).rejects.toThrow(
-    /A <Variants> group from design-in-browser\/react is still in the code/,
+    /A <Variants> group from design-in-browser\/react is still in the code/
   )
 })

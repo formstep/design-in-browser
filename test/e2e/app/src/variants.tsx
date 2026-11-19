@@ -32,7 +32,11 @@ function Page() {
           }}
         >
           {(t) => (
-            <section className="hero hero-tinted" data-testid="hero" style={{ padding: t.padding, textAlign: t.align === 'center' ? 'center' : 'left' }}>
+            <section
+              className="hero hero-tinted"
+              data-testid="hero"
+              style={{ padding: t.padding, textAlign: t.align === 'center' ? 'center' : 'left' }}
+            >
               {t.badge && (
                 <span className="badge" data-testid="badge">
                   New

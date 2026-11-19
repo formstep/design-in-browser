@@ -56,7 +56,8 @@ function onClick(event: MouseEvent): void {
   for (const listener of pickListeners) listener({ element, offset: { x: event.clientX - box.left, y: event.clientY - box.top } })
 }
 
-for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'dblclick', 'auxclick']) window.addEventListener(type, swallow, true)
+for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'dblclick', 'auxclick'])
+  window.addEventListener(type, swallow, true)
 window.addEventListener('click', onClick, true)
 window.addEventListener(
   'mousemove',
@@ -65,7 +66,7 @@ window.addEventListener(
     hovered = elementAt(event.clientX, event.clientY)
     showHighlight(hovered)
   },
-  true,
+  true
 )
 
 onModeChange((mode) => {

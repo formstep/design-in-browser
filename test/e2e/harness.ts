@@ -43,7 +43,12 @@ export function freePort(): Promise<number> {
 
 /** Serves the fixture app; by default on the harness's own port, as `vite`. */
 export async function startVite(host = 'localhost', port = appPort): Promise<ViteDevServer> {
-  const server = await createServer({ root: appRoot, configFile: path.join(appRoot, 'vite.config.ts'), cacheDir: viteCache(port), server: { host, port, strictPort: true } })
+  const server = await createServer({
+    root: appRoot,
+    configFile: path.join(appRoot, 'vite.config.ts'),
+    cacheDir: viteCache(port),
+    server: { host, port, strictPort: true },
+  })
   await server.listen()
   return server
 }
@@ -69,7 +74,13 @@ export async function callTool(client: Client, name: string, args: Record<string
 /** Starts the built MCP server as an agent named `name` would, connected to `projectRoot`. */
 export async function startShim(name: string, projectRoot: string): Promise<Client> {
   const client = new Client({ name, version: '0' })
-  await client.connect(new StdioClientTransport({ command: process.execPath, args: [path.join(repo, 'plugin/dist/mcp.mjs')], env: process.env as Record<string, string> }))
+  await client.connect(
+    new StdioClientTransport({
+      command: process.execPath,
+      args: [path.join(repo, 'plugin/dist/mcp.mjs')],
+      env: process.env as Record<string, string>,
+    })
+  )
   await callTool(client, 'live_connect', { projectRoot })
   return client
 }
@@ -104,7 +115,13 @@ export function useHarness(): void {
     process.env.DIB_PROJECT_ROOT = project
 
     shim = new Client({ name: 'claude-code', version: '0' })
-    await shim.connect(new StdioClientTransport({ command: process.execPath, args: [path.join(repo, 'plugin/dist/mcp.mjs')], env: process.env as Record<string, string> }))
+    await shim.connect(
+      new StdioClientTransport({
+        command: process.execPath,
+        args: [path.join(repo, 'plugin/dist/mcp.mjs')],
+        env: process.env as Record<string, string>,
+      })
+    )
     const connected = await callTool(shim, 'live_connect', { projectRoot: project })
     const listenUrl = /ws:\/\/\S+\/listen\/\S+/.exec(connected)![0].replace(/,$/, '')
     listener = new WebSocket(listenUrl)
@@ -123,7 +140,9 @@ export function useHarness(): void {
     listener?.terminate()
     await shim?.close()
     const token = fs.readFileSync(path.join(home, 'token'), 'utf8').trim()
-    await fetch(`http://127.0.0.1:${daemonPort}/shutdown`, { method: 'POST', headers: { authorization: `Bearer ${token}` } }).catch(() => {})
+    await fetch(`http://127.0.0.1:${daemonPort}/shutdown`, { method: 'POST', headers: { authorization: `Bearer ${token}` } }).catch(
+      () => {}
+    )
     fs.rmSync(tmp, { recursive: true, force: true })
     doorbells.length = 0
   })

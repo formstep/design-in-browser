@@ -84,7 +84,7 @@ await build({
 })
 fs.writeFileSync(
   'dist/react.mjs',
-  "throw new Error('design-in-browser: a <Variants> group is still in the code. Pick a version in the browser, or remove the wrapper, before building.')\n",
+  "throw new Error('design-in-browser: a <Variants> group is still in the code. Pick a version in the browser, or remove the wrapper, before building.')\n"
 )
 fs.copyFileSync('src/react/types.d.mts', 'dist/react.d.mts')
 

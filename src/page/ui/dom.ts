@@ -9,7 +9,11 @@ type Props = Partial<Pick<HTMLElement, 'className' | 'textContent' | 'title'>> &
   html?: string
 }
 
-export function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Props = {}, children: Array<Node | string> = []): HTMLElementTagNameMap[K] {
+export function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  props: Props = {},
+  children: Array<Node | string> = []
+): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag)
   const { attrs, html, ...rest } = props
   Object.assign(node, rest)

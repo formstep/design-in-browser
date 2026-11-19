@@ -40,7 +40,7 @@ window.addEventListener(
     else if (isAskbarOpen()) closeAskbar()
     else setMode({ kind: 'idle' })
   },
-  true,
+  true
 )
 
 mountVariants(root)

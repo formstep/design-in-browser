@@ -6,7 +6,12 @@ export function tweaksCard(specs: Record<string, TweakSpec>, values: Record<stri
   return el(
     'div',
     { className: 'tweaks' },
-    Object.entries(specs).map(([id, spec]) => el('label', { className: 'tweak' }, [el('span', { className: 'tweak-label', textContent: spec.label }), control(id, spec, values[id] ?? spec.default)])),
+    Object.entries(specs).map(([id, spec]) =>
+      el('label', { className: 'tweak' }, [
+        el('span', { className: 'tweak-label', textContent: spec.label }),
+        control(id, spec, values[id] ?? spec.default),
+      ])
+    )
   )
 }
 
@@ -18,16 +23,33 @@ function control(id: string, spec: TweakSpec, value: TweakValue): HTMLElement {
       return input
     }
     case 'range': {
-      const input = el('input', { attrs: { type: 'range', 'data-tweak': id, min: String(spec.min), max: String(spec.max), step: String(spec.step) } })
+      const input = el('input', {
+        attrs: { type: 'range', 'data-tweak': id, min: String(spec.min), max: String(spec.max), step: String(spec.step) },
+      })
       input.value = String(value)
       const unit = spec.unit ?? ''
-      return el('span', { className: 'range' }, [input, el('output', { className: 'range-value', textContent: `${value}${unit}`, attrs: { 'data-unit': unit } })])
+      return el('span', { className: 'range' }, [
+        input,
+        el('output', { className: 'range-value', textContent: `${value}${unit}`, attrs: { 'data-unit': unit } }),
+      ])
     }
     case 'choice':
       return el(
         'span',
         { className: 'choices', attrs: { role: 'radiogroup' } },
-        spec.options.map((option) => button({ className: 'choice', textContent: option, attrs: { 'aria-label': option, 'aria-pressed': String(option === value), 'data-action': 'choice', 'data-tweak': id, 'data-value': option } })),
+        spec.options.map((option) =>
+          button({
+            className: 'choice',
+            textContent: option,
+            attrs: {
+              'aria-label': option,
+              'aria-pressed': String(option === value),
+              'data-action': 'choice',
+              'data-tweak': id,
+              'data-value': option,
+            },
+          })
+        )
       )
   }
 }

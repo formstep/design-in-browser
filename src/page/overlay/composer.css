@@ -34,7 +34,6 @@
   white-space: nowrap;
 }
 
-
 /* The "@<agent>" chip sits on the textarea's first line; the textarea indents its text past it
    (composer.ts fits the indent to the chip's width once the agent's name is known). */
 .field {

@@ -33,14 +33,17 @@ function fits(area: Area): boolean {
   return area.left >= GAP && area.top >= GAP && area.left + area.width <= usableWidth() - GAP && area.top + area.height <= innerHeight - GAP
 }
 
-const overlap = (a: Area, b: Area) => a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height
+const overlap = (a: Area, b: Area) =>
+  a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height
 
 /** The first free spot of: above the group's top-left, inside its top-right corner, below it. Else the corner. */
 export function placeBar(box: DOMRect, width: number, wrapper: Element): Spot {
   const left = (preferred: number) => clamp(preferred, GAP, usableWidth() - width - GAP)
   const corner = { left: left(box.right - width - GAP), top: box.top + GAP }
   const spots = [{ left: left(box.left), top: box.top - BAR_HEIGHT - GAP }, corner, { left: left(box.left), top: box.bottom + GAP }]
-  const free = spots.find((spot) => fits({ ...spot, width, height: BAR_HEIGHT }) && coverage({ ...spot, width, height: BAR_HEIGHT }, wrapper) === 0)
+  const free = spots.find(
+    (spot) => fits({ ...spot, width, height: BAR_HEIGHT }) && coverage({ ...spot, width, height: BAR_HEIGHT }, wrapper) === 0
+  )
   return free ?? corner
 }
 

@@ -67,7 +67,10 @@ server.registerTool(
         connection = await DaemonConnection.open()
       }
       const result = await connection.call('connect', registration)
-      const pending = result.unfetched.length > 0 ? `Unfetched batches: ${result.unfetched.join(', ')}. The Monitor rings for them when it connects.` : 'No unfetched batches.'
+      const pending =
+        result.unfetched.length > 0
+          ? `Unfetched batches: ${result.unfetched.join(', ')}. The Monitor rings for them when it connects.`
+          : 'No unfetched batches.'
       return text(
         [
           `Connected as session ${sessionId} for ${registration.projectRoot}. The browser shows you as "${registration.agent}".`,
@@ -75,12 +78,12 @@ server.registerTool(
           `Re-arm it with the same url whenever it expires or closes, except close code ${LISTENER_REPLACED_CLOSE_CODE} (a newer Monitor replaced it).`,
           pending,
           `Journal: ${result.journalDir}`,
-        ].join('\n'),
+        ].join('\n')
       )
     } catch (error) {
       return failure(error)
     }
-  },
+  }
 )
 
 server.registerTool(
@@ -101,7 +104,7 @@ server.registerTool(
     } catch (error) {
       return failure(error)
     }
-  },
+  }
 )
 
 server.registerTool(
@@ -121,8 +124,10 @@ server.registerTool(
             group: z
               .string()
               .optional()
-              .describe('With status "variants": the group id of the <Variants> wrapper you put in the page, so the browser can link the reply to its switcher.'),
-          }),
+              .describe(
+                'With status "variants": the group id of the <Variants> wrapper you put in the page, so the browser can link the reply to its switcher.'
+              ),
+          })
         )
         .min(1),
       summary: z.string().optional().describe('Optional one-line summary for the whole batch.'),
@@ -136,7 +141,7 @@ server.registerTool(
     } catch (error) {
       return failure(error)
     }
-  },
+  }
 )
 
 server.registerTool(
@@ -153,7 +158,7 @@ server.registerTool(
     } catch (error) {
       return failure(error)
     }
-  },
+  }
 )
 
 await server.connect(new StdioServerTransport())

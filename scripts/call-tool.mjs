@@ -11,7 +11,13 @@ if (!projectRoot || !tool) {
 }
 
 const client = new Client({ name: 'call-tool', version: '0' })
-await client.connect(new StdioClientTransport({ command: process.execPath, args: [new URL('../plugin/dist/mcp.mjs', import.meta.url).pathname], env: process.env }))
+await client.connect(
+  new StdioClientTransport({
+    command: process.execPath,
+    args: [new URL('../plugin/dist/mcp.mjs', import.meta.url).pathname],
+    env: process.env,
+  })
+)
 const call = async (name, args) => {
   const result = await client.callTool({ name, arguments: args })
   const text = result.content.map((part) => part.text).join('\n')

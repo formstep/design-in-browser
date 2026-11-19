@@ -57,9 +57,15 @@ const statusGlyph: Record<Exclude<PinStatus, 'draft'>, string> = {
 const pins = query<HTMLDivElement>(root, '.pins')
 let models = new Map<string, PinModel>()
 
-const hasElement = <T extends { element: ElementRef | null }>(comment: T): comment is T & { element: ElementRef } => comment.element !== null
+const hasElement = <T extends { element: ElementRef | null }>(comment: T): comment is T & { element: ElementRef } =>
+  comment.element !== null
 
-function sentPin(batch: Batch, comment: BatchComment & { element: ElementRef }, answered: Set<string>, ownProject: string | null): PinModel {
+function sentPin(
+  batch: Batch,
+  comment: BatchComment & { element: ElementRef },
+  answered: Set<string>,
+  ownProject: string | null
+): PinModel {
   const isOpenQuestion = comment.status === 'question' && !answered.has(comment.id)
   return {
     key: comment.id,
@@ -71,7 +77,10 @@ function sentPin(batch: Batch, comment: BatchComment & { element: ElementRef }, 
     createdAt: comment.createdAt,
     reply: comment.reply,
     // Only the project that asked can take the answer: it goes to that project's session.
-    answer: isOpenQuestion && batch.projectRoot === ownProject ? { inReplyTo: answering(batch, comment), element: comment.element, page: comment.page } : null,
+    answer:
+      isOpenQuestion && batch.projectRoot === ownProject
+        ? { inReplyTo: answering(batch, comment), element: comment.element, page: comment.page }
+        : null,
     draftId: null,
   }
 }
@@ -83,24 +92,53 @@ function pinsForThisPage(state: PageState): PinModel[] {
   const onThisPage = (comment: DraftComment) => samePage(comment.page.url) && !isPick(comment)
   const drafts = state.draft.flatMap((comment, index): PinModel[] =>
     hasElement(comment) && onThisPage(comment)
-      ? [{ key: comment.id, agent: agentName(state), ref: comment.element, status: 'draft', number: index + 1, text: comment.text, createdAt: comment.createdAt, reply: null, answer: null, draftId: comment.id }]
-      : [],
+      ? [
+          {
+            key: comment.id,
+            agent: agentName(state),
+            ref: comment.element,
+            status: 'draft',
+            number: index + 1,
+            text: comment.text,
+            createdAt: comment.createdAt,
+            reply: null,
+            answer: null,
+            draftId: comment.id,
+          },
+        ]
+      : []
   )
   const sent = state.batches.flatMap((batch) =>
-    batch.comments.filter(hasElement).filter(onThisPage).map((comment) => sentPin(batch, comment, answered, ownProject)),
+    batch.comments
+      .filter(hasElement)
+      .filter(onThisPage)
+      .map((comment) => sentPin(batch, comment, answered, ownProject))
   )
   return [...drafts, ...sent]
 }
 
 function buildThread(pin: PinModel, thread: HTMLElement): void {
-  const head = el('p', { className: 'entry-head' }, [el('span', { textContent: 'You' }), el('span', { className: 'when', textContent: when(pin.createdAt) }), el('span', { className: 'status', textContent: statusLabel[pin.status] })])
+  const head = el('p', { className: 'entry-head' }, [
+    el('span', { textContent: 'You' }),
+    el('span', { className: 'when', textContent: when(pin.createdAt) }),
+    el('span', { className: 'status', textContent: statusLabel[pin.status] }),
+  ])
   if (pin.draftId) {
-    const remove = el('button', { className: 'remove', html: icon('trash', 15), attrs: { type: 'button', 'aria-label': 'Remove comment', 'data-action': 'remove', 'data-key': pin.key } })
+    const remove = el('button', {
+      className: 'remove',
+      html: icon('trash', 15),
+      attrs: { type: 'button', 'aria-label': 'Remove comment', 'data-action': 'remove', 'data-key': pin.key },
+    })
     head.append(remove)
   }
   const parts: HTMLElement[] = [el('div', { className: 'entry' }, [head, el('p', { className: 'entry-text', textContent: pin.text })])]
   if (pin.reply) {
-    parts.push(el('div', { className: 'entry agent' }, [el('p', { className: 'entry-head' }, [el('span', { textContent: pin.agent })]), el('p', { className: 'entry-text', textContent: pin.reply })]))
+    parts.push(
+      el('div', { className: 'entry agent' }, [
+        el('p', { className: 'entry-head' }, [el('span', { textContent: pin.agent })]),
+        el('p', { className: 'entry-text', textContent: pin.reply }),
+      ])
+    )
   }
   if (pin.answer) {
     const field = el('textarea', { attrs: { rows: '1', placeholder: `Answer ${pin.agent}`, 'aria-label': `Answer ${pin.agent}` } })
@@ -129,7 +167,11 @@ export function renderPins(): void {
   for (const pin of wanted) {
     let wrap = pins.querySelector<HTMLElement>(`:scope > [data-key="${CSS.escape(pin.key)}"]`)
     if (!wrap) {
-      wrap = el('div', { className: 'pin-wrap', attrs: { 'data-key': pin.key }, html: '<button type="button" class="pin"><span class="disc"></span></button><div class="thread" role="group"></div>' })
+      wrap = el('div', {
+        className: 'pin-wrap',
+        attrs: { 'data-key': pin.key },
+        html: '<button type="button" class="pin"><span class="disc"></span></button><div class="thread" role="group"></div>',
+      })
       pins.append(wrap)
     }
     const thread = query<HTMLElement>(wrap, '.thread')
@@ -229,7 +271,7 @@ window.addEventListener(
   (event) => {
     if (!cameFromUi(event)) closeThreads()
   },
-  true,
+  true
 )
 onModeChange((mode) => {
   if (mode.kind === 'commenting') closeThreads()
