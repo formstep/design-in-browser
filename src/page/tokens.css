@@ -1,5 +1,5 @@
-/* Shared by the side panel (:root) and the page overlay (:host of its shadow root).
-   Claude Design's dark chrome, measured from claude.ai (2026-11-19). Dark only.
+/* Shared by the dock and the overlay (:host of each shadow root).
+   A dark chrome inspired by Claude Design. Dark only.
    One blue does every selection and comment job. Status reads by the glyph in a pin's disc,
    with green and amber discs for done and question. */
 :root,
@@ -7,7 +7,7 @@
   color-scheme: dark;
 
   --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  /* Claude's own words are set in a serif, as claude.ai sets replies. */
+  /* The agent's words are set in a serif, as many chat apps set the assistant's replies. */
   --serif: ui-serif, 'New York', 'Iowan Old Style', Georgia, serif;
   --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
 

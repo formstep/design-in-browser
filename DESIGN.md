@@ -121,7 +121,7 @@ The look takes after Claude Design; the words are not tied to Claude. Every labe
 
 ## Typography
 
-One system sans for everything you do, a serif for everything the agent says (as claude.ai sets Claude's replies). 14/20 in the overlay, 14/21 in the panel, 12px for labels and meta. Selectors in the start command use the system mono.
+One system sans for everything you do, a serif for everything the agent says, as many chat apps set the assistant's replies. 14/20 in the overlay, 14/21 in the panel, 12px for labels and meta. Selectors in the start command use the system mono.
 
 ## Elevation & Depth
 

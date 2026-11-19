@@ -117,7 +117,7 @@
       },
       "agent": {
         "displayName": "Agent Serif",
-        "purpose": "Everything the agent says, as claude.ai sets Claude's replies. System serif in place of Anthropic Serif."
+        "purpose": "Everything the agent says, as many chat apps set the assistant's replies. A system serif."
       },
       "label": {
         "displayName": "Label",
@@ -128,7 +128,7 @@
       {
         "name": "card",
         "value": "inset 0 0 0 1px rgb(255 255 255 / 0.04), 0 1px 2px rgb(10 10 10 / 0.06), 0 2px 8px rgb(0 0 0 / 0.24)",
-        "purpose": "Comment card and pin thread, measured from Claude Design's comment card."
+        "purpose": "Comment card and pin thread, inspired by Claude Design's comment card."
       },
       {
         "name": "float",
@@ -138,7 +138,7 @@
       {
         "name": "focus-glow",
         "value": "0 0 0 1px #257de0, 0 0 6px 1px rgb(23 87 172 / 0.6)",
-        "purpose": "Focused card or field. The one coloured shadow, copied from the reference, focus only."
+        "purpose": "Focused card or field. The one coloured shadow, focus only."
       }
     ],
     "motion": [
@@ -162,7 +162,7 @@
       {
         "name": "panel",
         "value": "360px",
-        "purpose": "Chrome side panel's usual width; the panel is a single column at any width."
+        "purpose": "The dock's width; it is a single column."
       }
     ]
   },
@@ -209,7 +209,7 @@
       "name": "Composer",
       "kind": "input",
       "refersTo": "composer",
-      "description": "Bottom of the side panel: stacked comments ride above the message field; send at the corner.",
+      "description": "Bottom of the dock: stacked comments ride above the message field; send at the corner.",
       "html": "<form class=\"ds-composer\"><textarea class=\"ds-message\" rows=\"1\" placeholder=\"Describe a change\"></textarea><button class=\"ds-send\" aria-label=\"Send\">\u2191</button></form>",
       "css": ".ds-composer { display: flex; align-items: flex-end; gap: 6px; width: 320px; padding: 8px; border-radius: 14px; background: #303030; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08), 0 4px 20px rgb(0 0 0 / 0.075); } .ds-composer:focus-within { box-shadow: 0 0 0 1px #257de0, 0 0 6px 1px rgb(23 87 172 / 0.6); } .ds-message { flex: 1; padding: 4px 6px; border: 0; outline: 0; background: transparent; color: rgb(255 255 255 / 0.93); caret-color: #257de0; font: 15px/21px system-ui, sans-serif; resize: none; } .ds-message::placeholder { color: rgb(255 255 255 / 0.52); } .ds-send { width: 28px; height: 28px; border: 0; border-radius: 8px; background: #257de0; color: #fff; cursor: pointer; } .ds-send:focus-visible { outline: 2px solid #257de0; outline-offset: 2px; }"
     },
@@ -231,7 +231,7 @@
   ],
   "narrative": {
     "northStar": "Claude Design's canvas, on your running app",
-    "overview": "The extension copies Claude Design at the user's request: dark chrome, one blue for every selection and comment job, comment pins at the clicked point, a dark comment card, a bottom tool pill and an Ask bar, and claude.ai's chat for the side panel. Values were measured from claude.ai on 2026-11-19. It is dark only.\n\nThe look is Claude Design's; the words follow whichever coding agent is connected. Labels take the agent's name from its session (Claude, OpenCode) and fall back to \"Agent\".",
+    "overview": "The overlay and dock are inspired by Claude Design: dark chrome, one blue for every selection and comment job, comment pins at the clicked point, a dark comment card, a bottom tool pill and an Ask bar, and a chat for the dock. It is dark only.\n\nThe look takes after Claude Design; the words follow whichever coding agent is connected. Labels take the agent's name from its session (Claude, OpenCode) and fall back to \"Agent\".",
     "keyCharacteristics": [
       "Dark only: #191919 ground, #1f1f1f cards, #303030 controls",
       "One blue, #257de0, for selection, pins, send and focus",
