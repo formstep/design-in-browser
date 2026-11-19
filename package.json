@@ -2,7 +2,7 @@
   "name": "design-in-browser",
   "version": "0.1.0",
   "private": true,
-  "description": "Comment on your local app's UI in Chrome and send it to a running Claude Code session.",
+  "description": "Comment on your local app's UI in Chrome and send it to a running coding agent session.",
   "type": "module",
   "engines": {
     "node": ">=22.18"

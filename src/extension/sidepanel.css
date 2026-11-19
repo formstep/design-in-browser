@@ -1,5 +1,8 @@
 @import './tokens.css';
 
+/* The side panel reads as Claude's chat: a thread of sent comments and Claude's replies,
+   with the composer pinned at the bottom holding the stacked comments. */
+
 * {
   box-sizing: border-box;
 }
@@ -9,30 +12,39 @@
 }
 
 html {
-  color-scheme: light dark;
-  scrollbar-color: var(--line-2) transparent;
+  height: 100%;
+  scrollbar-color: rgb(255 255 255 / 0.16) transparent;
   scrollbar-width: thin;
 }
 
 body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   margin: 0;
-  padding: 12px 14px 0;
-  background: var(--surface);
+  background: var(--ground);
   color: var(--ink);
-  font: 13px/1.45 var(--font);
+  font: 14px/21px var(--font);
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: var(--accent-tint);
+  background: var(--blue-tint-2);
 }
 
 p {
   margin: 0;
 }
 
+button,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
 code {
-  font: 500 11.5px/1.4 var(--mono);
+  font: 500 12px/1.4 var(--mono);
 }
 
 .icon {
@@ -49,164 +61,46 @@ code {
   white-space: nowrap;
 }
 
-/* --- controls ------------------------------------------------------------------ */
-
-button,
-select,
-textarea {
-  font: inherit;
-  color: inherit;
-}
-
-.button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-m);
-  background: var(--surface);
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    background 120ms,
-    border-color 120ms,
-    color 120ms;
-}
-
-.button:hover:not(:disabled) {
-  background: var(--surface-2);
-}
-
-.button:active:not(:disabled) {
-  background: var(--surface-3);
-}
-
-.button:disabled {
-  color: var(--ink-2);
-  cursor: default;
-  opacity: 0.6;
-}
-
-.button.primary {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--on-accent);
-}
-
-.button.primary:hover:not(:disabled) {
-  border-color: var(--accent-hover);
-  background: var(--accent-hover);
-}
-
-/* Nothing to send is not an error: the button goes quiet instead of fading out. */
-.button.primary:disabled {
-  border-color: var(--line);
-  background: var(--surface-2);
-  color: var(--ink-2);
-  opacity: 1;
-}
-
-.button.small {
-  min-height: 28px;
-  padding: 0 10px;
-}
-
-.button.quiet {
-  border-color: transparent;
-  background: transparent;
-  color: var(--ink-2);
-}
-
-.button.quiet:hover:not(:disabled) {
-  background: var(--surface-2);
-  color: var(--ink);
-}
-
-.icon-button {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--ink-2);
-  cursor: pointer;
-}
-
-.icon-button:hover {
-  background: var(--surface-3);
-  color: var(--ink);
-}
-
 :focus-visible {
-  outline: 2px solid var(--accent-stroke);
+  outline: 2px solid var(--blue);
   outline-offset: 2px;
 }
 
 kbd {
   padding: 0 5px;
-  border: 1px solid var(--line-2);
   border-radius: 4px;
+  background: rgb(255 255 255 / 0.08);
   color: var(--ink-2);
-  font: 500 11px/16px var(--font);
+  font: 500 11px/18px var(--font);
 }
 
-textarea {
-  display: block;
-  width: 100%;
-  min-height: 34px;
-  max-height: 220px;
-  padding: 7px 9px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-m);
-  background: var(--surface);
-  caret-color: var(--accent-ink);
-  resize: none;
-  field-sizing: content;
-}
+/* --- header -------------------------------------------------------------------------- */
 
-textarea::placeholder {
-  color: var(--ink-2);
-}
-
-textarea:focus {
-  border-color: var(--accent-stroke);
-  outline: 3px solid var(--accent-tint);
-  outline-offset: 0;
-}
-
-/* --- status ----------------------------------------------------------------------- */
-
-.status {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 2px 10px;
-  padding: 10px 12px;
-  border-radius: var(--radius-l);
-  background: var(--surface-2);
+.top {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--ring);
 }
 
 .dot {
   position: relative;
+  flex: none;
   width: 8px;
   height: 8px;
-  margin-top: 6px;
   border-radius: 999px;
-  background: var(--skipped);
+  background: rgb(255 255 255 / 0.3);
 }
 
-.status[data-state='listening'] .dot {
+.top[data-state='listening'] .dot {
   background: var(--listening);
 }
 
 /* Listening is live: a slow ring says so without asking for attention. */
-.status[data-state='listening'] .dot::after {
+.top[data-state='listening'] .dot::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -215,38 +109,118 @@ textarea:focus {
   animation: listen 2.4s var(--ease-out) infinite;
 }
 
-.status[data-state='queued'] .dot {
+.top[data-state='queued'] .dot {
   background: var(--waiting);
 }
 
-.status-title {
-  font-weight: 600;
+.title {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
 }
 
-.status-detail {
-  grid-column: 2;
+.project {
+  display: block;
   overflow: hidden;
-  color: var(--ink-2);
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  margin-left: -6px;
+  padding: 3px 6px;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+
+.picker:hover {
+  background: var(--control);
+}
+
+.picker:has(select:focus-visible) {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+.picker-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker .icon {
+  color: var(--ink-2);
+}
+
+/* The native select sits invisibly over the label, so the chevron follows the chosen name. */
+.picker select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.picker option {
+  background: var(--card);
+}
+
+.state {
+  flex: none;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* --- thread ------------------------------------------------------------------------- */
+
+.thread {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 14px 8px;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent);
+}
+
+.intro {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  margin: 18vh auto 0;
+  max-width: 260px;
+  text-align: center;
+}
+
+.intro-title {
+  font-weight: 500;
+}
+
+.intro-text {
+  color: var(--ink-3);
 }
 
 .command {
-  grid-column: 2;
-  justify-self: start;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   max-width: 100%;
   margin-top: 6px;
-  padding: 4px 6px 4px 9px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-s);
-  background: var(--surface);
+  padding: 6px 8px 6px 10px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--control);
+  box-shadow: inset 0 0 0 1px var(--ring-2);
   cursor: pointer;
 }
 
 .command:hover {
-  border-color: var(--ink-2);
+  background: var(--control-hover);
 }
 
 .command .icon {
@@ -254,340 +228,377 @@ textarea:focus {
 }
 
 .copied {
-  color: var(--done-ink);
+  color: #6fd394;
   font-size: 12px;
-  font-weight: 500;
 }
 
-.session {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  color: var(--ink-2);
-}
-
-.session select {
-  flex: 1;
-  min-width: 0;
-  min-height: 30px;
-  padding: 0 6px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-s);
-  background: var(--surface);
-  color: var(--ink);
-}
-
-/* --- toolbar ------------------------------------------------------------------------- */
-
-.toolbar {
+.turns {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 22px;
 }
 
-.pick kbd {
-  margin-left: auto;
-}
-
-.pick {
-  justify-content: flex-start;
-}
-
-.pick[aria-pressed='true'] {
-  border-color: var(--accent-stroke);
-  background: var(--accent-tint);
-  color: var(--accent-ink);
-}
-
-.pick[aria-pressed='true'] kbd {
-  border-color: currentColor;
-  color: inherit;
-}
-
-.tab-hint {
-  margin-top: 8px;
-  color: var(--ink-2);
-}
-
-/* --- sections ----------------------------------------------------------------------- */
-
-h2 {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin: 22px 0 8px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.count {
-  color: var(--ink-2);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
-
-.empty {
-  color: var(--ink-2);
-}
-
-.empty kbd {
-  margin: 0 1px;
-}
-
-/* --- draft comments ------------------------------------------------------------------ */
-
-.draft {
+.turn {
   display: grid;
-  gap: 8px;
+  gap: 12px;
+}
+
+/* You: a bubble on the right, as in Claude's chat. */
+.you {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+
+.bubble {
+  max-width: 88%;
+  padding: 10px 14px;
+  border-radius: var(--radius-bubble);
+  background: var(--bubble);
+}
+
+.bubble-comments {
+  display: grid;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.comment {
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-l);
-  background: var(--surface);
-}
-
-.comment-head {
+.ref {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
-  margin-bottom: 6px;
+  margin-bottom: 2px;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 18px;
 }
 
-.badge {
+.ref-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.num {
   display: grid;
   place-items: center;
   flex: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 10px 10px 3px 10px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 11px;
-  font-weight: 700;
+  width: 18px;
+  height: 18px;
+  border-radius: 9px 9px 9px 0;
+  background: var(--blue-badge);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.where {
+.comment-text {
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The agent: plain text in the reply serif, no bubble. */
+.agent {
+  display: grid;
+  gap: 12px;
+  padding-right: 8px;
+}
+
+.waiting {
+  color: var(--ink-3);
+}
+
+.working {
+  color: var(--ink-3);
+}
+
+/* Claude's working state shimmers, as in claude.ai; the sweep is the state, so it only runs with motion on. */
+@media (prefers-reduced-motion: no-preference) {
+  .working {
+    background: linear-gradient(90deg, var(--ink-3) 30%, var(--ink) 50%, var(--ink-3) 70%) 0 0 / 300% 100%;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 2s linear infinite;
+  }
+}
+
+.replies {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reply {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 10px;
+}
+
+.reply .num {
+  margin-top: 2px;
+  background: var(--disc);
+}
+
+.reply[data-status='done'] .num {
+  background: var(--done-badge);
+}
+
+.reply[data-status='question'] .num {
+  background: var(--question);
+  color: var(--on-question);
+}
+
+.reply-label {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.reply[data-status='question'] .reply-label {
+  color: var(--question);
+}
+
+.reply-text,
+.summary {
+  font: 15px/22px var(--serif);
+  overflow-wrap: anywhere;
+}
+
+.followup {
+  margin-top: 6px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* Answering a question: the same field as replying on a canvas comment. */
+.answer {
   display: flex;
-  flex: 1;
+  align-items: flex-end;
   gap: 6px;
-  align-items: baseline;
-  min-width: 0;
-  color: var(--ink-2);
+  margin-top: 8px;
+  padding: 6px 6px 6px 12px;
+  border-radius: var(--radius-bubble);
+  background: var(--control);
+  box-shadow: inset 0 0 0 1px var(--ring-2);
 }
 
-.where code {
-  flex: none;
-  max-width: 60%;
-  overflow: hidden;
-  color: var(--ink);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.answer:focus-within,
+.compose:focus-within {
+  box-shadow: var(--focus-glow);
 }
 
-.where-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.answer textarea,
+.message,
+.draft textarea {
+  display: block;
+  flex: 1;
+  width: 100%;
+  min-height: 21px;
+  max-height: 200px;
+  padding: 3px 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  caret-color: var(--blue);
+  resize: none;
+  field-sizing: content;
 }
 
-.path {
-  flex: none;
-  max-width: 34%;
-  overflow: hidden;
-  color: var(--ink-2);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.context {
-  margin: 0 0 6px;
-  padding: 6px 8px;
-  border-radius: var(--radius-s);
-  background: var(--surface-2);
-  color: var(--ink-2);
-  font-size: 12px;
-}
-
-.context b {
-  color: var(--question-ink);
-  font-weight: 600;
-}
-
-/* Send stays in reach however long the list gets. */
-.send-bar {
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
-  margin: 0 -14px;
-  padding: 10px 14px 12px;
-  background: linear-gradient(to bottom, transparent, var(--surface) 10px);
+textarea::placeholder {
+  color: var(--ink-3);
 }
 
 .send {
-  width: 100%;
-  min-height: 36px;
-  font-weight: 600;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--blue);
+  color: #fff;
+  cursor: pointer;
+}
+
+.send:disabled {
+  background: rgb(255 255 255 / 0.08);
+  color: var(--ink-3);
+  cursor: default;
+}
+
+/* --- composer ---------------------------------------------------------------------------- */
+
+.bottom {
+  flex: none;
+  display: grid;
+  gap: 8px;
+  padding: 8px 12px 12px;
+}
+
+.notice {
+  padding: 0 4px;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 17px;
 }
 
 .error {
   display: flex;
   gap: 8px;
-  margin-top: 8px;
   padding: 8px 10px;
-  border-radius: var(--radius-m);
+  border-radius: 10px;
   background: var(--danger-tint);
   color: var(--danger-ink);
+  font-size: 13px;
+  line-height: 18px;
 }
 
 .error .icon {
   margin-top: 1px;
 }
 
-/* --- sent -------------------------------------------------------------------------------- */
-
-.sent-section {
-  padding-bottom: 16px;
-}
-
-.sent-section h2 {
-  margin-top: 12px;
-}
-
-.sent {
+.compose {
   display: grid;
-  gap: 10px;
+  gap: 6px;
+  padding: 8px;
+  border-radius: var(--radius-composer);
+  background: var(--control);
+  box-shadow: inset 0 0 0 1px var(--ring-2), 0 4px 20px rgb(0 0 0 / 0.075);
 }
 
-.batch {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-l);
-}
-
-.batch-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--line);
-}
-
-.batch-title {
-  font-weight: 600;
-}
-
-.batch-meta {
-  color: var(--ink-2);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.batch-state[data-status='fetched'] {
-  color: var(--accent-ink);
-}
-
-.batch-summary {
-  padding: 8px 10px 0;
-}
-
-.sent-comments {
+.drafts {
+  display: grid;
+  gap: 6px;
+  max-height: 46vh;
   margin: 0;
-  padding: 2px 0;
+  padding: 0;
+  overflow-y: auto;
   list-style: none;
 }
 
-.sent-comment {
-  display: grid;
-  grid-template-columns: 18px 1fr;
-  gap: 8px;
-  padding: 8px 10px;
+.drafts:empty {
+  display: none;
 }
 
-.sent-comment + .sent-comment {
-  border-top: 1px solid var(--line);
+/* A stacked comment rides in the composer like an attachment. */
+.draft {
+  padding: 7px 8px 6px 10px;
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--ring);
 }
 
-.status-icon {
+.draft-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.draft-where {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-button {
   display: grid;
   place-items: center;
-  width: 18px;
-  height: 18px;
-  margin-top: 1px;
-  border-radius: 9px 9px 2px 9px;
-  background: var(--surface-3);
-  color: var(--ink-2);
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
 }
 
-.status-icon .icon {
-  width: 11px;
-  height: 11px;
-  stroke-width: 3;
-}
-
-.sent-comment[data-status='done'] .status-icon {
-  background: var(--done);
-  color: #fff;
-}
-
-.sent-comment[data-status='question'] .status-icon {
-  background: var(--question);
-  color: var(--on-question);
-}
-
-.sent-comment[data-status='skipped'] .status-icon {
-  background: var(--skipped);
-  color: #fff;
-}
-
-.sent-text {
-  overflow-wrap: anywhere;
-}
-
-.reply {
-  margin-top: 4px;
-  color: var(--ink-2);
-  overflow-wrap: anywhere;
-}
-
-.reply b {
+.icon-button:hover {
+  background: var(--control);
   color: var(--ink);
-  font-weight: 600;
 }
 
-.sent-comment[data-status='question'] .reply b {
-  color: var(--question-ink);
-}
-
-.followup {
-  margin-top: 6px;
-  color: var(--ink-2);
+.draft-context {
+  margin-top: 2px;
+  color: var(--ink-3);
   font-size: 12px;
+  line-height: 17px;
 }
 
-.answer-button {
-  margin-top: 8px;
+.draft-context b {
+  color: var(--question);
+  font-weight: 500;
 }
 
-.composer {
-  display: grid;
-  gap: 6px;
-  margin-top: 8px;
+.message {
+  padding: 4px 6px;
+  font-size: 15px;
+  line-height: 21px;
 }
 
-.composer-actions {
+.compose-bar {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
   gap: 6px;
+}
+
+.tool {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.tool:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.06);
+  color: var(--ink);
+}
+
+.tool:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.tool[aria-pressed='true'] {
+  background: var(--blue-tint);
+  color: var(--blue-ink);
+}
+
+.tool[aria-pressed='true'] kbd {
+  background: var(--blue-tint);
+  color: var(--blue-ink);
+}
+
+.count {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 @keyframes listen {
@@ -598,6 +609,12 @@ h2 {
   to {
     opacity: 0;
     scale: 2.6;
+  }
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -150% 0;
   }
 }
 

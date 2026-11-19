@@ -1,19 +1,21 @@
 # Design in Browser
 
-Comment on your running app in Chrome and have a Claude Code session in your terminal act on the comments. Pick an element, say what should change, stack as many comments as you like across pages, and send them. Claude edits the source, your dev server hot-reloads, and Claude's reply shows up next to each comment.
+Comment on your running app in Chrome and have the coding agent in your terminal act on the comments. Pick an element, say what should change, stack as many comments as you like across pages, and send them. The agent edits the source, your dev server hot-reloads, and its reply shows up next to each comment.
 
-This is the MVP: comments go to Claude, Claude edits and replies. Switchable variants come next (see Roadmap).
+Claude Code is supported today; OpenCode and other agents are planned. The UI names whichever agent is connected (from its MCP client name) and never hard-codes one. The look follows Claude Design: dark chrome, blue selection, comment pins at the clicked point, and a chat side panel.
+
+This is the MVP: comments go to the agent, the agent edits and replies. Switchable variants come next (see Roadmap).
 
 ## How it works
 
 ```
-Chrome extension ──ws──▶ daemon 127.0.0.1:47821 ◀──stdio── MCP server (one per Claude Code session)
+Chrome extension ──ws──▶ daemon 127.0.0.1:47821 ◀──stdio── MCP server (one per agent session)
  picker, pins,              │        ▲
- side panel                 ▼        └── Claude's Monitor tool: each batch wakes the session
+ side panel                 ▼        └── the agent's wake-up (Claude Code: its Monitor tool)
                    <project>/.design-in-browser/   journal of every batch, ignored by git
 ```
 
-- **Extension** (`extension/`): an element picker and numbered pins on the page, and a side panel with the comment stack, Send, and Claude's replies. It runs on `localhost`, `127.0.0.1`, `*.localhost` and `*.test`.
+- **Extension** (`extension/`): an element picker, comment card and pins on the page, and a side panel that reads as a chat: your batches, the agent's replies, and a composer holding the comment stack. It runs on `localhost`, `127.0.0.1`, `*.localhost` and `*.test`.
 - **Daemon**: one per machine, started by the first session that runs `/design-in-browser:live`. It routes batches to sessions and writes them to the project's journal folder. It stops after 30 minutes with no session.
 - **Plugin** (`plugin/`): an MCP server with four tools (`live_connect`, `live_get_batch`, `live_reply`, `live_status`) and the `live` skill that tells Claude how to listen and what a comment allows it to do.
 
@@ -50,10 +52,10 @@ Any Claude Code session can connect; nothing has to be passed when you start `cl
 ## Use
 
 1. In a Claude Code session in your project, run `/design-in-browser:live`. Claude connects, arms its Monitor and says it is listening.
-2. Open your app on its local dev server and click the extension icon to open the side panel. The panel shows "Claude is listening".
-3. Press **Alt+Shift+C** (or **Pick element**), click an element, type what should change, press Enter. Repeat on any element or page. **Page note** comments on the whole page. Esc stops picking.
-4. Click **Send**. Claude fetches the batch, edits the source and replies per comment: done, a question, or skipped with a reason. Pins turn green with a check (done), amber with a question mark (question) or grey with a dash (skipped). Click a pin to read Claude's reply.
-5. To answer a question, click **Answer** under it in the side panel or on its pin's card. The answer joins your comments with Claude's question attached; send it like any other comment, and Claude closes the question when it acts on it.
+2. Open your app on its local dev server and click the extension icon to open the side panel. The panel shows "Claude is listening" (the agent's name comes from the session).
+3. Press **Alt+Shift+C** (or **Comment** in the panel), click where you mean on the page, type what should change, press Enter. A pin stays at that point. Repeat on any element or page; comments stack in the panel's composer. **Ask <agent>** in the tool pill, or the panel's message field, adds a note about the whole page. Esc stops picking.
+4. Send from the panel (or tick **Send to <agent>** in the comment card to send right away). The agent fetches the batch, edits the source and replies per comment: done, a question, or skipped with a reason. Pin discs turn green with a check (done) or amber with a question mark (question); waiting and skipped pins go grey. Click a pin to read the reply.
+5. To answer a question, type in the **Answer** field under it, in the panel or in the pin's thread. The answer joins your comments with the question attached; send it like any other comment, and the agent closes the question when it acts on it.
 
 While picking, clicks don't reach the page, so buttons and links don't fire.
 
@@ -99,8 +101,9 @@ The daemon log is `~/.design-in-browser/daemon.log`. A daemon from an older buil
 
 ## Roadmap
 
-1. ~~Bridge, skill and Monitor wake; picker, comment stack and Send; Claude edits and replies.~~ (this MVP)
-2. Vite plugin (dev server only) that stamps `data-dib-src="file:line:column"` and the component owner chain on elements, so Claude goes straight to the right file. The extension already sends it as `sourceHint`.
-3. Variants: Claude renders two or three alternatives through a dev-only `<LiveVariants>`, a chip on the element switches between them, and you accept one or comment on a variant to iterate.
+1. ~~Bridge, skill and Monitor wake; picker, comment stack and Send; the agent edits and replies.~~ (this MVP)
+2. Vite plugin (dev server only) that stamps `data-dib-src="file:line:column"` and the component owner chain on elements, so the agent goes straight to the right file. The extension already sends it as `sourceHint`.
+3. Variants: the agent renders two or three alternatives through a dev-only `<LiveVariants>`, a chip on the element switches between them, and you accept one or comment on a variant to iterate.
 4. Freehand strokes, boxes and arrows, and cropped screenshots with each comment.
-5. Annotations from Claude back to the page, with reply threads.
+5. Annotations from the agent back to the page, with reply threads.
+6. Connectors for OpenCode and other agents.

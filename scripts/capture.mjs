@@ -1,4 +1,4 @@
-// Screenshots every side panel and overlay state, in light and dark, for design review.
+// Screenshots every side panel and overlay state for design review. The UI is dark only, like Claude Design.
 // Runs a real daemon and MCP server on a spare port; nothing touches ~/.design-in-browser.
 // Usage: pnpm build && node scripts/capture.mjs [outDir]
 import fs from 'node:fs'
@@ -69,7 +69,7 @@ async function run(colorScheme) {
   await panel.waitForTimeout(800)
   await panelShot('2-no-session')
 
-  const shim = new Client({ name: 'capture', version: '0' })
+  const shim = new Client({ name: 'claude-code', version: '0' })
   await shim.connect(new StdioClientTransport({ command: process.execPath, args: [path.join(repo, 'plugin/dist/mcp.mjs')], env }))
   const call = async (name, args = {}) => {
     const result = await shim.callTool({ name, arguments: args }, undefined, { timeout: 15_000 })
@@ -77,15 +77,18 @@ async function run(colorScheme) {
   }
   const connected = await call('live_connect', { projectRoot: project, origins: [origin] })
   const listenUrl = /ws:\/\/\S+\/listen\/\S+/.exec(connected)[0].replace(/,$/, '')
+  await panel.getByTestId('status').filter({ hasText: 'Not listening' }).waitFor()
   await panelShot('3-not-listening')
-  const other = new Client({ name: 'capture-other', version: '0' })
+  const other = new Client({ name: 'opencode', version: '0' })
   await other.connect(new StdioClientTransport({ command: process.execPath, args: [path.join(repo, 'plugin/dist/mcp.mjs')], env }))
   fs.mkdirSync(path.join(tmp, 'acme-admin'))
   await other.callTool({ name: 'live_connect', arguments: { projectRoot: path.join(tmp, 'acme-admin'), origins: ['http://localhost:5174'] } })
+  await panel.getByTestId('session').locator('option').nth(1).waitFor({ state: 'attached' })
   await panelShot('3b-two-sessions')
   await other.close()
   const listener = new WebSocket(listenUrl)
   await new Promise((resolve) => listener.once('open', resolve))
+  await panel.getByTestId('status').filter({ hasText: 'is listening' }).waitFor()
   await panelShot('4-listening-empty')
 
   await page.bringToFront()
@@ -94,14 +97,19 @@ async function run(colorScheme) {
   await page.locator('.cta').first().hover()
   await page.waitForTimeout(150)
   await shot(page, 'overlay-1-picking')
+  await page.locator('dib-overlay .tool.ask').click()
+  await page.locator('dib-overlay .askbar input').fill('Make the whole page feel less crowded')
+  await page.waitForTimeout(200)
+  await shot(page, 'overlay-1b-ask-claude')
+  await page.locator('dib-overlay .tool.ask').click()
   const comment = async (selector, text, popoverShot) => {
     await page.locator(selector).first().click()
-    await page.locator('dib-overlay .popover textarea').fill(text)
+    await page.locator('dib-overlay .composer textarea').fill(text)
     if (popoverShot) {
       await page.waitForTimeout(250)
       await shot(page, popoverShot)
     }
-    await page.locator('dib-overlay .popover textarea').press('Enter')
+    await page.locator('dib-overlay .composer textarea').press('Enter')
   }
   await comment('h1', 'Make the headline bolder and larger', 'overlay-2-popover')
   await comment('[data-testid="starter-cta"]', 'Use the accent color for the free plan button so it reads as the recommended plan, and make the label say "Start for free"')
@@ -142,13 +150,13 @@ async function run(colorScheme) {
   await shot(page, 'overlay-4b-question-card')
   await page.keyboard.press('Escape')
   await panel.bringToFront()
-  await panel.getByTestId('answer').click()
-  await panel.locator('textarea[data-composer]').fill('Accent purple, the logo green is for success states')
+  await panel.getByTestId('answer-field').fill('Accent purple, the logo green is for success states')
   await panelShot('8b-answering')
-  await panel.locator('textarea[data-composer]').press('Enter')
+  await panel.getByTestId('answer-field').press('Enter')
+  await panel.getByTestId('message').fill('Also tighten the spacing between the two plans')
   await panelShot('8c-answer-drafted')
   await worker.evaluate(() =>
-    chrome.storage.local.set({ lastError: 'That Claude Code session has ended. Run /design-in-browser:live in a session, then send again.' }),
+    chrome.storage.local.set({ lastError: 'That agent session has ended. Connect a session again (in Claude Code: /design-in-browser:live), then send.' }),
   )
   await panelShot('9-error')
   await panel.screenshot({ path: path.join(outDir, `${colorScheme}-panel-9b-full.png`), fullPage: true })
@@ -171,7 +179,7 @@ async function run(colorScheme) {
   await dark.keyboard.press('Alt+Shift+C')
   await dark.locator('h1').hover()
   await dark.locator('h1').click()
-  await dark.locator('dib-overlay .popover textarea').fill('On a dark page')
+  await dark.locator('dib-overlay .composer textarea').fill('On a dark page')
   await dark.waitForTimeout(250)
   await shot(dark, 'overlay-5-dark-page')
 
@@ -184,5 +192,5 @@ async function run(colorScheme) {
   fs.rmSync(tmp, { recursive: true, force: true })
 }
 
-for (const scheme of (process.env.CAPTURE_SCHEMES ?? 'light,dark').split(',')) await run(scheme)
+for (const scheme of (process.env.CAPTURE_SCHEMES ?? 'dark').split(',')) await run(scheme)
 console.log(`screenshots in ${outDir}`)

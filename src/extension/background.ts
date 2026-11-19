@@ -48,7 +48,9 @@ async function connect(): Promise<void> {
     inFlight.clear()
     void serially(() => writeState({ connection: 'offline', sessions: [], sending: false }))
     setTimeout(() => void connect(), retryMs)
-    retryMs = Math.min(retryMs * 2, 10_000)
+    // The daemon starts when a session connects; a refused localhost socket is cheap, so retry often
+    // enough that the panel notices within a couple of seconds.
+    retryMs = Math.min(retryMs * 2, 2000)
   }
 }
 
@@ -105,7 +107,7 @@ async function onMessage(message: BackgroundMessage): Promise<void> {
       const sent = post({ type: 'send-batch', clientBatchId, sessionId: message.sessionId, comments })
       if (!sent) {
         inFlight.delete(clientBatchId)
-        await writeState({ lastError: `Not connected to Claude Code. Run ${START_COMMAND} in a session, then send again.` })
+        await writeState({ lastError: `Not connected to a coding agent. Connect a session (in Claude Code: ${START_COMMAND}), then send again.` })
         return
       }
       await writeState({ sending: true, lastError: null })

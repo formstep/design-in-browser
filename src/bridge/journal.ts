@@ -6,7 +6,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Batch } from '../shared/protocol.ts'
-import { PRODUCT_NAME } from '../shared/protocol.ts'
+import { FALLBACK_AGENT, PRODUCT_NAME } from '../shared/protocol.ts'
 
 export const journalDir = (projectRoot: string) => path.join(projectRoot, `.${PRODUCT_NAME}`)
 const batchesDir = (projectRoot: string) => path.join(journalDir(projectRoot), 'batches')
@@ -49,5 +49,6 @@ export function readBatches(projectRoot: string): Batch[] {
     .readdirSync(dir)
     .filter((name) => /^\d+\.json$/.test(name))
     .sort()
-    .map((name) => JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8')) as Batch)
+    // Batches written before agents were named have no `agent`.
+    .map((name) => ({ agent: FALLBACK_AGENT, ...(JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8')) as Omit<Batch, 'agent'>) }))
 }

@@ -65,7 +65,8 @@ test.beforeAll(async () => {
 
   daemonPort = await freePort()
   const env = { ...(process.env as Record<string, string>), DIB_PORT: String(daemonPort), DIB_HOME: home }
-  shim = new Client({ name: 'e2e', version: '0' })
+  // Named like Claude Code's MCP client, so the UI shows "Claude".
+  shim = new Client({ name: 'claude-code', version: '0' })
   await shim.connect(new StdioClientTransport({ command: process.execPath, args: [path.join(repo, 'plugin/dist/mcp.mjs')], env }))
   const connected = await callTool('live_connect', { projectRoot: project, origins: [new URL(fixtureUrl).origin] })
   const listenUrl = /ws:\/\/\S+\/listen\/\S+/.exec(connected)![0].replace(/,$/, '')
@@ -100,7 +101,7 @@ test.afterAll(async () => {
 
 async function comment(page: Page, selector: string, text: string): Promise<void> {
   await page.locator(selector).first().click()
-  const popover = page.locator('dib-overlay .popover')
+  const popover = page.locator('dib-overlay .composer')
   await expect(popover).toBeVisible()
   await popover.locator('textarea').fill(text)
   if (selector === 'h1') await page.screenshot({ path: path.join(repo, 'test-results/0-popover.png') })
@@ -121,30 +122,30 @@ test('pick, comment, send, and see Claude reply on the page', async () => {
   const panel = await context.newPage()
   await panel.goto(`chrome-extension://${extensionId}/sidepanel.html?tabId=${tabId}`)
   // With a hand-off the outside listener may or may not have connected yet.
-  await expect(panel.getByTestId('status')).toContainText(handOff ? 'Claude is' : 'Claude is listening')
+  await expect(panel.getByTestId('status')).toContainText(handOff ? /Claude is listening|Not listening/ : 'Claude is listening')
 
   // Pick with the keyboard shortcut; clicks while picking must not reach the page.
   await page.bringToFront()
   await page.locator('h1').hover()
   await page.keyboard.press('Alt+Shift+C')
-  await expect(page.locator('dib-overlay .banner')).toBeVisible()
+  await expect(page.locator('dib-overlay .dock')).toBeVisible()
 
   // With the popover open, a click elsewhere moves the empty popover and never reaches the page.
   await page.locator('h1').click()
-  await expect(page.locator('dib-overlay .popover .target code')).toHaveText('h1')
+  await expect(page.locator('dib-overlay .composer .target')).toContainText('h1 · “Simple pricing”')
   await page.locator('[data-testid="starter-cta"]').click()
-  await expect(page.locator('dib-overlay .popover .target code')).toHaveText('button.cta')
+  await expect(page.locator('dib-overlay .composer .target')).toContainText('button.cta')
   await expect(page.locator('#clicks')).toHaveText('0')
   await page.keyboard.press('Escape')
-  await expect(page.locator('dib-overlay .popover')).toBeHidden()
+  await expect(page.locator('dib-overlay .composer')).toBeHidden()
 
   await comment(page, 'h1', 'Make the headline bolder and larger')
   await comment(page, '[data-testid="starter-cta"]', 'Use the accent color for the free plan button')
   await expect(page.locator('#clicks')).toHaveText('0')
   await page.keyboard.press('Escape')
-  await expect(page.locator('dib-overlay .banner')).toBeHidden()
+  await expect(page.locator('dib-overlay .dock')).toBeHidden()
 
-  const pins = page.locator('dib-overlay .pin-wrap:not([hidden])')
+  const pins = page.locator('dib-overlay .pins .pin-wrap:not([hidden])')
   await expect(pins.locator('.pin')).toHaveText(['1', '2'])
   await page.screenshot({ path: path.join(repo, 'test-results/1-commented.png') })
 
@@ -169,7 +170,7 @@ test('pick, comment, send, and see Claude reply on the page', async () => {
       ['button', 'button[data-testid="starter-cta"]', 'Use the accent color for the free plan button'],
     ])
     expect(batch.comments[1]!.element!.ancestors).toEqual(['article.plan', 'div.plans', 'main'])
-    await expect(panel.getByTestId('sent')).toContainText('Claude is working')
+    await expect(panel.getByTestId('sent')).toContainText('Working on it')
     await callTool('live_reply', {
       batchId: batch.id,
       replies: [
@@ -178,7 +179,7 @@ test('pick, comment, send, and see Claude reply on the page', async () => {
       ],
     })
     await expect(panel.getByTestId('sent')).toContainText('Done')
-    await expect(panel.getByTestId('sent')).toContainText('Claude: Headline is now 40px, weight 800.')
+    await expect(panel.getByTestId('sent')).toContainText('Headline is now 40px, weight 800.')
   }
   await panel.screenshot({ path: path.join(repo, 'test-results/2-panel.png') })
 
@@ -198,14 +199,19 @@ test('answer Claude\'s questions from the panel and from a pin', async () => {
   await panel.goto(`chrome-extension://${extensionId}/sidepanel.html?tabId=${tabId}`)
 
   // From the panel: answer the question on batch 001.
-  await panel.getByTestId('answer').click()
-  const composer = panel.locator('textarea[data-composer]')
-  await expect(composer).toBeFocused()
-  await composer.fill('Accent purple')
-  await composer.press('Enter')
+  // Text being typed survives the panel's periodic re-render, in the answer field and in the composer.
+  const field = panel.getByTestId('answer-field')
+  await field.fill('Accent')
+  await panel.getByTestId('message').fill('A note in progress')
+  await panel.waitForTimeout(2000)
+  await expect(field).toHaveValue('Accent')
+  await expect(panel.getByTestId('message')).toHaveValue('A note in progress')
+  await panel.getByTestId('message').fill('')
+  await field.fill('Accent purple')
+  await field.press('Enter')
   await expect(panel.getByTestId('draft-item')).toHaveCount(1)
   await expect(panel.getByTestId('draft-item')).toContainText('Claude asked: Accent purple or the green from the logo?')
-  await expect(panel.getByTestId('sent')).toContainText('Your answer is in Comments, ready to send.')
+  await expect(panel.getByTestId('sent')).toContainText('Your answer is in the composer, ready to send.')
   await panel.getByTestId('send').click()
   await expect.poll(() => doorbells.at(-1)).toBe('design-in-browser: batch 002 ready, 1 comment. Call live_get_batch.')
   const second = JSON.parse(await callTool('live_get_batch')) as Batch
@@ -225,12 +231,19 @@ test('answer Claude\'s questions from the panel and from a pin', async () => {
   const asking = page.locator('dib-overlay .pin-wrap[data-status="question"]')
   await expect(asking).toHaveCount(1)
   await asking.locator('.pin').click()
-  await asking.getByRole('button', { name: 'Answer', exact: true }).click()
-  const popover = page.locator('dib-overlay .popover')
-  await expect(popover.locator('.asked-text')).toHaveText('Which shade, 500 or 600?')
-  await popover.locator('textarea').fill('600')
-  await popover.locator('textarea').press('Enter')
-  await expect(popover).toBeHidden()
+  await expect(asking.locator('.thread')).toContainText('Which shade, 500 or 600?')
+  // On a short window the card still opens fully on screen.
+  await page.setViewportSize({ width: 1100, height: 420 })
+  await page.waitForTimeout(1000)
+  const box = (await asking.locator('.thread').boundingBox())!
+  expect(box.y).toBeGreaterThanOrEqual(8)
+  expect(box.y + box.height).toBeLessThanOrEqual(420 - 8)
+  await page.setViewportSize({ width: 1100, height: 720 })
+  await page.waitForTimeout(1000)
+  const answer = asking.getByRole('textbox', { name: 'Answer Claude' })
+  await answer.fill('600')
+  await answer.press('Enter')
+  await expect(asking.locator('.thread')).toBeHidden()
   await panel.bringToFront()
   await expect(panel.getByTestId('draft-item')).toContainText('Claude asked: Which shade, 500 or 600?')
   await panel.getByTestId('draft-item').getByRole('button', { name: 'Remove comment 1' }).click()
@@ -241,7 +254,7 @@ test('answer Claude\'s questions from the panel and from a pin', async () => {
   await callTool('live_reply', { batchId: '001', replies: [{ commentId: original.id, status: 'done', message: 'The free plan button is accent purple now.' }] })
   await expect(page.locator('dib-overlay .pin-wrap[data-status="answered"]')).toHaveCount(0)
   await expect(panel.getByTestId('sent')).not.toContainText('Answered in batch 002.')
-  await expect(panel.getByTestId('sent')).toContainText('Claude: The free plan button is accent purple now.')
+  await expect(panel.getByTestId('sent')).toContainText('The free plan button is accent purple now.')
   await panel.close()
 })
 
@@ -255,21 +268,21 @@ test('the overlay works on a page whose CSP forbids inline styles', async () => 
   await expect(page.locator('.plan').first()).toHaveCSS('border-radius', '0px')
   await page.locator('h1').hover()
   await page.keyboard.press('Alt+Shift+C')
-  const banner = page.locator('dib-overlay .banner')
+  const banner = page.locator('dib-overlay .dock')
   await expect(banner).toBeVisible()
   // --ink, from the overlay's own sheet
-  await expect(banner).toHaveCSS('background-color', 'rgb(28, 25, 23)')
+  await expect(banner.locator('.tools')).toHaveCSS('background-color', 'rgb(31, 31, 31)')
   await page.locator('h1').click()
-  await expect(page.locator('dib-overlay .popover')).toHaveCSS('border-radius', '12px')
+  await expect(page.locator('dib-overlay .composer')).toHaveCSS('border-radius', '16px')
   // Pins and their cards render under the same CSP; Remove on a draft pin's card deletes it.
-  await page.locator('dib-overlay .popover textarea').fill('Under a strict CSP')
-  await page.locator('dib-overlay .popover textarea').press('Enter')
+  await page.locator('dib-overlay .composer textarea').fill('Under a strict CSP')
+  await page.locator('dib-overlay .composer textarea').press('Enter')
   await page.keyboard.press('Escape')
-  const pin = page.locator('dib-overlay .pin-wrap:not([hidden])')
-  await expect(pin.locator('.pin')).toHaveCSS('border-bottom-right-radius', '3px')
+  const pin = page.locator('dib-overlay .pins .pin-wrap:not([hidden])')
+  await expect(pin.locator('.pin')).toHaveCSS('border-bottom-left-radius', '0px')
   await pin.locator('.pin').click()
-  await expect(pin.locator('.card')).toBeVisible()
-  await pin.getByRole('button', { name: 'Remove' }).click()
+  await expect(pin.locator('.thread')).toBeVisible()
+  await pin.getByRole('button', { name: 'Remove comment' }).click()
   await expect(pin).toHaveCount(0)
   expect(errors.filter((text) => text.includes('dib') || text.includes('chrome-extension'))).toEqual([])
   await page.close()
@@ -280,7 +293,8 @@ test('the session picked in the panel keeps getting the comments', async () => {
   const project2 = path.join(tmp, 'project2')
   fs.mkdirSync(project2)
   const env = { ...(process.env as Record<string, string>), DIB_PORT: String(daemonPort), DIB_HOME: home }
-  const second = new Client({ name: 'e2e-second', version: '0' })
+  // A second agent: the UI names it from its MCP client name.
+  const second = new Client({ name: 'opencode', version: '0' })
   await second.connect(new StdioClientTransport({ command: process.execPath, args: [path.join(repo, 'plugin/dist/mcp.mjs')], env }))
   try {
     const call = async (name: string, args: Record<string, unknown> = {}) => {
@@ -297,6 +311,7 @@ test('the session picked in the panel keeps getting the comments', async () => {
     const panel = await context.newPage()
     await panel.goto(`chrome-extension://${extensionId}/sidepanel.html?tabId=${tabId}`)
     await expect(panel.getByTestId('session').locator('option')).toHaveCount(2)
+    await expect(panel.getByTestId('session').locator(`option[value="${secondId}"]`)).toContainText('OpenCode')
     await panel.getByTestId('session').selectOption(secondId)
     // The panel re-renders every 1.5 s; the choice must survive that.
     await panel.waitForTimeout(2000)
@@ -319,6 +334,54 @@ test('the session picked in the panel keeps getting the comments', async () => {
   }
 })
 
+test('the Ask bar, Send to the agent, and a panel message all reach the agent', async () => {
+  test.skip(Boolean(handOff), 'needs its own listener')
+  const page = context.pages().find((entry) => entry.url().startsWith(fixtureUrl))!
+  const extensionId = new URL(worker.url()).host
+  const tabId = await worker.evaluate(async (url) => (await chrome.tabs.query({ url }))[0]?.id, fixtureUrl)
+  const panel = await context.newPage()
+  await panel.goto(`chrome-extension://${extensionId}/sidepanel.html?tabId=${tabId}`)
+  await expect(panel.getByTestId('status')).toContainText('Claude is listening')
+
+  // "Ask Claude" in the tool pill adds a note about the whole page to the stack.
+  await page.bringToFront()
+  await page.keyboard.press('Alt+Shift+C')
+  await page.locator('dib-overlay .tool.ask').click()
+  await page.locator('dib-overlay .askbar input').fill('Less crowded overall')
+  await page.locator('dib-overlay .askbar input').press('Enter')
+  await expect(page.locator('dib-overlay .askbar')).toBeHidden()
+
+  // Ticking "Send to Claude" sends the whole stack with the new comment.
+  const before = doorbells.length
+  await page.locator('.lede').click()
+  const composer = page.locator('dib-overlay .composer')
+  await expect(composer.locator('.check')).toHaveText('Send to Claude')
+  await composer.locator('.send-on-add').check()
+  await composer.locator('textarea').fill('Shorter subtitle')
+  await composer.locator('textarea').press('Enter')
+  await page.keyboard.press('Escape')
+  await expect.poll(() => doorbells.length).toBe(before + 1)
+  expect(doorbells.at(-1)).toMatch(/ready, 2 comments/)
+  const stacked = JSON.parse(await callTool('live_get_batch')) as Batch
+  expect(stacked.comments.map((c) => [c.element?.tag ?? null, c.text])).toEqual([
+    [null, 'Less crowded overall'],
+    ['p', 'Shorter subtitle'],
+  ])
+  expect(stacked.comments[1]!.element?.clickOffset).toBeTruthy()
+  await worker.evaluate(() => chrome.storage.local.set({ sendOnAdd: false }))
+
+  // A message typed in the panel with nothing stacked goes alone, as a page note, on Enter.
+  await panel.bringToFront()
+  await expect(panel.getByTestId('draft-item')).toHaveCount(0)
+  await panel.getByTestId('message').fill('Just a note')
+  await panel.getByTestId('message').press('Enter')
+  await expect.poll(() => doorbells.length).toBe(before + 2)
+  const note = JSON.parse(await callTool('live_get_batch')) as Batch
+  expect(note.comments.map((c) => [c.element, c.text, new URL(c.page.url).pathname])).toEqual([[null, 'Just a note', '/pricing']])
+  await expect(panel.getByTestId('message')).toHaveValue('')
+  await panel.close()
+})
+
 test('a comment survives a save that fails after the extension was reloaded', async () => {
   test.skip(Boolean(handOff), 'reloads the extension')
   const page = context.pages().find((entry) => entry.url().startsWith(fixtureUrl))!
@@ -328,10 +391,10 @@ test('a comment survives a save that fails after the extension was reloaded', as
   await page.waitForTimeout(500)
   await page.keyboard.press('Alt+Shift+C')
   await page.locator('.lede').click()
-  const popover = page.locator('dib-overlay .popover')
+  const popover = page.locator('dib-overlay .composer')
   await popover.locator('textarea').fill('Text I typed before noticing')
   await popover.locator('textarea').press('Enter')
   await expect(popover).toBeVisible()
   await expect(popover.locator('textarea')).toHaveValue('Text I typed before noticing')
-  await expect(popover.locator('.popover-error')).toContainText('reload the tab')
+  await expect(popover.locator('.composer-error')).toContainText('reload the tab')
 })

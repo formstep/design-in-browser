@@ -1,0 +1,270 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-19T21:40:00Z",
+  "title": "Design System: Design in Browser",
+  "extensions": {
+    "colorMeta": {
+      "ground": {
+        "role": "neutral",
+        "displayName": "Chat Ground",
+        "canonical": "oklch(21.3% 0 0)",
+        "tonalRamp": [
+          "#0d0d0d",
+          "#141414",
+          "#191919",
+          "#1f1f1f",
+          "#262626",
+          "#303030",
+          "#3a3a3a",
+          "#454545"
+        ]
+      },
+      "card": {
+        "role": "neutral",
+        "displayName": "Card",
+        "canonical": "oklch(23.5% 0 0)",
+        "tonalRamp": [
+          "#141414",
+          "#191919",
+          "#1f1f1f",
+          "#262626",
+          "#303030",
+          "#3a3a3a",
+          "#454545",
+          "#5a5a5a"
+        ]
+      },
+      "control": {
+        "role": "neutral",
+        "displayName": "Control",
+        "canonical": "oklch(30.9% 0 0)",
+        "tonalRamp": [
+          "#1f1f1f",
+          "#262626",
+          "#303030",
+          "#3a3a3a",
+          "#454545",
+          "#5a5a5a",
+          "#787878",
+          "#9c9c9c"
+        ]
+      },
+      "blue": {
+        "role": "primary",
+        "displayName": "Selection Blue",
+        "canonical": "oklch(59.6% 0.17 255)",
+        "tonalRamp": [
+          "#0b2a50",
+          "#123d72",
+          "#1a5398",
+          "#1f6fcb",
+          "#257de0",
+          "#4b95e8",
+          "#6aabf1",
+          "#a9cdf7"
+        ]
+      },
+      "blue-ink": {
+        "role": "primary",
+        "displayName": "Chip Blue",
+        "canonical": "oklch(72.4% 0.12 252)"
+      },
+      "disc": {
+        "role": "neutral",
+        "displayName": "Pin Disc",
+        "canonical": "oklch(40.4% 0 0)"
+      },
+      "done": {
+        "role": "success",
+        "displayName": "Done Green",
+        "canonical": "oklch(61.5% 0.13 152)",
+        "tonalRamp": [
+          "#0e3a20",
+          "#15532e",
+          "#1b6b3b",
+          "#23824a",
+          "#2f9e5b",
+          "#4fb877",
+          "#7fd09c",
+          "#bfe7cc"
+        ]
+      },
+      "question": {
+        "role": "warning",
+        "displayName": "Question Amber",
+        "canonical": "oklch(76.2% 0.14 75)",
+        "tonalRamp": [
+          "#4a3008",
+          "#6b450b",
+          "#8f5d10",
+          "#b47716",
+          "#e3a33b",
+          "#ebb662",
+          "#f2cb8d",
+          "#f8e3c2"
+        ]
+      },
+      "danger-ink": {
+        "role": "error",
+        "displayName": "Error Text",
+        "canonical": "oklch(76.6% 0.13 22)"
+      }
+    },
+    "typographyMeta": {
+      "ui": {
+        "displayName": "UI Sans",
+        "purpose": "Everything the developer does: labels, comments, controls. System sans in place of Anthropic Sans."
+      },
+      "agent": {
+        "displayName": "Agent Serif",
+        "purpose": "Everything the agent says, as claude.ai sets Claude's replies. System serif in place of Anthropic Serif."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Meta lines: element under a comment, batch time, status words."
+      }
+    },
+    "shadows": [
+      {
+        "name": "card",
+        "value": "inset 0 0 0 1px rgb(255 255 255 / 0.04), 0 1px 2px rgb(10 10 10 / 0.06), 0 2px 8px rgb(0 0 0 / 0.24)",
+        "purpose": "Comment card and pin thread, measured from Claude Design's comment card."
+      },
+      {
+        "name": "float",
+        "value": "inset 0 0 0 1px rgb(255 255 255 / 0.08), 0 4px 20px rgb(0 0 0 / 0.3)",
+        "purpose": "Tool pill, Ask bar and the hover tag, floating over the host page."
+      },
+      {
+        "name": "focus-glow",
+        "value": "0 0 0 1px #257de0, 0 0 6px 1px rgb(23 87 172 / 0.6)",
+        "purpose": "Focused card or field. The one coloured shadow, copied from the reference, focus only."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Cards rise 4px in 140ms, pins pop from 60% in 200ms, the highlight follows the pointer in 80ms."
+      },
+      {
+        "name": "listening",
+        "value": "2.4s ring pulse",
+        "purpose": "The header dot while the agent is listening. Off with reduced motion."
+      },
+      {
+        "name": "working",
+        "value": "2s shimmer",
+        "purpose": "'Working on it' while the agent has the batch. Off with reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "panel",
+        "value": "360px",
+        "purpose": "Chrome side panel's usual width; the panel is a single column at any width."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Comment Card",
+      "kind": "card",
+      "refersTo": "comment-card",
+      "description": "Opens beside a pin at the clicked point; Enter adds the comment to the stack.",
+      "html": "<div class=\"ds-comment\"><p class=\"ds-comment-target\">h1 \u00b7 \u201cSimple pricing\u201d</p><p class=\"ds-comment-body\"><span class=\"ds-chip\">@Claude</span> Make the headline bolder</p><label class=\"ds-check\"><span class=\"ds-box\"></span>Send to Claude</label></div>",
+      "css": ".ds-comment { width: 300px; padding: 12px 14px; border-radius: 16px; background: #1f1f1f; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.04), 0 1px 2px rgb(10 10 10 / 0.06), 0 2px 8px rgb(0 0 0 / 0.24); color: rgb(255 255 255 / 0.93); font: 14px/20px system-ui, sans-serif; } .ds-comment:focus-within { box-shadow: 0 0 0 1px #257de0, 0 0 6px 1px rgb(23 87 172 / 0.6); } .ds-comment-target { margin: 0 0 8px; color: rgb(255 255 255 / 0.52); font-size: 12px; } .ds-comment-body { margin: 0; } .ds-check { display: flex; align-items: center; gap: 8px; margin-top: 12px; } .ds-box { width: 18px; height: 18px; border-radius: 5px; background: #303030; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08); }"
+    },
+    {
+      "name": "Agent Chip",
+      "kind": "chip",
+      "refersTo": "chip-agent",
+      "description": "Names the connected agent on the comment's first line.",
+      "html": "<span class=\"ds-chip\">@Claude</span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 7px; border-radius: 11px; background: rgb(37 125 224 / 0.12); color: #6aabf1; font: 14px/20px system-ui, sans-serif; }"
+    },
+    {
+      "name": "Comment Pin",
+      "kind": "custom",
+      "refersTo": "pin",
+      "description": "Sharp bottom-left corner on the clicked point; the disc carries the number or the status glyph.",
+      "html": "<button class=\"ds-pin\"><span class=\"ds-disc\">1</span></button>",
+      "css": ".ds-pin { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 16px 16px 16px 0; background: #257de0; box-shadow: 0 2px 6px rgb(0 0 0 / 0.3); cursor: pointer; transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1); transform-origin: 0 100%; } .ds-pin:hover { transform: scale(1.08); } .ds-pin:focus-visible { outline: 2px solid #fff; outline-offset: 2px; } .ds-disc { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 999px; background: #454545; color: #fff; font: 600 11px/1 system-ui, sans-serif; }"
+    },
+    {
+      "name": "Selection",
+      "kind": "custom",
+      "description": "Selected element while commenting: 2px blue line, square corners, 6% blue fill. No handles: nothing resizes. Hover is the same line with rounded corners and no fill.",
+      "html": "<div class=\"ds-selection\"></div>",
+      "css": ".ds-selection { width: 220px; height: 48px; box-sizing: border-box; border: 2px solid #257de0; background: rgb(37 125 224 / 0.06); }"
+    },
+    {
+      "name": "Tool Pill",
+      "kind": "nav",
+      "description": "Bottom centre while picking: comment tool, count, Ask <agent>, Done.",
+      "html": "<div class=\"ds-tools\"><button class=\"ds-tool ds-active\">Comment</button><span class=\"ds-count\">2 comments</span><button class=\"ds-tool ds-ask\">Ask Claude</button><button class=\"ds-tool\">Done</button></div>",
+      "css": ".ds-tools { display: inline-flex; align-items: center; gap: 2px; padding: 4px; border-radius: 12px; background: #1f1f1f; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08), 0 4px 20px rgb(0 0 0 / 0.3); font: 14px/20px system-ui, sans-serif; } .ds-tool { height: 34px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: rgb(255 255 255 / 0.62); cursor: pointer; } .ds-tool:hover { background: #303030; color: rgb(255 255 255 / 0.93); } .ds-tool:focus-visible { outline: 2px solid #257de0; outline-offset: 2px; } .ds-active, .ds-ask { background: rgb(37 125 224 / 0.12); color: #6aabf1; } .ds-ask:hover { background: rgb(37 125 224 / 0.2); color: #6aabf1; } .ds-count { padding: 0 8px; color: rgb(255 255 255 / 0.52); font-size: 13px; }"
+    },
+    {
+      "name": "Composer",
+      "kind": "input",
+      "refersTo": "composer",
+      "description": "Bottom of the side panel: stacked comments ride above the message field; send at the corner.",
+      "html": "<form class=\"ds-composer\"><textarea class=\"ds-message\" rows=\"1\" placeholder=\"Describe a change\"></textarea><button class=\"ds-send\" aria-label=\"Send\">\u2191</button></form>",
+      "css": ".ds-composer { display: flex; align-items: flex-end; gap: 6px; width: 320px; padding: 8px; border-radius: 14px; background: #303030; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08), 0 4px 20px rgb(0 0 0 / 0.075); } .ds-composer:focus-within { box-shadow: 0 0 0 1px #257de0, 0 0 6px 1px rgb(23 87 172 / 0.6); } .ds-message { flex: 1; padding: 4px 6px; border: 0; outline: 0; background: transparent; color: rgb(255 255 255 / 0.93); caret-color: #257de0; font: 15px/21px system-ui, sans-serif; resize: none; } .ds-message::placeholder { color: rgb(255 255 255 / 0.52); } .ds-send { width: 28px; height: 28px; border: 0; border-radius: 8px; background: #257de0; color: #fff; cursor: pointer; } .ds-send:focus-visible { outline: 2px solid #257de0; outline-offset: 2px; }"
+    },
+    {
+      "name": "Your Bubble",
+      "kind": "card",
+      "refersTo": "bubble",
+      "description": "A sent batch in the panel thread, right-aligned like your messages in Claude's chat.",
+      "html": "<div class=\"ds-bubble\"><p class=\"ds-ref\"><span class=\"ds-num\">1</span> h1 \u00b7 /pricing</p><p class=\"ds-text\">Make the headline bolder</p></div>",
+      "css": ".ds-bubble { max-width: 300px; padding: 10px 14px; border-radius: 12px; background: rgb(255 255 255 / 0.05); color: rgb(255 255 255 / 0.93); font: 14px/21px system-ui, sans-serif; } .ds-ref { display: flex; align-items: center; gap: 6px; margin: 0 0 2px; color: rgb(255 255 255 / 0.52); font-size: 12px; } .ds-num { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 9px 9px 9px 0; background: #1f6fcb; color: #fff; font-size: 10.5px; font-weight: 600; } .ds-text { margin: 0; }"
+    },
+    {
+      "name": "Agent Reply",
+      "kind": "custom",
+      "description": "The agent's reply to one comment: its number in a status-coloured badge, the words in the serif.",
+      "html": "<div class=\"ds-reply\"><span class=\"ds-num\">1</span><p class=\"ds-reply-text\">Headline is now 40px, weight 800.</p></div>",
+      "css": ".ds-reply { display: grid; grid-template-columns: 18px 1fr; gap: 10px; max-width: 320px; } .ds-reply .ds-num { display: grid; place-items: center; width: 18px; height: 18px; margin-top: 2px; border-radius: 9px 9px 9px 0; background: #23824a; color: #fff; font: 600 10.5px/1 system-ui, sans-serif; } .ds-reply-text { margin: 0; color: rgb(255 255 255 / 0.93); font: 15px/22px ui-serif, Georgia, serif; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Claude Design's canvas, on your running app",
+    "overview": "The extension copies Claude Design at the user's request: dark chrome, one blue for every selection and comment job, comment pins at the clicked point, a dark comment card, a bottom tool pill and an Ask bar, and claude.ai's chat for the side panel. Values were measured from claude.ai on 2026-11-19. It is dark only.\n\nThe look is Claude Design's; the words follow whichever coding agent is connected. Labels take the agent's name from its session (Claude, OpenCode) and fall back to \"Agent\".",
+    "keyCharacteristics": [
+      "Dark only: #191919 ground, #1f1f1f cards, #303030 controls",
+      "One blue, #257de0, for selection, pins, send and focus",
+      "Pins with a sharp corner on the clicked point",
+      "System sans for the developer, a serif for the agent",
+      "Agent-named copy with an \"Agent\" fallback"
+    ],
+    "rules": [
+      {
+        "name": "Status in the disc",
+        "body": "The pin stays blue; its disc shows the number, or turns green with a check (done) or amber with a question mark (question). Every status has its own glyph.",
+        "section": "colors"
+      },
+      {
+        "name": "Selection without handles",
+        "body": "Hover is a 2px line; selection is the same line, square, with a faint blue fill. The canvas's resize handles are left out because nothing here resizes.",
+        "section": "colors"
+      },
+      {
+        "name": "Agent-neutral words",
+        "body": "Never write Claude into UI copy; name the session's agent. 'In Claude Code, run \u2026' is fine where the step is Claude Code's.",
+        "section": "typography"
+      }
+    ],
+    "dos": [
+      "Do keep overlay styles in the constructed sheet: page CSPs block <style> tags.",
+      "Do put page text in with textContent only.",
+      "Do keep small white digits on the darker badge fills (#1f6fcb, #23824a)."
+    ],
+    "donts": [
+      "Don't add a light theme without measuring Claude's.",
+      "Don't show controls that do nothing (mic, formatting toolbar).",
+      "Don't make 'Send to <agent>' the default: stack, then send."
+    ]
+  }
+}

@@ -3,8 +3,24 @@
 
 export const PRODUCT_NAME = 'design-in-browser'
 export const DEFAULT_PORT = 47821
-/** What the user runs in Claude Code to connect a session. */
+/** What the user runs in Claude Code to connect a session. Other agents get their own way in later. */
 export const START_COMMAND = `/${PRODUCT_NAME}:live`
+
+/** Shown when no agent session is known. */
+export const FALLBACK_AGENT = 'Agent'
+
+/** MCP client names of agents we know, to the name the UI shows. Anything else shows as FALLBACK_AGENT. */
+const KNOWN_AGENTS: Record<string, string> = {
+  'claude-code': 'Claude',
+  opencode: 'OpenCode',
+  codex: 'Codex',
+}
+
+/** The UI name for the agent behind an MCP client, from the client name it sent when it connected. */
+export function agentLabel(clientName: string | undefined): string {
+  const key = (clientName ?? '').toLowerCase()
+  return KNOWN_AGENTS[key] ?? FALLBACK_AGENT
+}
 
 // The extension's id is pinned by the `key` in extension/manifest.json.
 // The daemon only accepts extension sockets whose Origin is one of these.
@@ -32,6 +48,8 @@ export type ElementRef = {
   ancestors: string[]
   /** `data-dib-src` of the element or its nearest ancestor, stamped by a dev build plugin (not shipped yet). */
   sourceHint: string | null
+  /** Where in the element the user clicked, in px from its top-left corner. The pin sits there. Absent on older comments. */
+  clickOffset?: { x: number; y: number }
 }
 
 export type PageRef = {
@@ -79,6 +97,8 @@ export type BatchStatus = 'queued' | 'fetched' | 'done'
 export type Batch = {
   id: string
   projectRoot: string
+  /** Name of the agent that owns the batch, for the UI ("Claude", "OpenCode"). */
+  agent: string
   /** Session that owns the batch now. A batch moves to a new session on the same project when its owner is gone. */
   sessionId: string
   createdAt: string
@@ -90,6 +110,8 @@ export type Batch = {
 export type SessionInfo = {
   id: string
   label: string
+  /** Name of the coding agent behind the session, for the UI ("Claude", "OpenCode"). */
+  agent: string
   projectRoot: string
   origins: string[]
   /** True while a Monitor socket is open, so a send wakes Claude now. */
@@ -114,7 +136,7 @@ export type DaemonToExtension =
 
 // MCP shim <-> daemon, over ws://127.0.0.1:<port>/shim?token=...
 
-export type ConnectParams = { sessionId: string; projectRoot: string; origins: string[] }
+export type ConnectParams = { sessionId: string; projectRoot: string; origins: string[]; agent: string }
 export type ConnectResult = { listenUrl: string; journalDir: string; unfetched: string[] }
 export type GetBatchParams = { sessionId: string; batchId?: string }
 export type ReplyParams = {

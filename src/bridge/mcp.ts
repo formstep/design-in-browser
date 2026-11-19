@@ -5,7 +5,7 @@ import path from 'node:path'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
-import { LISTENER_REPLACED_CLOSE_CODE, PRODUCT_NAME, type ConnectParams } from '../shared/protocol.ts'
+import { LISTENER_REPLACED_CLOSE_CODE, PRODUCT_NAME, agentLabel, type ConnectParams } from '../shared/protocol.ts'
 import { BUILD_ID } from './config.ts'
 import { DaemonConnection, ensureDaemon } from './daemon-client.ts'
 
@@ -59,6 +59,8 @@ server.registerTool(
         sessionId,
         projectRoot: path.resolve(projectRoot ?? process.cwd()),
         origins: (origins ?? []).map(normalizeOrigin),
+        // Claude Code, OpenCode and others name themselves when they start this server.
+        agent: agentLabel(server.server.getClientVersion()?.name),
       }
       if (!connection?.isOpen) {
         await ensureDaemon()
@@ -68,7 +70,7 @@ server.registerTool(
       const pending = result.unfetched.length > 0 ? `Unfetched batches: ${result.unfetched.join(', ')}. The Monitor rings for them when it connects.` : 'No unfetched batches.'
       return text(
         [
-          `Connected as session ${sessionId} for ${registration.projectRoot}.`,
+          `Connected as session ${sessionId} for ${registration.projectRoot}. The browser shows you as "${registration.agent}".`,
           `Next: arm Monitor with ws url ${result.listenUrl}, timeout_ms 1800000, description "browser comments".`,
           `Re-arm it with the same url whenever it expires or closes, except close code ${LISTENER_REPLACED_CLOSE_CODE} (a newer Monitor replaced it).`,
           pending,

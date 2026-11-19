@@ -1,18 +1,20 @@
-/* Page overlay. Loaded after tokens.css into the shadow root as a constructed sheet. */
+/* Page overlay, after tokens.css in the shadow root. Mirrors Claude Design's canvas:
+   blue selection outline, comment pins at the click point, a dark comment card,
+   and a bottom tool pill while picking. */
 
 /* The host's inline `all: initial` resets inherited fonts, so each top-level part sets its own. */
 .highlight,
-.banner,
-.popover,
+.dock,
+.composer,
 .pin-wrap {
-  font: 13px/1.45 var(--font);
+  font: 14px/20px var(--font);
   color: var(--ink);
   text-align: left;
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: var(--accent-tint);
+  background: var(--blue-tint-2);
 }
 
 .icon {
@@ -20,145 +22,228 @@
   flex: none;
 }
 
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* Controls only: text fields show focus through their card's ring and glow. */
+button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
 kbd {
   display: inline-block;
   min-width: 18px;
   padding: 0 5px;
-  border: 1px solid rgb(255 255 255 / 0.28);
   border-radius: 4px;
-  font: 600 11px/16px var(--font);
+  background: var(--control);
+  color: var(--ink-2);
+  font: 500 11px/18px var(--font);
   text-align: center;
 }
 
-/* --- highlight while picking ------------------------------------------------- */
+/* --- selection ------------------------------------------------------------------------ */
 
 .highlight {
   position: fixed;
   top: 0;
   left: 0;
   box-sizing: border-box;
-  border: 2px solid var(--accent-stroke);
-  border-radius: 3px;
-  background: var(--accent-tint);
-  /* A light halo keeps the box visible on red, orange and dark pages alike. */
-  box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.85),
-    inset 0 0 0 1px rgb(255 255 255 / 0.5);
+  border: 2px solid var(--blue);
+  border-radius: 2px;
   pointer-events: none;
   transition:
-    transform 90ms var(--ease-out),
-    width 90ms var(--ease-out),
-    height 90ms var(--ease-out);
+    transform 80ms var(--ease-out),
+    width 80ms var(--ease-out),
+    height 80ms var(--ease-out);
+}
+
+/* Selected while commenting: the same line, square, with a faint fill. No handles: nothing here resizes,
+   so the canvas's resize handles would promise something the overlay can't do. */
+.highlight.selected {
+  border-radius: 0;
+  background: rgb(37 125 224 / 0.06);
 }
 
 .tag {
   position: absolute;
-  bottom: calc(100% + 3px);
+  bottom: calc(100% + 6px);
   left: -2px;
   display: flex;
   gap: 6px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font: 500 11px/16px var(--mono);
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: var(--control);
+  box-shadow: var(--shadow-float);
+  color: var(--ink);
+  font: 500 12px/16px var(--font);
   white-space: nowrap;
 }
 
 .highlight.below .tag {
-  top: calc(100% + 3px);
+  top: calc(100% + 6px);
   bottom: auto;
 }
 
-.tag-size {
-  opacity: 0.8;
-  font-variant-numeric: tabular-nums;
-}
-
-/* --- banner while picking --------------------------------------------------- */
-
-.banner {
-  position: fixed;
-  top: 12px;
-  left: 50%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 8px 7px 14px;
-  border-radius: 999px;
-  background: #1c1917;
-  color: #f3efea;
-  box-shadow: var(--shadow-pop);
-  transform: translateX(-50%);
-  animation: rise 160ms var(--ease-out);
-}
-
-.banner-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--accent-stroke);
-}
-
-.banner-count {
-  padding-left: 10px;
-  border-left: 1px solid rgb(255 255 255 / 0.2);
-  color: #c9c2ba;
-  font-variant-numeric: tabular-nums;
-}
-
-.banner-count:empty {
+.highlight.selected .tag {
   display: none;
 }
 
-.banner-stop {
+.tag-size {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- tool pill while picking ----------------------------------------------------------- */
+
+.dock {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.tools {
   display: flex;
   align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: var(--shadow-float);
+  pointer-events: auto;
+  animation: rise 160ms var(--ease-out);
+}
+
+.tool {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 2px 8px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 9px;
   border: 0;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 0.1);
-  color: inherit;
-  font: inherit;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink-2);
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.banner-stop:hover {
-  background: rgb(255 255 255 / 0.18);
+.tool:hover {
+  background: var(--control);
+  color: var(--ink);
 }
 
-/* --- comment popover --------------------------------------------------------- */
+.tool.active {
+  background: var(--blue-tint);
+  color: var(--blue-ink);
+}
 
-.popover {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 320px;
+.tool.ask {
+  padding: 0 12px;
+  background: var(--blue-tint);
+  color: var(--blue-ink);
+  font-weight: 500;
+}
+
+.tool.ask:hover,
+.tool.ask[aria-pressed='true'] {
+  background: var(--blue-tint-2);
+  color: var(--blue-ink);
+}
+
+.tools-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--line);
+}
+
+.tools-count {
+  padding: 0 8px;
+  color: var(--ink-3);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tools-count:empty {
+  display: none;
+}
+
+/* "Ask Claude": a note about the whole page, typed in a bar above the pill. */
+.askbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(560px, calc(100vw - 32px));
   box-sizing: border-box;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-l);
-  background: var(--surface);
-  box-shadow: var(--shadow-pop);
+  margin: 0;
+  padding: 0 8px 0 14px;
+  border-radius: var(--radius-composer);
+  background: var(--control);
+  box-shadow: var(--shadow-float);
   pointer-events: auto;
   animation: rise 140ms var(--ease-out);
 }
 
-.target {
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
-  min-width: 0;
-  margin: 0 2px 8px;
-  color: var(--ink-2);
-  font-size: 12px;
+.askbar:focus-within {
+  box-shadow: var(--focus-glow), var(--shadow-float);
 }
 
-.target code {
-  flex: none;
+.askbar input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
   color: var(--ink);
-  font: 500 11.5px/1.4 var(--mono);
+  caret-color: var(--blue);
+  font: 15px/20px var(--font);
+}
+
+.askbar input::placeholder {
+  color: var(--ink-3);
+}
+
+/* --- comment card ------------------------------------------------------------------------ */
+
+.composer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 300px;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  pointer-events: auto;
+  animation: rise 140ms var(--ease-out);
+}
+
+.composer:focus-within {
+  box-shadow: var(--focus-glow), var(--shadow-card);
+}
+
+.target {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  margin: 0 0 8px;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 17px;
 }
 
 .target-text {
@@ -167,119 +252,122 @@ kbd {
   white-space: nowrap;
 }
 
-.asked {
-  margin: 0 0 8px;
-  padding: 8px 10px;
-  border-radius: var(--radius-m);
-  background: var(--surface-2);
+
+/* The "@<agent>" chip sits on the textarea's first line; the textarea indents its text past it
+   (content.ts fits the indent to the chip's width once the agent's name is known). */
+.field {
+  position: relative;
 }
 
-.asked-label {
-  margin: 0 0 2px;
-  color: var(--question-ink);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.asked-text {
-  margin: 0;
+.chip {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 11px;
+  background: var(--blue-tint);
+  color: var(--blue-ink);
+  pointer-events: none;
 }
 
 textarea {
   display: block;
   width: 100%;
-  min-height: 60px;
-  max-height: 200px;
+  min-height: 40px;
+  max-height: 220px;
   box-sizing: border-box;
-  padding: 8px 10px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-m);
-  background: var(--surface);
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
   color: var(--ink);
-  caret-color: var(--accent-ink);
-  font: inherit;
+  caret-color: var(--blue);
+  font: 14px/20px var(--font);
   resize: none;
   field-sizing: content;
 }
 
+/* Until fitted: clears an "@Claude"-sized chip plus the gap before the caret. */
+.field textarea {
+  text-indent: 82px;
+}
+
 textarea::placeholder {
-  color: var(--ink-2);
+  color: var(--ink-3);
 }
 
-textarea:focus {
-  border-color: var(--accent-stroke);
-  outline: 3px solid var(--accent-tint);
-  outline-offset: 0;
-}
-
-.popover-error {
-  margin: 8px 0 0;
-  padding: 7px 10px;
-  border-radius: var(--radius-m);
-  background: var(--danger-tint);
-  color: var(--danger-ink);
-  font-size: 12px;
-}
-
-.row {
+.composer-foot {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 8px;
+  gap: 8px;
+  margin-top: 12px;
 }
 
-.hint {
-  flex: 1;
-  color: var(--ink-2);
-  font-size: 11.5px;
-}
-
-.hint kbd {
-  border-color: var(--line-2);
-  color: var(--ink-2);
-}
-
-button {
-  font: inherit;
-}
-
-.button {
-  padding: 5px 11px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-s);
-  background: var(--surface);
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: var(--ink);
-  font-weight: 500;
   cursor: pointer;
-  transition: background 120ms;
+  user-select: none;
 }
 
-.button:hover {
-  background: var(--surface-2);
+.check input {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 1px solid var(--ring-2);
+  border-radius: 5px;
+  background: var(--control);
+  cursor: pointer;
 }
 
-.button.primary {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--on-accent);
+.check input:checked {
+  border-color: var(--blue);
+  background: var(--blue);
 }
 
-.button.primary:hover {
-  border-color: var(--accent-hover);
-  background: var(--accent-hover);
+.check input:checked::after {
+  content: '';
+  width: 9px;
+  height: 5px;
+  margin-top: -2px;
+  border: 2px solid #fff;
+  border-top: 0;
+  border-right: 0;
+  rotate: -45deg;
 }
 
-.button:focus-visible,
-.pin:focus-visible,
-.banner-stop:focus-visible {
-  outline: 2px solid var(--accent-stroke);
+.check input:focus-visible {
+  outline: 2px solid var(--blue);
   outline-offset: 2px;
 }
 
-/* --- pins ----------------------------------------------------------------------- */
+.hint {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: 12px;
+}
 
-/* A pin is a drop whose sharp corner points at the element's top-left corner,
-   so it never covers the content it marks. */
+.composer-error {
+  margin: 10px 0 0;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: var(--danger-tint);
+  color: var(--danger-ink);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+/* --- pins -------------------------------------------------------------------------------- */
+
+/* The pin's sharp bottom-left corner sits on the point that was clicked. */
 .pin-wrap {
   position: fixed;
   top: 0;
@@ -290,131 +378,200 @@ button {
 .pin {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  border: 2px solid var(--surface);
-  border-radius: 12px 12px 3px 12px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font: 700 11px/1 var(--font);
-  font-variant-numeric: tabular-nums;
-  box-shadow: 0 1px 2px rgb(28 25 23 / 0.2), 0 3px 8px rgb(28 25 23 / 0.18);
+  border: 0;
+  border-radius: 16px 16px 16px 0;
+  background: var(--blue);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.3);
   cursor: pointer;
-  transform-origin: 100% 100%;
+  transform-origin: 0 100%;
   animation: pin-in 200ms var(--ease-out);
   transition: transform 120ms var(--ease-out);
 }
 
 .pin:hover,
 .pin-wrap.open .pin {
-  transform: scale(1.12);
+  transform: scale(1.08);
 }
 
-.pin .icon {
+.pin:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* The disc stands where Claude Design shows the commenter's avatar. */
+.disc {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--disc);
+  color: #fff;
+  font: 600 11px/1 var(--font);
+  font-variant-numeric: tabular-nums;
+}
+
+.disc .icon {
   width: 13px;
   height: 13px;
-  stroke-width: 3;
+  stroke-width: 2.6;
 }
 
 .pin-wrap[data-status='pending'] .pin,
-.pin-wrap[data-status='answered'] .pin {
-  border-color: var(--line-2);
-  background: var(--surface);
-  color: var(--ink-2);
+.pin-wrap[data-status='answered'] .pin,
+.pin-wrap[data-status='skipped'] .pin {
+  background: var(--control);
+  box-shadow:
+    inset 0 0 0 1px var(--ring-2),
+    0 2px 6px rgb(0 0 0 / 0.3);
 }
 
-.pin-wrap[data-status='done'] .pin {
+.pin-wrap[data-status='done'] .disc {
   background: var(--done);
 }
 
-.pin-wrap[data-status='question'] .pin {
+.pin-wrap[data-status='question'] .disc {
   background: var(--question);
   color: var(--on-question);
 }
 
-.pin-wrap[data-status='skipped'] .pin {
-  background: var(--skipped);
-}
+/* --- pin card: the comment and Claude's reply, like a canvas comment thread ---------------- */
 
-.card {
-  display: none;
+/* Always laid out (hidden, not removed) so content.ts can measure it and place it fully on screen. */
+.thread {
+  visibility: hidden;
+  opacity: 0;
   position: absolute;
-  top: 30px;
-  left: 0;
-  width: 280px;
+  top: 0;
+  left: 40px;
+  width: 300px;
+  max-height: min(340px, calc(100vh - 16px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   box-sizing: border-box;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-l);
-  background: var(--surface);
-  box-shadow: var(--shadow-pop);
-  animation: rise 140ms var(--ease-out);
+  padding: 12px 14px;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  translate: 0 4px;
+  transition:
+    opacity 140ms var(--ease-out),
+    translate 140ms var(--ease-out),
+    visibility 0s 140ms;
 }
 
-.pin-wrap.flip-x .card {
-  right: 0;
+.pin-wrap.flip-x .thread {
+  right: 40px;
   left: auto;
 }
 
-.pin-wrap.flip-y .card {
-  top: auto;
-  bottom: 30px;
+.pin-wrap:hover .thread,
+.pin-wrap:focus-within .thread,
+.pin-wrap.open .thread {
+  visibility: visible;
+  opacity: 1;
+  translate: 0 0;
+  transition-delay: 0s;
 }
 
-.pin-wrap:hover .card,
-.pin-wrap:focus-within .card,
-.pin-wrap.open .card {
-  display: block;
+.thread:focus-within {
+  box-shadow: var(--focus-glow), var(--shadow-card);
 }
 
-.card-status {
+.entry + .entry {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.entry-head {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 0 0 6px;
-  color: var(--ink-2);
-  font-size: 12px;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 13px;
   font-weight: 600;
 }
 
-.pin-wrap[data-status='done'] .card-status {
-  color: var(--done-ink);
+.when {
+  color: var(--ink-3);
+  font-weight: 400;
 }
 
-.pin-wrap[data-status='question'] .card-status {
-  color: var(--question-ink);
+.status {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 500;
 }
 
-.pin-wrap[data-status='draft'] .card-status {
-  color: var(--accent-ink);
+.pin-wrap[data-status='done'] .status {
+  color: #6fd394;
 }
 
-.card-text {
+.pin-wrap[data-status='question'] .status {
+  color: var(--question);
+}
+
+.entry-text {
   margin: 0;
   overflow-wrap: anywhere;
 }
 
-.card-reply {
-  margin: 8px 0 0;
-  padding: 8px 0 0;
-  border-top: 1px solid var(--line);
-  overflow-wrap: anywhere;
+.entry.agent .entry-text {
+  font: 14px/20px var(--serif);
 }
 
-.card-reply b {
-  font-weight: 600;
+.remove {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: -4px -6px -4px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
 }
 
-.card-actions {
+.remove:hover {
+  background: var(--control);
+  color: var(--ink);
+}
+
+.reply-field {
   display: flex;
-  justify-content: flex-end;
+  align-items: flex-end;
   gap: 6px;
   margin-top: 10px;
+  padding: 7px 7px 7px 12px;
+  border-radius: var(--radius-bubble);
+  background: var(--control);
+  box-shadow: inset 0 0 0 1px var(--ring-2);
 }
 
-.card-actions:empty {
-  display: none;
+.reply-field textarea {
+  min-height: 20px;
+  padding: 3px 0;
+}
+
+.send {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: var(--blue);
+  color: #fff;
+  cursor: pointer;
 }
 
 [hidden] {
@@ -437,7 +594,8 @@ button {
 
 @media (prefers-reduced-motion: reduce) {
   *,
-  *::before {
+  *::before,
+  *::after {
     animation: none !important;
     transition: none !important;
   }

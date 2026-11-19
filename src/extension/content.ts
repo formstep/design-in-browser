@@ -1,12 +1,18 @@
-// Page overlay: element picker, comment popover and pins.
+// Page overlay, modelled on Claude Design's canvas: hover outline, selected outline,
+// a comment card beside a pin at the clicked point, pin threads with Claude's replies,
+// and a bottom tool pill while picking.
 // Everything renders inside one shadow root so page CSS can't reach it and it can't reach the page.
 // Page text and comment text only ever go in through textContent, never innerHTML.
 import type { Batch, BatchComment, CommentStatus, DraftComment, ElementRef, InReplyTo, PageRef } from '../shared/protocol.ts'
+import { FALLBACK_AGENT, START_COMMAND } from '../shared/protocol.ts'
 import { captureElement, capturePage, label, samePage } from './capture.ts'
 import { fillIcons, icon } from './icons.ts'
 import overlayCss from './overlay.css'
-import { defaultSession, onStateChange, readState, sendToBackground, type ContentMessage, type ExtensionState } from './state.ts'
+import { defaultSession, onStateChange, readState, sendToBackground, writeState, type ContentMessage, type ExtensionState } from './state.ts'
 import tokensCss from './tokens.css'
+
+const PIN = 32
+const CARD_WIDTH = 300
 
 const host = document.createElement('dib-overlay')
 host.style.cssText = 'all: initial; position: fixed; inset: 0; pointer-events: none; z-index: 2147483647;'
@@ -16,24 +22,33 @@ const sheet = new CSSStyleSheet()
 sheet.replaceSync(tokensCss + overlayCss)
 root.adoptedStyleSheets = [sheet]
 root.innerHTML = `
-<div class="highlight" hidden><span class="tag"><span class="tag-label"></span><span class="tag-size"></span></span></div>
+<div class="highlight" hidden>
+  <span class="tag"><span class="tag-label"></span><span class="tag-size"></span></span>
+</div>
 <div class="pins"></div>
-<form class="popover" hidden>
+<div class="pin-wrap composing" hidden><span class="pin"><span class="disc"></span></span></div>
+<form class="composer" hidden>
   <p class="target"></p>
-  <div class="asked" hidden><p class="asked-label">Claude asked</p><p class="asked-text"></p></div>
-  <textarea rows="2" placeholder="What should change?" aria-label="Comment"></textarea>
-  <p class="popover-error" role="alert" hidden></p>
-  <div class="row">
+  <div class="field"><span class="chip"></span><textarea rows="1"></textarea></div>
+  <p class="composer-error" role="alert" hidden></p>
+  <div class="composer-foot">
+    <label class="check"><input type="checkbox" class="send-on-add" /> <span class="check-text"></span></label>
     <span class="hint"><kbd>Enter</kbd> to add</span>
-    <button type="button" class="button cancel">Cancel</button>
-    <button type="submit" class="button primary add">Add</button>
   </div>
 </form>
-<div class="banner" role="status" hidden>
-  <span class="banner-dot"></span>
-  <span>Click an element to comment</span>
-  <span class="banner-count"></span>
-  <button type="button" class="banner-stop"><kbd>Esc</kbd>Stop</button>
+<div class="dock" hidden>
+  <form class="askbar" hidden>
+    <input type="text" placeholder="Describe a change to this page" aria-label="Note about this page" />
+    <button type="submit" class="send" aria-label="Add note"><span data-icon="arrowUp" data-size="15"></span></button>
+  </form>
+  <div class="tools" role="toolbar" aria-label="Design in Browser">
+    <button type="button" class="tool active pick-tool" title="Comment on an element" aria-label="Comment on an element"><span data-icon="comment" data-size="18"></span></button>
+    <span class="tools-divider"></span>
+    <span class="tools-count"></span>
+    <button type="button" class="tool ask" aria-pressed="false"></button>
+    <span class="tools-divider"></span>
+    <button type="button" class="tool done-tool"><kbd>Esc</kbd>Done</button>
+  </div>
 </div>`
 fillIcons(root)
 document.documentElement.append(host)
@@ -43,27 +58,54 @@ const highlight = $<HTMLDivElement>('.highlight')
 const tagLabel = $<HTMLSpanElement>('.tag-label')
 const tagSize = $<HTMLSpanElement>('.tag-size')
 const pins = $<HTMLDivElement>('.pins')
-const popover = $<HTMLFormElement>('.popover')
-const popoverTarget = $<HTMLParagraphElement>('.target')
-const asked = $<HTMLDivElement>('.asked')
-const askedText = $<HTMLParagraphElement>('.asked-text')
-const textarea = $<HTMLTextAreaElement>('textarea')
-const addButton = $<HTMLButtonElement>('.add')
-const popoverError = $<HTMLParagraphElement>('.popover-error')
-const banner = $<HTMLDivElement>('.banner')
-const bannerCount = $<HTMLSpanElement>('.banner-count')
+const composingPin = $<HTMLDivElement>('.composing')
+const composingDisc = $<HTMLSpanElement>('.composing .disc')
+const composer = $<HTMLFormElement>('.composer')
+const composerTarget = $<HTMLParagraphElement>('.target')
+const chip = $<HTMLSpanElement>('.chip')
+const checkText = $<HTMLSpanElement>('.check-text')
+const textarea = $<HTMLTextAreaElement>('.composer textarea')
+const composerError = $<HTMLParagraphElement>('.composer-error')
+const sendOnAdd = $<HTMLInputElement>('.send-on-add')
+const hint = $<HTMLSpanElement>('.hint')
+const dock = $<HTMLDivElement>('.dock')
+const askbar = $<HTMLFormElement>('.askbar')
+const askInput = $<HTMLInputElement>('.askbar input')
+const askButton = $<HTMLButtonElement>('.tool.ask')
+const toolsCount = $<HTMLSpanElement>('.tools-count')
 
 /** What an answer carries over from the comment it answers. */
 type Answering = { inReplyTo: InReplyTo; element: ElementRef | null; page: PageRef }
+type Point = { x: number; y: number }
 
 type Mode =
   | { kind: 'idle' }
   | { kind: 'picking' }
-  | { kind: 'commenting'; element: Element | null; answering: Answering | null; then: 'picking' | 'idle' }
+  | { kind: 'commenting'; element: Element; offset: Point; then: 'picking' | 'idle' }
 
 let mode: Mode = { kind: 'idle' }
 let hovered: Element | null = null
 let state: ExtensionState | null = null
+
+/** The agent this page talks to, as the UI names it: "Claude", "OpenCode", or "Agent" when none is connected. */
+function agentName(): string {
+  return (state ? defaultSession(state, location.href)?.agent : undefined) ?? FALLBACK_AGENT
+}
+
+let namedAgent = ''
+
+/** Puts the agent's name on the comment card and the tool pill, and fits the textarea's indent to the chip. */
+function nameAgent(): void {
+  const agent = agentName()
+  if (agent !== namedAgent) {
+    namedAgent = agent
+    chip.textContent = `@${agent}`
+    checkText.textContent = `Send to ${agent}`
+    askButton.textContent = `Ask ${agent}`
+    textarea.setAttribute('aria-label', `Comment for ${agent}`)
+  }
+  if (!composer.hidden) textarea.style.textIndent = `${chip.offsetWidth + 7}px`
+}
 
 // --- picking -------------------------------------------------------------------
 
@@ -72,14 +114,15 @@ function elementAt(x: number, y: number): Element | null {
   return element && element !== host && element !== document.documentElement ? element : null
 }
 
-function showHighlight(element: Element | null): void {
+function showHighlight(element: Element | null, selected = false): void {
   const box = element?.getBoundingClientRect()
   if (!element || !box) {
     highlight.hidden = true
     return
   }
   highlight.hidden = false
-  highlight.classList.toggle('below', box.top < 26)
+  highlight.classList.toggle('selected', selected)
+  highlight.classList.toggle('below', box.top < 34)
   highlight.style.transform = `translate(${box.left}px, ${box.top}px)`
   highlight.style.width = `${box.width}px`
   highlight.style.height = `${box.height}px`
@@ -89,10 +132,16 @@ function showHighlight(element: Element | null): void {
 
 function setMode(next: Mode): void {
   mode = next
-  banner.hidden = mode.kind !== 'picking'
+  dock.hidden = mode.kind === 'idle'
   document.documentElement.style.cursor = mode.kind === 'picking' ? 'crosshair' : ''
-  if (mode.kind !== 'commenting') popover.hidden = true
-  if (mode.kind === 'idle') showHighlight(null)
+  if (mode.kind !== 'commenting') {
+    composer.hidden = true
+    composingPin.hidden = true
+  }
+  if (mode.kind === 'idle') {
+    showHighlight(null)
+    closeAskbar()
+  }
 }
 
 const fromOverlay = (event: Event) => event.composedPath().includes(host)
@@ -111,13 +160,15 @@ function swallow(event: Event): void {
 }
 
 function onClick(event: MouseEvent): void {
-  if (!fromOverlay(event)) closeCards()
+  if (!fromOverlay(event)) closeThreads()
   if (mode.kind === 'idle' || fromOverlay(event)) return
   swallow(event)
-  // While commenting, a click elsewhere moves an empty popover; typed text is never thrown away.
-  if (mode.kind === 'commenting' && (textarea.value.trim() !== '' || mode.answering)) return
+  // While commenting, a click elsewhere moves an empty card; typed text is never thrown away.
+  if (mode.kind === 'commenting' && textarea.value.trim() !== '') return
   const element = elementAt(event.clientX, event.clientY)
-  if (element) openPopover({ element, answering: null, then: 'picking' })
+  if (!element) return
+  const box = element.getBoundingClientRect()
+  openComposer({ element, offset: { x: event.clientX - box.left, y: event.clientY - box.top }, then: 'picking' })
 }
 
 for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'dblclick', 'auxclick']) {
@@ -126,56 +177,63 @@ for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'dblclic
 window.addEventListener('click', onClick, true)
 window.addEventListener('mousemove', onPointerMove, true)
 
-// --- popover ---------------------------------------------------------------------
+// --- comment card ------------------------------------------------------------------------
 
-function setTarget(element: Element | null, ref: ElementRef | null): void {
-  const code = document.createElement('code')
-  const text = document.createElement('span')
-  text.className = 'target-text'
-  if (element || ref) {
-    code.textContent = element ? label(element) : ref!.tag
-    const snippet = (element?.textContent ?? ref?.text ?? '').replace(/\s+/g, ' ').trim().slice(0, 60)
-    text.textContent = snippet ? `“${snippet}”` : ''
-  } else {
-    code.textContent = 'Page'
-    text.textContent = location.pathname
-  }
-  popoverTarget.replaceChildren(code, text)
+/** The page point a pin marks: the click offset inside the element, kept inside its box as it resizes. */
+function pointOn(element: Element, offset: Point | undefined): Point | null {
+  const box = element.getBoundingClientRect()
+  if (box.width === 0 && box.height === 0) return null
+  const x = offset ? Math.min(Math.max(offset.x, 0), box.width) : 0
+  const y = offset ? Math.min(Math.max(offset.y, 0), box.height) : 0
+  return { x: box.left + x, y: box.top + y }
 }
 
-function openPopover(next: { element: Element | null; answering: Answering | null; then: 'picking' | 'idle' }): void {
+function setTarget(element: Element): void {
+  const text = document.createElement('span')
+  text.className = 'target-text'
+  const snippet = (element.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60)
+  text.textContent = snippet ? `${label(element)} · “${snippet}”` : label(element)
+  composerTarget.replaceChildren(text)
+}
+
+function openComposer(next: { element: Element; offset: Point; then: 'picking' | 'idle' }): void {
   setMode({ kind: 'commenting', ...next })
-  banner.hidden = true
-  closeCards()
-  showHighlight(next.element)
-  setTarget(next.element, next.answering?.element ?? null)
-  asked.hidden = next.answering === null
-  askedText.textContent = next.answering?.inReplyTo.question ?? ''
-  textarea.placeholder = next.answering ? 'Your answer' : next.element ? 'What should change?' : 'What should change on this page?'
-  textarea.setAttribute('aria-label', next.answering ? 'Answer' : 'Comment')
-  addButton.textContent = next.answering ? 'Add answer' : 'Add'
-  popoverError.hidden = true
+  closeAskbar()
+  closeThreads()
+  showHighlight(next.element, true)
+  setTarget(next.element)
+  composerError.hidden = true
   textarea.value = ''
-  popover.hidden = false
-  placePopover(next.element)
+  sendOnAdd.checked = state?.sendOnAdd ?? false
+  updateHint()
+  composingDisc.textContent = String((state?.draft.length ?? 0) + 1)
+  composer.hidden = false
+  composingPin.hidden = false
+  nameAgent()
+  placeComposer()
   textarea.focus()
 }
 
-function placePopover(element: Element | null): void {
-  const width = popover.offsetWidth || 320
-  const height = popover.offsetHeight || 150
-  if (!element) {
-    popover.style.transform = `translate(${Math.max(8, innerWidth / 2 - width / 2)}px, 64px)`
-    return
-  }
-  const box = element.getBoundingClientRect()
-  const below = box.bottom + 10
-  const top = below + height < innerHeight - 8 ? below : Math.max(8, box.top - height - 10)
-  const left = Math.min(Math.max(8, box.left), innerWidth - width - 8)
-  popover.style.transform = `translate(${left}px, ${top}px)`
+function updateHint(): void {
+  hint.replaceChildren()
+  const key = document.createElement('kbd')
+  key.textContent = 'Enter'
+  hint.append(key, sendOnAdd.checked ? ' to send' : ' to add')
 }
 
-function leavePopover(): void {
+function placeComposer(): void {
+  if (mode.kind !== 'commenting') return
+  const point = pointOn(mode.element, mode.offset)
+  if (!point) return
+  composingPin.style.transform = `translate(${point.x}px, ${point.y - PIN}px)`
+  const height = composer.offsetHeight || 140
+  const right = point.x + PIN + 8
+  const left = right + CARD_WIDTH > innerWidth - 8 ? Math.max(8, point.x - CARD_WIDTH - 8) : right
+  const top = Math.min(Math.max(8, point.y - PIN), innerHeight - height - 8)
+  composer.style.transform = `translate(${left}px, ${top}px)`
+}
+
+function leaveComposer(): void {
   if (mode.kind !== 'commenting') return
   if (mode.then === 'idle') {
     setMode({ kind: 'idle' })
@@ -185,6 +243,22 @@ function leavePopover(): void {
   showHighlight(hovered)
 }
 
+function showComposerError(message: string): void {
+  composerError.textContent = message
+  composerError.hidden = false
+  placeComposer()
+}
+
+function tabSession() {
+  return state && state.connection === 'connected' ? defaultSession(state, location.href) : null
+}
+
+async function addComment(comment: DraftComment, send: boolean): Promise<void> {
+  await sendToBackground({ type: 'add-comment', comment })
+  const session = tabSession()
+  if (send && session) await sendToBackground({ type: 'send', sessionId: session.id })
+}
+
 async function submitComment(): Promise<void> {
   if (mode.kind !== 'commenting') return
   const text = textarea.value.trim()
@@ -192,44 +266,84 @@ async function submitComment(): Promise<void> {
     textarea.focus()
     return
   }
-  const { element, answering, then } = mode
+  const send = sendOnAdd.checked
+  if (send && !tabSession()) {
+    showComposerError(`No agent session is connected to send to. Untick the box to keep it with your comments, or connect a session (in Claude Code: ${START_COMMAND}).`)
+    return
+  }
+  const { element, offset, then } = mode
   const comment: DraftComment = {
     id: crypto.randomUUID(),
     text,
-    page: answering?.page ?? capturePage(),
-    element: element ? captureElement(element) : (answering?.element ?? null),
-    inReplyTo: answering?.inReplyTo ?? null,
+    page: capturePage(),
+    element: { ...captureElement(element), clickOffset: { x: Math.round(offset.x), y: Math.round(offset.y) } },
+    inReplyTo: null,
     createdAt: new Date().toISOString(),
   }
   // Leave first: an Esc pressed while the save is in flight must find the mode already moved on.
-  leavePopover()
+  leaveComposer()
   try {
-    await sendToBackground({ type: 'add-comment', comment })
+    await addComment(comment, send)
   } catch {
     // Most often the extension was reloaded and this tab still runs the old overlay. Keep the text.
-    openPopover({ element, answering, then })
+    openComposer({ element, offset, then })
     textarea.value = text
-    popoverError.textContent = 'Couldn’t save this comment. Copy your text, reload the tab, and add it again.'
-    popoverError.hidden = false
-    placePopover(element)
+    showComposerError('Couldn’t save this comment. Copy your text, reload the tab, and add it again.')
   }
 }
 
-popover.addEventListener('submit', (event) => {
+composer.addEventListener('submit', (event) => {
   event.preventDefault()
   void submitComment()
 })
-$<HTMLButtonElement>('.cancel').addEventListener('click', leavePopover)
 textarea.addEventListener('keydown', (event) => {
   if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
     event.preventDefault()
     void submitComment()
   }
 })
-textarea.addEventListener('input', () => placePopover(mode.kind === 'commenting' ? mode.element : null))
-// Keys typed into the popover belong to it, not to the app's shortcuts.
-for (const type of ['keydown', 'keyup', 'keypress']) popover.addEventListener(type, (event) => event.stopPropagation())
-$<HTMLButtonElement>('.banner-stop').addEventListener('click', () => setMode({ kind: 'idle' }))
+textarea.addEventListener('input', placeComposer)
+sendOnAdd.addEventListener('change', () => {
+  updateHint()
+  void writeState({ sendOnAdd: sendOnAdd.checked })
+})
+
+// --- tool pill and "Ask Claude" -------------------------------------------------------------
+
+function openAskbar(): void {
+  if (mode.kind === 'idle') setMode({ kind: 'picking' })
+  askbar.hidden = false
+  askButton.setAttribute('aria-pressed', 'true')
+  askInput.focus()
+}
+
+function closeAskbar(): void {
+  askbar.hidden = true
+  askInput.value = ''
+  askButton.setAttribute('aria-pressed', 'false')
+}
+
+askButton.addEventListener('click', () => (askbar.hidden ? openAskbar() : closeAskbar()))
+$<HTMLButtonElement>('.done-tool').addEventListener('click', () => setMode({ kind: 'idle' }))
+$<HTMLButtonElement>('.pick-tool').addEventListener('click', closeAskbar)
+askbar.addEventListener('submit', async (event) => {
+  event.preventDefault()
+  const text = askInput.value.trim()
+  if (text === '') return
+  const note: DraftComment = { id: crypto.randomUUID(), text, page: capturePage(), element: null, inReplyTo: null, createdAt: new Date().toISOString() }
+  closeAskbar()
+  try {
+    await addComment(note, false)
+  } catch {
+    openAskbar()
+    askInput.value = text
+  }
+})
+
+// Keys typed into the overlay belong to it, not to the app's shortcuts.
+for (const part of [composer, askbar, pins]) {
+  for (const type of ['keydown', 'keyup', 'keypress']) part.addEventListener(type, (event) => event.stopPropagation())
+}
 
 // --- keyboard + messages --------------------------------------------------------
 
@@ -248,12 +362,13 @@ window.addEventListener(
     }
     if (event.key !== 'Escape') return
     if (mode.kind === 'idle') {
-      closeCards()
+      closeThreads()
       return
     }
     event.preventDefault()
     event.stopImmediatePropagation()
-    if (mode.kind === 'commenting') leavePopover()
+    if (mode.kind === 'commenting') leaveComposer()
+    else if (!askbar.hidden) closeAskbar()
     else setMode({ kind: 'idle' })
   },
   true,
@@ -264,9 +379,9 @@ chrome.runtime.onMessage.addListener((message: ContentMessage, _sender, sendResp
     case 'toggle-picker':
       togglePicker()
       break
-    case 'page-note':
-      openPopover({ element: null, answering: null, then: 'idle' })
-      break
+    case 'page-info':
+      sendResponse({ ok: true, page: capturePage() })
+      return
     case 'ping':
       break
   }
@@ -279,10 +394,13 @@ type PinStatus = 'draft' | CommentStatus | 'answered'
 
 type PinModel = {
   key: string
-  selector: string
+  /** Who replies: the batch's agent, or the page's agent for a draft. */
+  agent: string
+  ref: ElementRef
   status: PinStatus
   number: number | null
   text: string
+  createdAt: string
   reply: string | null
   /** Set when the pin can take an answer from here. */
   answer: Answering | null
@@ -290,12 +408,12 @@ type PinModel = {
 }
 
 const statusLabel: Record<PinStatus, string> = {
-  draft: 'Not sent yet',
-  pending: 'Waiting for Claude',
+  draft: 'Not sent',
+  pending: 'Waiting for a reply',
   done: 'Done',
   question: 'Needs your answer',
   skipped: 'Skipped',
-  answered: 'Answered, waiting for Claude',
+  answered: 'Answered',
 }
 
 function answeredIds(current: ExtensionState): Set<string> {
@@ -305,14 +423,16 @@ function answeredIds(current: ExtensionState): Set<string> {
   return ids
 }
 
-function sentPin(batch: Batch, comment: BatchComment, answered: Set<string>, ownProject: string | null): PinModel {
+function sentPin(batch: Batch, comment: BatchComment & { element: ElementRef }, answered: Set<string>, ownProject: string | null): PinModel {
   const isOpenQuestion = comment.status === 'question' && !answered.has(comment.id)
   return {
     key: comment.id,
-    selector: comment.element!.selector,
+    agent: batch.agent,
+    ref: comment.element,
     status: comment.status === 'question' && answered.has(comment.id) ? 'answered' : comment.status,
     number: null,
     text: comment.text,
+    createdAt: comment.createdAt,
     reply: comment.reply,
     answer:
       isOpenQuestion && batch.projectRoot === ownProject
@@ -326,27 +446,18 @@ function sentPin(batch: Batch, comment: BatchComment, answered: Set<string>, own
   }
 }
 
+const hasElement = <T extends { element: ElementRef | null }>(comment: T): comment is T & { element: ElementRef } => comment.element !== null
+
 function pinsForThisPage(current: ExtensionState): PinModel[] {
   const answered = answeredIds(current)
   const ownProject = defaultSession(current, location.href)?.projectRoot ?? null
   const drafts = current.draft.flatMap((comment, index): PinModel[] =>
-    comment.element && samePage(comment.page.url)
-      ? [
-          {
-            key: comment.id,
-            selector: comment.element.selector,
-            status: 'draft',
-            number: index + 1,
-            text: comment.text,
-            reply: null,
-            answer: null,
-            draftId: comment.id,
-          },
-        ]
+    hasElement(comment) && samePage(comment.page.url)
+      ? [{ key: comment.id, agent: agentName(), ref: comment.element, status: 'draft', number: index + 1, text: comment.text, createdAt: comment.createdAt, reply: null, answer: null, draftId: comment.id }]
       : [],
   )
   const sent = current.batches.flatMap((batch) =>
-    batch.comments.filter((comment) => comment.element && samePage(comment.page.url)).map((comment) => sentPin(batch, comment, answered, ownProject)),
+    batch.comments.filter(hasElement).filter((comment) => samePage(comment.page.url)).map((comment) => sentPin(batch, comment, answered, ownProject)),
   )
   return [...drafts, ...sent]
 }
@@ -359,38 +470,53 @@ const pinGlyph: Record<Exclude<PinStatus, 'draft'>, string> = {
   answered: icon('clock'),
 }
 
-function buildCard(pin: PinModel, card: HTMLElement): void {
-  const status = document.createElement('p')
-  status.className = 'card-status'
-  status.textContent = pin.number === null ? statusLabel[pin.status] : `${pin.number} · ${statusLabel[pin.status]}`
-  const text = document.createElement('p')
-  text.className = 'card-text'
-  text.textContent = pin.text
-  const parts: HTMLElement[] = [status, text]
-  if (pin.reply) {
-    const reply = document.createElement('p')
-    reply.className = 'card-reply'
-    const who = document.createElement('b')
-    who.textContent = 'Claude: '
-    reply.append(who, pin.reply)
-    parts.push(reply)
-  }
-  const actions = document.createElement('div')
-  actions.className = 'card-actions'
-  if (pin.draftId) actions.append(cardButton('Remove', 'remove', pin.key, false))
-  if (pin.answer) actions.append(cardButton('Answer', 'answer', pin.key, true))
-  parts.push(actions)
-  card.replaceChildren(...parts)
+const clock = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
+
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag)
+  node.className = className
+  if (text !== undefined) node.textContent = text
+  return node
 }
 
-function cardButton(text: string, action: string, key: string, primary: boolean): HTMLButtonElement {
-  const button = document.createElement('button')
-  button.type = 'button'
-  button.className = primary ? 'button primary' : 'button'
-  button.textContent = text
-  button.dataset.action = action
-  button.dataset.key = key
-  return button
+function buildThread(pin: PinModel, thread: HTMLElement): void {
+  const you = el('div', 'entry')
+  const head = el('p', 'entry-head')
+  head.append(el('span', '', 'You'), el('span', 'when', clock.format(new Date(pin.createdAt))), el('span', 'status', statusLabel[pin.status]))
+  if (pin.draftId) {
+    const remove = el('button', 'remove')
+    remove.type = 'button'
+    remove.dataset.action = 'remove'
+    remove.dataset.key = pin.key
+    remove.setAttribute('aria-label', 'Remove comment')
+    remove.innerHTML = icon('trash', 15)
+    head.append(remove)
+  }
+  you.append(head, el('p', 'entry-text', pin.text))
+  const parts: HTMLElement[] = [you]
+
+  if (pin.reply) {
+    const agent = el('div', 'entry agent')
+    const agentHead = el('p', 'entry-head')
+    agentHead.append(el('span', '', pin.agent))
+    agent.append(agentHead, el('p', 'entry-text', pin.reply))
+    parts.push(agent)
+  }
+  if (pin.answer) {
+    const form = el('form', 'reply-field')
+    form.dataset.key = pin.key
+    const field = el('textarea', '')
+    field.rows = 1
+    field.placeholder = `Answer ${pin.agent}`
+    field.setAttribute('aria-label', `Answer ${pin.agent}`)
+    const send = el('button', 'send')
+    send.type = 'submit'
+    send.setAttribute('aria-label', 'Add answer')
+    send.innerHTML = icon('arrowUp', 15)
+    form.append(field, send)
+    parts.push(form)
+  }
+  thread.replaceChildren(...parts)
 }
 
 function find(selector: string): Element | null {
@@ -409,46 +535,58 @@ function renderPins(): void {
   models = new Map(wanted.map((pin) => [pin.key, pin]))
   for (const node of [...pins.children] as HTMLElement[]) if (!models.has(node.dataset.key ?? '')) node.remove()
 
-  // Pins on the same element line up to the left of the first one.
-  const perElement = new Map<Element, number>()
+  // Pins on the same point line up to the right of the first one.
+  const taken = new Map<string, number>()
   for (const pin of wanted) {
-    let wrap = pins.querySelector<HTMLElement>(`[data-key="${CSS.escape(pin.key)}"]`)
+    let wrap = pins.querySelector<HTMLElement>(`:scope > [data-key="${CSS.escape(pin.key)}"]`)
     if (!wrap) {
-      wrap = document.createElement('div')
-      wrap.className = 'pin-wrap'
+      wrap = el('div', 'pin-wrap')
       wrap.dataset.key = pin.key
-      wrap.innerHTML = '<button type="button" class="pin"></button><div class="card" role="group"></div>'
+      wrap.innerHTML = '<button type="button" class="pin"><span class="disc"></span></button><div class="thread" role="group"></div>'
       pins.append(wrap)
     }
-    const signature = JSON.stringify([pin.status, pin.number, pin.text, pin.reply, pin.answer !== null])
-    if (wrap.dataset.signature !== signature) {
+    // A thread being typed into is left alone until it is done.
+    const typing = wrap.contains(root.activeElement) && root.activeElement instanceof HTMLTextAreaElement
+    const signature = JSON.stringify([pin.status, pin.number, pin.text, pin.reply, pin.answer !== null, pin.agent])
+    if (wrap.dataset.signature !== signature && !typing) {
       wrap.dataset.signature = signature
       wrap.dataset.status = pin.status
-      const button = wrap.querySelector<HTMLButtonElement>('.pin')!
-      if (pin.number === null) button.innerHTML = pinGlyph[pin.status as Exclude<PinStatus, 'draft'>]
-      else button.textContent = String(pin.number)
-      button.setAttribute('aria-label', `${statusLabel[pin.status]}: ${pin.text}`)
-      buildCard(pin, wrap.querySelector<HTMLElement>('.card')!)
+      const disc = wrap.querySelector<HTMLElement>('.disc')!
+      if (pin.number === null) disc.innerHTML = pinGlyph[pin.status as Exclude<PinStatus, 'draft'>]
+      else disc.textContent = String(pin.number)
+      wrap.querySelector('.pin')!.setAttribute('aria-label', `${statusLabel[pin.status]}: ${pin.text}`)
+      buildThread(pin, wrap.querySelector<HTMLElement>('.thread')!)
     }
 
-    const element = find(pin.selector)
-    const box = element?.getBoundingClientRect()
-    if (!element || !box || (box.width === 0 && box.height === 0)) {
+    const element = find(pin.ref.selector)
+    const point = element ? pointOn(element, pin.ref.clickOffset) : null
+    if (!point) {
       wrap.hidden = true
       continue
     }
-    const offset = perElement.get(element) ?? 0
-    perElement.set(element, offset + 1)
+    const spot = `${Math.round(point.x)},${Math.round(point.y)}`
+    const shift = taken.get(spot) ?? 0
+    taken.set(spot, shift + 1)
     wrap.hidden = false
-    const x = Math.min(Math.max(4, box.left - 24 - offset * 28), innerWidth - 28)
-    const y = Math.min(Math.max(4, box.top - 24), innerHeight - 28)
+    const x = Math.min(Math.max(4, point.x + shift * (PIN + 4)), innerWidth - PIN - 4)
+    const y = Math.min(Math.max(4, point.y - PIN), innerHeight - PIN - 4)
     wrap.style.transform = `translate(${x}px, ${y}px)`
-    wrap.classList.toggle('flip-x', x + 290 > innerWidth)
-    wrap.classList.toggle('flip-y', y + 200 > innerHeight)
+    wrap.classList.toggle('flip-x', x + PIN + 8 + CARD_WIDTH > innerWidth)
+    placeThread(wrap.querySelector<HTMLElement>('.thread')!, y)
   }
 }
 
-function closeCards(except?: Element): void {
+/** Opens the card downward from the pin when it fits, else upward, and always keeps it 8px inside the window. */
+function placeThread(thread: HTMLElement, pinTop: number): void {
+  const height = thread.offsetHeight
+  const below = pinTop
+  const above = pinTop + PIN - height
+  const preferred = below + height <= innerHeight - 8 ? below : above
+  const top = Math.min(Math.max(8, preferred), innerHeight - 8 - height)
+  thread.style.top = `${top - pinTop}px`
+}
+
+function closeThreads(except?: Element): void {
   for (const wrap of pins.querySelectorAll('.pin-wrap.open')) if (wrap !== except) wrap.classList.remove('open')
 }
 
@@ -457,20 +595,48 @@ pins.addEventListener('click', (event) => {
   const pinButton = target.closest('.pin')
   if (pinButton) {
     const wrap = pinButton.parentElement!
-    closeCards(wrap)
+    closeThreads(wrap)
     wrap.classList.toggle('open')
     return
   }
-  const action = target.closest<HTMLButtonElement>('[data-action]')
+  const action = target.closest<HTMLButtonElement>('[data-action="remove"]')
   const pin = action ? models.get(action.dataset.key ?? '') : undefined
-  if (!action || !pin) return
-  if (action.dataset.action === 'remove' && pin.draftId) {
-    void sendToBackground({ type: 'remove-comment', id: pin.draftId })
-    return
+  if (pin?.draftId) void sendToBackground({ type: 'remove-comment', id: pin.draftId })
+})
+
+async function submitAnswer(form: HTMLFormElement): Promise<void> {
+  const pin = models.get(form.dataset.key ?? '')
+  const field = form.querySelector('textarea')!
+  const text = field.value.trim()
+  if (!pin?.answer || text === '') return
+  const element = find(pin.ref.selector)
+  const comment: DraftComment = {
+    id: crypto.randomUUID(),
+    text,
+    page: pin.answer.page,
+    element: element ? { ...captureElement(element), clickOffset: pin.ref.clickOffset } : pin.answer.element,
+    inReplyTo: pin.answer.inReplyTo,
+    createdAt: new Date().toISOString(),
   }
-  if (action.dataset.action === 'answer' && pin.answer) {
-    openPopover({ element: find(pin.selector), answering: pin.answer, then: 'idle' })
+  field.blur()
+  form.closest('.pin-wrap')?.classList.remove('open')
+  try {
+    await sendToBackground({ type: 'add-comment', comment })
+  } catch {
+    field.value = text
   }
+}
+
+pins.addEventListener('submit', (event) => {
+  event.preventDefault()
+  void submitAnswer(event.target as HTMLFormElement)
+})
+pins.addEventListener('keydown', (event) => {
+  const target = event.target as HTMLElement
+  if (!(target instanceof HTMLTextAreaElement) || event.key !== 'Enter' || event.shiftKey || event.isComposing) return
+  event.preventDefault()
+  const form = target.closest('form')
+  if (form) void submitAnswer(form)
 })
 
 function draftCount(): string {
@@ -484,10 +650,11 @@ function scheduleRender(): void {
   frame = requestAnimationFrame(() => {
     frame = 0
     renderPins()
-    bannerCount.textContent = draftCount()
+    nameAgent()
+    toolsCount.textContent = draftCount()
     if (mode.kind === 'commenting') {
-      showHighlight(mode.element)
-      placePopover(mode.element)
+      showHighlight(mode.element, true)
+      placeComposer()
     }
   })
 }

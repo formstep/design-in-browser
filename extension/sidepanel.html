@@ -7,59 +7,54 @@
     <link rel="stylesheet" href="dist/sidepanel.css" />
   </head>
   <body>
-    <header class="status" data-testid="status" data-state="offline" aria-live="polite">
+    <header class="top">
       <span class="dot" aria-hidden="true"></span>
-      <p class="status-title"></p>
-      <p class="status-detail"></p>
-      <button type="button" class="command" data-testid="copy-command" hidden>
-        <code class="command-text"></code>
-        <span data-icon="copy" data-size="14"></span>
-        <span class="copied" hidden>Copied</span>
-      </button>
+      <div class="title">
+        <span class="project"></span>
+        <label class="picker" hidden>
+          <span class="picker-text"></span>
+          <span data-icon="chevronDown" data-size="14"></span>
+          <select data-testid="session" aria-label="Agent session"></select>
+        </label>
+      </div>
+      <span class="state" data-testid="status" aria-live="polite"></span>
     </header>
 
-    <label class="session" hidden>
-      <span>Send to</span>
-      <select data-testid="session"></select>
-    </label>
-
-    <div class="toolbar">
-      <button type="button" class="button pick" data-testid="pick" aria-pressed="false">
-        <span data-icon="crosshair"></span>
-        <span>Pick element</span>
-        <kbd class="shortcut"></kbd>
-      </button>
-      <button type="button" class="button note" data-testid="page-note">
-        <span data-icon="note"></span>
-        <span>Page note</span>
-      </button>
-    </div>
-    <p class="tab-hint" hidden>
-      Open your app on a local dev server (localhost, *.localhost or *.test). If the extension was just installed, reload the tab.
-    </p>
-
-    <section aria-labelledby="comments-title">
-      <h2 id="comments-title">Comments <span class="count"></span></h2>
-      <ol class="draft" data-testid="draft"></ol>
-      <p class="empty draft-empty">
-        Pick an element on the page and say what should change. Comments stack here until you send them.
-      </p>
-      <div class="send-bar">
-        <button type="button" class="button primary send" data-testid="send" disabled>
-          <span data-icon="send"></span>
-          <span class="send-label">Send</span>
+    <main class="thread" data-testid="sent">
+      <div class="intro">
+        <p class="intro-title"></p>
+        <p class="intro-text"></p>
+        <button type="button" class="command" data-testid="copy-command" hidden>
+          <code class="command-text"></code>
+          <span data-icon="copy" data-size="14"></span>
+          <span class="copied" hidden>Copied</span>
         </button>
-        <p class="error" data-testid="error" role="alert" hidden>
-          <span data-icon="alert"></span>
-          <span class="error-text"></span>
-        </p>
       </div>
-    </section>
+      <div class="turns"></div>
+    </main>
 
-    <section class="sent-section" aria-labelledby="sent-title" hidden>
-      <h2 id="sent-title">Sent</h2>
-      <div class="sent" data-testid="sent"></div>
-    </section>
+    <footer class="bottom">
+      <p class="notice" hidden></p>
+      <p class="error" data-testid="error" role="alert" hidden>
+        <span data-icon="alert" data-size="15"></span>
+        <span class="error-text"></span>
+      </p>
+      <form class="compose">
+        <ol class="drafts" data-testid="draft"></ol>
+        <textarea class="message" data-testid="message" rows="1" placeholder="Describe a change" aria-label="Message about this page"></textarea>
+        <div class="compose-bar">
+          <button type="button" class="tool pick" data-testid="pick" aria-pressed="false" title="Comment on an element">
+            <span data-icon="comment" data-size="16"></span>
+            <span>Comment</span>
+            <kbd class="shortcut"></kbd>
+          </button>
+          <span class="count"></span>
+          <button type="submit" class="send" data-testid="send" aria-label="Send" disabled>
+            <span data-icon="arrowUp" data-size="16"></span>
+          </button>
+        </div>
+      </form>
+    </footer>
 
     <script src="dist/sidepanel.js"></script>
   </body>

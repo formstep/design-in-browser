@@ -11,6 +11,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import WebSocket from 'ws'
 import {
+  agentLabel,
   LISTENER_REPLACED_CLOSE_CODE,
   PINNED_EXTENSION_ID,
   type Batch,
@@ -162,6 +163,8 @@ test('a full round trip: send, doorbell, fetch, reply', async () => {
   assert.equal(state.type === 'state' && state.sessions.length, 1)
   const session = state.type === 'state' ? state.sessions[0]! : assert.fail()
   assert.deepEqual(session.origins, ['http://localhost:5173'])
+  // The test client's MCP name ("bridge-test") is no agent we know.
+  assert.equal(session.agent, 'Agent')
   assert.equal(session.listening, false)
 
   const listener = await openListener(listenUrl)
@@ -294,4 +297,11 @@ test('an answer is refused by a session whose project never asked the question',
   assert.ok(error.type === 'error' && error.message.startsWith('An answer goes to the project that asked the question'))
   assert.equal(error.type === 'error' && error.clientBatchId, 'c4')
   extension.socket.close()
+})
+
+test('agents are named from their MCP client name', () => {
+  assert.equal(agentLabel('claude-code'), 'Claude')
+  assert.equal(agentLabel('OpenCode'), 'OpenCode')
+  assert.equal(agentLabel('something-else'), 'Agent')
+  assert.equal(agentLabel(undefined), 'Agent')
 })

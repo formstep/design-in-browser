@@ -15,6 +15,8 @@ export type ExtensionState = {
   lastError: string | null
   /** The session the user picked in the side panel, per page origin (see pickKey). */
   pickedSessions: Record<string, string>
+  /** "Send to Claude" in the comment box: send the whole stack as soon as a comment is added. Off by default. */
+  sendOnAdd: boolean
 }
 
 export const initialState: ExtensionState = {
@@ -26,6 +28,7 @@ export const initialState: ExtensionState = {
   sending: false,
   lastError: null,
   pickedSessions: {},
+  sendOnAdd: false,
 }
 
 export async function readState(): Promise<ExtensionState> {
@@ -52,7 +55,7 @@ export type BackgroundMessage =
   | { type: 'reconnect' }
 
 /** Messages to a content script. */
-export type ContentMessage = { type: 'toggle-picker' } | { type: 'page-note' } | { type: 'ping' }
+export type ContentMessage = { type: 'toggle-picker' } | { type: 'ping' } | { type: 'page-info' }
 
 /** Rejects when the worker reports a failure, or when this page's extension context is gone (the extension was reloaded). */
 export async function sendToBackground(message: BackgroundMessage): Promise<void> {

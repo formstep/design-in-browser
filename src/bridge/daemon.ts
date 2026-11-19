@@ -34,6 +34,7 @@ const log = (...parts: unknown[]) => console.error(new Date().toISOString(), ...
 type Session = {
   id: string
   projectRoot: string
+  agent: string
   origins: string[]
   connectedAt: string
   shim: WebSocket
@@ -108,6 +109,7 @@ function sessionInfo(session: Session): SessionInfo {
   return {
     id: session.id,
     label: path.basename(session.projectRoot),
+    agent: session.agent,
     projectRoot: session.projectRoot,
     origins: session.origins,
     listening: session.listener !== null,
@@ -141,6 +143,7 @@ function connect(params: ConnectParams, shim: WebSocket): ConnectResult {
   const session: Session = existing ?? {
     id: params.sessionId,
     projectRoot: params.projectRoot,
+    agent: params.agent,
     origins: params.origins,
     connectedAt: new Date().toISOString(),
     shim,
@@ -148,6 +151,7 @@ function connect(params: ConnectParams, shim: WebSocket): ConnectResult {
     listener: null,
   }
   session.projectRoot = params.projectRoot
+  session.agent = params.agent
   session.origins = params.origins
   session.shim = shim
   sessions.set(session.id, session)
@@ -155,7 +159,7 @@ function connect(params: ConnectParams, shim: WebSocket): ConnectResult {
   // Open batches whose session is gone move to this one, so nothing sent is lost.
   for (const batch of projectBatches(session.projectRoot).values()) {
     if (batch.status === 'done' || batch.sessionId === session.id || sessions.has(batch.sessionId)) continue
-    saveBatch({ ...batch, sessionId: session.id }, { type: 'adopted', session: session.id })
+    saveBatch({ ...batch, sessionId: session.id, agent: session.agent }, { type: 'adopted', session: session.id })
   }
 
   broadcastSessions()
@@ -179,7 +183,7 @@ function getBatch(params: GetBatchParams): Batch | null {
     return null
   }
   if (batch.status !== 'queued') return batch
-  const fetched: Batch = { ...batch, status: 'fetched', sessionId: session.id }
+  const fetched: Batch = { ...batch, status: 'fetched', sessionId: session.id, agent: session.agent }
   saveBatch(fetched, { type: 'fetched', session: session.id })
   return fetched
 }
@@ -269,7 +273,7 @@ function handleExtensionMessage(socket: WebSocket, raw: string): void {
       if (!session) {
         send(socket, {
           type: 'error',
-          message: `That Claude Code session has ended. Run ${START_COMMAND} in a session, then send again.`,
+          message: `That agent session has ended. Connect a session again (in Claude Code: ${START_COMMAND}), then send.`,
           clientBatchId: message.clientBatchId,
         })
         return
@@ -291,6 +295,7 @@ function handleExtensionMessage(socket: WebSocket, raw: string): void {
       const batch: Batch = {
         id: nextBatchId(session.projectRoot),
         projectRoot: session.projectRoot,
+        agent: session.agent,
         sessionId: session.id,
         createdAt: new Date().toISOString(),
         status: 'queued',
