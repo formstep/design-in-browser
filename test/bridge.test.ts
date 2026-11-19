@@ -61,8 +61,7 @@ function inbox<T>(socket: WebSocket, parse: (raw: string) => T): Inbox<T> {
   socket.on('message', (data) => {
     const item = parse(data.toString())
     items.push(item)
-    for (const waiter of [...waiters]) {
-      if (!waiter.match(item)) continue
+    for (const waiter of waiters.filter((entry) => entry.match(item))) {
       waiters.splice(waiters.indexOf(waiter), 1)
       waiter.resolve(item)
     }

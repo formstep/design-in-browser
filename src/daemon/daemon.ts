@@ -6,7 +6,7 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import http from 'node:http'
-import { WebSocket, WebSocketServer } from 'ws'
+import { WebSocketServer, type WebSocket } from 'ws'
 import { z } from 'zod'
 import { LISTENER_REPLACED_CLOSE_CODE, PRODUCT_NAME, type DaemonToPlugin, type Health, type ShimRequest, type ShimResponse } from '../shared/protocol.ts'
 import { BUILD_ID, config, tokenPath } from '../node/config.ts'

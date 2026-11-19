@@ -5,8 +5,8 @@ import type { Point } from '../ui/geometry.ts'
 export type Mode =
   | { kind: 'idle' }
   | { kind: 'picking' }
-  /** `then`: where Esc or adding the comment leads, back to picking or out. */
-  | { kind: 'commenting'; element: Element; offset: Point; then: 'picking' | 'idle' }
+  /** `after`: where Esc or adding the comment leads, back to picking or out. */
+  | { kind: 'commenting'; element: Element; offset: Point; after: 'picking' | 'idle' }
 
 let mode: Mode = { kind: 'idle' }
 const listeners = new Set<(mode: Mode) => void>()

@@ -10,8 +10,13 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck",
     "test": "node scripts/build.mjs && node --test test/*.test.ts",
-    "test:e2e": "node scripts/build.mjs && playwright test --config test/e2e/playwright.config.ts"
+    "test:e2e": "node scripts/build.mjs && playwright test --config test/e2e/playwright.config.ts",
+    "capture": "node scripts/build.mjs && node scripts/capture.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
@@ -26,6 +31,8 @@
     "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^6.3.0",
     "esbuild": "^0.28.2",
+    "oxfmt": "0.68.0",
+    "oxlint": "^1.94.0",
     "playwright": "1.63.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

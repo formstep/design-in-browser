@@ -6,7 +6,7 @@ import path from 'node:path'
 import { expect, test } from '@playwright/test'
 import { createServer } from 'vite'
 import designInBrowser from '../../dist/vite.mjs'
-import { repo, appRoot, tmp, project, appUrl, vite, context, page, freePort, startVite, stopAppServer, startAppServer, dock, comment, useHarness, viteCache } from './harness.ts'
+import { repo, appRoot, tmp, project, appUrl, context, page, freePort, startVite, stopAppServer, startAppServer, dock, useHarness, viteCache } from './harness.ts'
 
 useHarness()
 

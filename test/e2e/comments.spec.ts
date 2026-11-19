@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
 import type { Batch } from '../../src/shared/protocol.ts'
-import { tmp, project, appUrl, shim, context, page, doorbells, stopAppServer, startAppServer, callTool, startShim, dock, comment, useHarness } from './harness.ts'
+import { tmp, appUrl, shim, context, page, doorbells, stopAppServer, startAppServer, callTool, startShim, dock, comment, useHarness } from './harness.ts'
 
 useHarness()
 

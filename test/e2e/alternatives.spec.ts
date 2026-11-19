@@ -2,7 +2,7 @@
 // to the agent, and asking for alternatives from the comment card.
 import { expect, test } from '@playwright/test'
 import type { Batch } from '../../src/shared/protocol.ts'
-import { appUrl, shim, page, doorbells, callTool, dock, comment, useHarness } from './harness.ts'
+import { appUrl, shim, page, doorbells, callTool, dock, useHarness } from './harness.ts'
 
 useHarness()
 

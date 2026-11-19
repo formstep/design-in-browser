@@ -6,7 +6,7 @@ import { newComment } from '../comments.ts'
 import { addComment, agentName, connectedSession, readState, sendOp } from '../store.ts'
 import { query } from '../ui/dom.ts'
 import { keepKeys, submitOnEnter } from '../ui/events.ts'
-import { clamp, pointOn, type Point } from '../ui/geometry.ts'
+import { clamp, pointOn } from '../ui/geometry.ts'
 import { usableWidth } from '../ui/layout.ts'
 import { shownVersionOf } from '../variants/switcher.ts'
 import { getMode, onModeChange, setMode, type Mode } from './mode.ts'
@@ -83,7 +83,7 @@ export function openComposer(next: Omit<Commenting, 'kind'>): void {
 export function leaveComposer(): void {
   const mode = getMode()
   if (mode.kind !== 'commenting') return
-  setMode(mode.then === 'idle' ? { kind: 'idle' } : { kind: 'picking' })
+  setMode(mode.after === 'idle' ? { kind: 'idle' } : { kind: 'picking' })
 }
 
 /** Puts the pin on the clicked point and the card beside it, on the side with room. */
@@ -129,7 +129,7 @@ async function submit(): Promise<void> {
     showError(`No agent session is connected to send to. Untick the box to keep it with your comments, or connect a session (in Claude Code: ${START_COMMAND}).`)
     return
   }
-  const { element, offset, then } = mode
+  const { element, offset, after } = mode
   const comment = newComment({
     text: typed || (alternativeCount === 1 ? 'An alternative for this' : `${alternativeCount} alternatives for this`),
     page: capturePage(),
@@ -144,7 +144,7 @@ async function submit(): Promise<void> {
     await addComment(comment, send)
   } catch {
     // Most often the dev server stopped or restarted. Keep the text.
-    openComposer({ element, offset, then })
+    openComposer({ element, offset, after })
     setRequest(asking ? 'alternatives' : 'comment')
     textarea.value = typed
     showError('Couldn’t save this comment. Copy your text, reload the tab, and add it again.')
@@ -181,7 +181,7 @@ keepKeys(composer)
 onPick(({ element, offset }) => {
   // While commenting, a click elsewhere moves an empty card; typed text is never thrown away.
   if (getMode().kind === 'commenting' && textarea.value.trim() !== '') return
-  openComposer({ element, offset, then: 'picking' })
+  openComposer({ element, offset, after: 'picking' })
 })
 
 onModeChange((mode) => {
