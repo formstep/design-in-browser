@@ -1,16 +1,16 @@
 {
   "name": "design-in-browser",
   "owner": {
-    "name": "Onur"
+    "name": "Onur H."
   },
   "plugins": [
     {
       "name": "design-in-browser",
       "source": "./plugin",
-      "description": "Comment on your local app's UI in Chrome and have this Claude Code session act on the comments live."
+      "description": "Comment on your running React + Vite app in the browser and have this session change the code."
     }
   ],
   "metadata": {
-    "description": "Design in Browser: comment on your local app in Chrome, act on it from Claude Code."
+    "description": "Design in Browser: comment on your running app in the browser, and your coding agent changes the code."
   }
 }

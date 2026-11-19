@@ -1,8 +1,30 @@
 {
   "name": "design-in-browser",
   "version": "0.1.0",
-  "private": true,
-  "description": "Comment on your local app's UI in Chrome and send it to a running coding agent session.",
+  "description": "Comment on your running React + Vite app in the browser, and your coding agent changes the code: comments, alternatives with live tweaks, before and after.",
+  "keywords": [
+    "ai-agent",
+    "claude-code",
+    "design-review",
+    "mcp",
+    "react",
+    "ui",
+    "vite",
+    "vite-plugin"
+  ],
+  "homepage": "https://github.com/formstep/design-in-browser#readme",
+  "bugs": {
+    "url": "https://github.com/formstep/design-in-browser/issues"
+  },
+  "license": "MIT",
+  "author": "Onur H.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/formstep/design-in-browser.git"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "exports": {
     "./vite": {
@@ -12,7 +34,8 @@
     "./react": {
       "types": "./dist/react.d.mts",
       "import": "./dist/react.mjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -23,14 +46,11 @@
     "check": "pnpm lint && pnpm format:check && pnpm typecheck",
     "test": "node scripts/build.mjs && node --test test/*.test.ts",
     "test:e2e": "node scripts/build.mjs && playwright test --config test/e2e/playwright.config.ts",
-    "capture": "node scripts/build.mjs && node scripts/capture.mjs"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.32.2",
-    "ws": "^8.23.0",
-    "zod": "^4.6.7"
+    "capture": "node scripts/build.mjs && node scripts/capture.mjs",
+    "prepublishOnly": "pnpm check && pnpm test"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@playwright/test": "1.63.0",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
@@ -44,10 +64,21 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "typescript": "^7.0.2",
-    "vite": "^8.3.8"
+    "vite": "^8.3.8",
+    "ws": "^8.23.0",
+    "zod": "^4.6.7"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "vite": ">=6"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   },
   "engines": {
-    "node": ">=22.18"
+    "node": ">=22.12"
   },
   "packageManager": "pnpm@12.16.1"
 }

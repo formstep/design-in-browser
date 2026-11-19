@@ -1,9 +1,12 @@
 {
   "name": "design-in-browser",
   "version": "0.1.0",
-  "description": "Comment on your local app's UI in Chrome and have this Claude Code session act on the comments live.",
-  "keywords": ["design", "browser", "chrome-extension", "ui", "review"],
+  "description": "Lets this session take comments from your running React + Vite app in the browser, reply on the page, and show alternatives with live tweaks.",
+  "keywords": ["design", "browser", "vite", "react", "ui", "review"],
   "author": {
-    "name": "Onur"
-  }
+    "name": "Onur H."
+  },
+  "homepage": "https://github.com/formstep/design-in-browser",
+  "repository": "https://github.com/formstep/design-in-browser",
+  "license": "MIT"
 }
