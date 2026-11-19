@@ -1,6 +1,15 @@
 import { z } from 'zod'
 import type { DraftComment } from '../shared/protocol.ts'
 
+const shownVersion = z.object({
+  group: z.string().max(100),
+  index: z.number().int().min(0).max(10),
+  label: z.string().max(200),
+  tweaks: z
+    .array(z.object({ id: z.string().max(60), label: z.string().max(100), value: z.union([z.boolean(), z.number(), z.string().max(200)]) }))
+    .max(12),
+})
+
 const rect = z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })
 
 const elementRef = z.object({
@@ -29,23 +38,10 @@ export const draftCommentSchema: z.ZodType<DraftComment> = z.object({
   intent: z
     .discriminatedUnion('kind', [
       z.object({ kind: z.literal('alternatives'), count: z.number().int().min(1).max(4) }),
-      z.object({
-        kind: z.literal('choose-variant'),
-        group: z.string().max(100),
-        index: z.number().int().min(0).max(10),
-        label: z.string().max(200),
-        tweaks: z.array(z.object({ id: z.string().max(60), label: z.string().max(100), value: z.union([z.boolean(), z.number(), z.string().max(200)]) })).max(12),
-      }),
+      shownVersion.extend({ kind: z.literal('choose-variant') }),
     ])
     .optional(),
-  variant: z
-    .object({
-      group: z.string().max(100),
-      index: z.number().int().min(0).max(10),
-      label: z.string().max(200),
-      tweaks: z.array(z.object({ id: z.string().max(60), label: z.string().max(100), value: z.union([z.boolean(), z.number(), z.string().max(200)]) })).max(12),
-    })
-    .optional(),
+  variant: shownVersion.optional(),
   inReplyTo: z
     .object({
       batchId: z.string().max(20),

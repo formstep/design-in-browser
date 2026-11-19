@@ -33,11 +33,12 @@ export type PageState = {
   sendOnAdd: boolean
   /** Which version each `<Variants>` group shows, by group id; kept so reloads and other tabs show the same one. */
   variantChoices: Record<string, number>
-  /** Tweak values the user set, by `variantKey(group, index)` then tweak id. */
+  /** Tweak values the user set, by `versionKey(group, index)` then tweak id. */
   tweakValues: Record<string, Record<string, TweakValue>>
 }
 
-export const variantKey = (group: string, index: number) => `${group}#${index}`
+/** The key of one version of a `<Variants>` group, for its tweak values. */
+export const versionKey = (group: string, index: number) => `${group}#${index}`
 
 export type PageOp =
   | { type: 'add-comment'; comment: DraftComment }

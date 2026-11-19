@@ -10,7 +10,7 @@ import { fillIcons, icon } from '../icons.ts'
 import overlayCss from './overlay.css'
 import { defaultSession, onStateChange, readState, sendOp, type PageState } from '../store.ts'
 import tokensCss from '../tokens.css'
-import { mountVariants, onGroupsChange, renderVariants, syncFromState, variantContextOf } from '../variants/switcher.ts'
+import { mountVariants, onGroupsChange, renderVariants, syncFromState, shownVersionOf } from '../variants/switcher.ts'
 
 const PIN = 32
 const CARD_WIDTH = 300
@@ -318,6 +318,7 @@ async function submitComment(): Promise<void> {
     return
   }
   const { element, offset, then } = mode
+  const variant = shownVersionOf(element)
   const comment: DraftComment = {
     id: crypto.randomUUID(),
     text,
@@ -326,7 +327,7 @@ async function submitComment(): Promise<void> {
     inReplyTo: null,
     ...(asking ? { intent: { kind: 'alternatives' as const, count: alternativeCount } } : {}),
     // Made on one version of a group: the agent gets which version, and its tweaks as the user left them.
-    ...(variantContextOf(element) ? { variant: variantContextOf(element) } : {}),
+    ...(variant ? { variant } : {}),
     createdAt: new Date().toISOString(),
   }
   // Leave first: an Esc pressed while the save is in flight must find the mode already moved on.

@@ -2,6 +2,7 @@
 // overlay's switcher. Two separate bundles include this file; whichever loads first creates the one bridge
 // on `window`, and both read and write it. Changes apply here at once (a slider moves the page live) and the
 // overlay saves them to the plugin, so a reload or another tab shows the same version and values.
+import { versionKey } from './page-protocol.ts'
 import type { TweakSpec, TweakValue } from './protocol.ts'
 
 /**
@@ -16,7 +17,7 @@ export type VariantsBridge = {
   revision: number
   /** group -> index of the version shown */
   choices: Record<string, number>
-  /** `${group}#${index}` -> tweak id -> value */
+  /** `versionKey(group, index)` -> tweak id -> value */
   values: Record<string, Record<string, TweakValue>>
   /** Groups mounted on the page, with how many times each is rendered. */
   groups: Map<string, GroupMeta & { mounted: number }>
@@ -43,8 +44,6 @@ export function subscribe(listener: () => void): () => void {
   return () => shared.listeners.delete(listener)
 }
 
-export const tweakKey = (group: string, index: number) => `${group}#${index}`
-
 /** Before anyone picks, a group shows its first alternative (index 1) when it has one: that is what was asked for. */
 export function shownIndex(group: string, count: number): number {
   const chosen = bridge().choices[group]
@@ -54,7 +53,7 @@ export function shownIndex(group: string, count: number): number {
 
 /** The values a version renders with: its defaults, overridden by what the user set for ids the version still has. */
 export function valuesFor(group: string, index: number, specs: Record<string, TweakSpec> | undefined): Record<string, TweakValue> {
-  const stored = bridge().values[tweakKey(group, index)] ?? {}
+  const stored = bridge().values[versionKey(group, index)] ?? {}
   const values: Record<string, TweakValue> = {}
   for (const [id, spec] of Object.entries(specs ?? {})) {
     const value = stored[id]

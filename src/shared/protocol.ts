@@ -65,23 +65,24 @@ export type InReplyTo = {
 export type TweakSpec =
   | { kind: 'toggle'; label: string; default: boolean }
   | { kind: 'range'; label: string; min: number; max: number; step: number; default: number; unit?: string }
-  | { kind: 'choice'; label: string; options: string[]; default: string }
+  | { kind: 'choice'; label: string; options: readonly string[]; default: string }
 
 export type TweakValue = boolean | number | string
 
 /** A tweak as the user left it when picking a version, with its label so the batch reads on its own. */
 export type ChosenTweak = { id: string; label: string; value: TweakValue }
 
+/** One version of a `<Variants>` group as the user saw it: which one, and its tweak values then. Index 0 is "Before". */
+export type ShownVersion = { group: string; index: number; label: string; tweaks: ChosenTweak[] }
+
 /**
  * What a comment asks for. Absent means a plain comment in words.
  * - alternatives: build `count` versions of the element in source, behind a `<Variants>` wrapper, each with a few
  *   tweaks, for the user to cycle through and adjust.
- * - choose-variant: the user picked a version of a `<Variants>` group with these tweak values; keep that one with
- *   the values written in, and remove the wrapper and the other versions.
+ * - choose-variant: the user picked this version with these tweak values; keep that one with the values written
+ *   in, and remove the wrapper and the other versions.
  */
-export type Intent =
-  | { kind: 'alternatives'; count: number }
-  | { kind: 'choose-variant'; group: string; index: number; label: string; tweaks: ChosenTweak[] }
+export type Intent = { kind: 'alternatives'; count: number } | ({ kind: 'choose-variant' } & ShownVersion)
 
 /** A comment as the page drafts it. `element` is null for a note about the whole page. */
 export type DraftComment = {
@@ -93,13 +94,10 @@ export type DraftComment = {
   inReplyTo: InReplyTo | null
   /** What kind of change this is; absent for a comment in words. */
   intent?: Intent
-  /** Set when the comment was made inside a `<Variants>` group: which version, and its tweak values then. */
-  variant?: VariantContext
+  /** Set when the comment was made inside a `<Variants>` group: the version it was made on. */
+  variant?: ShownVersion
   createdAt: string
 }
-
-/** The version of a `<Variants>` group a comment was made on, as the user saw it. */
-export type VariantContext = { group: string; index: number; label: string; tweaks: ChosenTweak[] }
 
 /** `variants`: alternatives are in the page behind a `<Variants>` wrapper, waiting for the user to pick one. */
 export type CommentStatus = 'pending' | 'done' | 'question' | 'skipped' | 'variants'

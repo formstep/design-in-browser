@@ -1,8 +1,9 @@
 // The switcher on each `<Variants>` group: step through the versions, adjust the shown version's tweaks
 // live, and pick one. A pick goes to the agent as a comment with the version and every tweak's final value;
 // the agent then writes that version into the code and removes the wrapper.
-import type { ChosenTweak, DraftComment, TweakSpec, TweakValue, VariantContext } from '../../shared/protocol.ts'
-import { bridge, notify, shownIndex, subscribe, tweakKey, valuesFor } from '../../shared/variants-bridge.ts'
+import type { ChosenTweak, DraftComment, TweakSpec, TweakValue, ShownVersion } from '../../shared/protocol.ts'
+import { versionKey } from '../../shared/page-protocol.ts'
+import { bridge, notify, shownIndex, subscribe, valuesFor } from '../../shared/variants-bridge.ts'
 import { captureElement, capturePage } from '../capture.ts'
 import { icon } from '../icons.ts'
 import type { PageState } from '../store.ts'
@@ -77,7 +78,7 @@ export function onGroupsChange(listener: () => void): void {
 }
 
 /** The version a comment was made on, when it was made inside a group. */
-export function variantContextOf(element: Element): VariantContext | undefined {
+export function shownVersionOf(element: Element): ShownVersion | undefined {
   const wrapper = element.closest('dib-variants')
   const group = wrapper?.getAttribute('data-group')
   const meta = group ? bridge().groups.get(group) : undefined
@@ -395,7 +396,7 @@ function segmented(...segments: HTMLButtonElement[]): HTMLElement {
 function tweaksCard(group: string, index: number, specs: Record<string, TweakSpec>, values: Record<string, TweakValue>): HTMLElement {
   const card = document.createElement('div')
   card.className = 'tweaks'
-  card.dataset.key = tweakKey(group, index)
+  card.dataset.key = versionKey(group, index)
   for (const [id, spec] of Object.entries(specs)) {
     const row = document.createElement('label')
     row.className = 'tweak'
@@ -468,7 +469,7 @@ function show(group: string, index: number): void {
 }
 
 function setTweak(group: string, index: number, id: string, value: TweakValue): void {
-  const key = tweakKey(group, index)
+  const key = versionKey(group, index)
   const shared = bridge()
   shared.values[key] = { ...shared.values[key], [id]: value }
   notify()

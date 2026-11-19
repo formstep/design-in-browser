@@ -54,10 +54,7 @@ await build({
   banner: { js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);" },
   logLevel: 'warning',
 })
-fs.writeFileSync(
-  'dist/vite.d.mts',
-  `import type { Plugin } from 'vite'\nexport type DesignInBrowserOptions = { projectRoot?: string }\nexport default function designInBrowser(options?: DesignInBrowserOptions): Plugin[]\n`,
-)
+fs.copyFileSync('src/vite/types.d.mts', 'dist/vite.d.mts')
 
 await build({
   entryPoints: { client: 'src/page/client.ts' },

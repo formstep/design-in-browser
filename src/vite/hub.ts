@@ -6,7 +6,7 @@ import path from 'node:path'
 import WebSocket from 'ws'
 import type { Batch, DaemonToPlugin, PluginToDaemon } from '../shared/protocol.ts'
 import { START_COMMAND } from '../shared/protocol.ts'
-import { sameProject, variantKey, type PageOp, type PageState } from '../shared/page-protocol.ts'
+import { sameProject, versionKey, type PageOp, type PageState } from '../shared/page-protocol.ts'
 import { config, tokenPath } from '../node/config.ts'
 import { ensureJournal } from '../node/journal.ts'
 
@@ -84,7 +84,7 @@ export class Hub {
         this.update({ variantChoices: { ...this.state.variantChoices, [op.group]: op.index } }, true)
         return null
       case 'set-tweak': {
-        const key = variantKey(op.group, op.index)
+        const key = versionKey(op.group, op.index)
         this.update({ tweakValues: { ...this.state.tweakValues, [key]: { ...this.state.tweakValues[key], [op.id]: op.value } } }, true)
         return null
       }
