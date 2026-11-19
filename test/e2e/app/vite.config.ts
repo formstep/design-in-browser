@@ -1,4 +1,5 @@
 // Fixture app for the e2e suite. It loads the built plugin, as an app that installed the package would.
+import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
 import type { Plugin } from 'vite'
 import designInBrowser from '../../../dist/vite.mjs'
@@ -19,4 +20,13 @@ const strictCsp: Plugin = {
 export default {
   plugins: [designInBrowser({ projectRoot: process.env.DIB_PROJECT_ROOT }), react(), strictCsp],
   logLevel: 'error',
+  build: {
+    outDir: process.env.DIB_BUILD_OUT ?? 'dist',
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        variants: fileURLToPath(new URL('./variants.html', import.meta.url)),
+      },
+    },
+  },
 }

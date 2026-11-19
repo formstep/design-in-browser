@@ -322,6 +322,17 @@ function answers(state: PageState): Map<string, string> {
   return found
 }
 
+/** Scrolls the page to a `<Variants>` group, where its switcher is. */
+function showOnPage(group: string): HTMLElement {
+  const link = el('button', { type: 'button', className: 'show-group', textContent: 'Show on page' })
+  link.dataset.testid = 'show-group'
+  link.addEventListener('click', () => {
+    const wrapper = document.querySelector(`dib-variants[data-group="${CSS.escape(group)}"]`)
+    wrapper?.firstElementChild?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  })
+  return link
+}
+
 function answerForm(batch: Batch, comment: BatchComment): HTMLFormElement {
   const field = el('textarea', { rows: 1, value: answerDrafts.get(comment.id) ?? '', placeholder: `Answer ${batch.agent}` })
   field.dataset.answer = comment.id
@@ -384,6 +395,7 @@ function claudeSide(batch: Batch, answered: Map<string, string>): HTMLElement {
           const body = el('div', {}, [label, el('p', { className: 'reply-text', textContent: comment.reply ?? '' })])
           const followup = answered.get(comment.id)
           if (comment.status === 'question') body.append(followup ? el('p', { className: 'followup', textContent: followup }) : answerForm(batch, comment))
+          if (comment.status === 'variants' && comment.group) body.append(showOnPage(comment.group))
           const item = el('li', { className: 'reply' }, [el('span', { className: 'num', textContent: String(index + 1) }), body])
           item.dataset.status = comment.status
           return item

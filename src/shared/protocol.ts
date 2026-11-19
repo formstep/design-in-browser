@@ -95,8 +95,13 @@ export type DraftComment = {
   inReplyTo: InReplyTo | null
   /** What kind of change this is; absent for a comment in words. */
   intent?: Intent
+  /** Set when the comment was made inside a `<Variants>` group: which version, and its tweak values then. */
+  variant?: VariantContext
   createdAt: string
 }
+
+/** The version of a `<Variants>` group a comment was made on, as the user saw it. */
+export type VariantContext = { group: string; index: number; label: string; tweaks: ChosenTweak[] }
 
 /** `variants`: alternatives are in the page behind a `<Variants>` wrapper, waiting for the user to pick one. */
 export type CommentStatus = 'pending' | 'done' | 'question' | 'skipped' | 'variants'
@@ -105,6 +110,8 @@ export type ReplyStatus = Exclude<CommentStatus, 'pending'>
 export type BatchComment = DraftComment & {
   status: CommentStatus
   reply: string | null
+  /** The `<Variants>` group the agent put in the page for this comment, with a `variants` reply. */
+  group?: string
 }
 
 /**
@@ -163,7 +170,7 @@ export type GetBatchParams = { sessionId: string; batchId?: string }
 export type ReplyParams = {
   sessionId: string
   batchId: string
-  replies: Array<{ commentId: string; status: ReplyStatus; message: string }>
+  replies: Array<{ commentId: string; status: ReplyStatus; message: string; group?: string }>
   summary?: string
 }
 export type StatusResult = {

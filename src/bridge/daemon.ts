@@ -198,7 +198,8 @@ function reply(params: ReplyParams): Batch {
   if (unknown.length > 0) throw new Error(`Unknown comment ids in batch ${batch.id}: ${unknown.join(', ')}`)
   const comments = batch.comments.map((comment) => {
     const entry = byId.get(comment.id)
-    return entry ? { ...comment, status: entry.status, reply: entry.message } : comment
+    if (!entry) return comment
+    return entry.group ? { ...comment, status: entry.status, reply: entry.message, group: entry.group } : { ...comment, status: entry.status, reply: entry.message }
   })
   const allAnswered = comments.every((comment) => comment.status !== 'pending')
   const updated: Batch = {

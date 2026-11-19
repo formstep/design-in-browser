@@ -328,3 +328,35 @@ test('the dock routes to the session on its project, or to none', () => {
   assert.equal(defaultSession({ ...state, pickedSessionId: 'other' })?.id, 'other')
   assert.equal(defaultSession({ ...state, sessions: [state.sessions[2]!] }), null)
 })
+
+test('a stale choice or tweak from older source falls back to what the page has now', async () => {
+  const { bridge, shownIndex, valuesFor } = await import('../src/shared/variants-bridge.ts')
+  const shared = bridge()
+  // Saved before the agent removed a version: index 2 of a group that now has two versions.
+  shared.choices.hero = 2
+  assert.equal(shownIndex('hero', 2), 1)
+  assert.equal(shownIndex('hero', 3), 2)
+  assert.equal(shownIndex('solo', 1), 0)
+  // A saved value of the wrong kind, and one for a tweak that is gone, give way to the defaults.
+  shared.values['hero#1'] = { padding: 'wide', gone: true, badge: false }
+  const specs = {
+    padding: { kind: 'range', label: 'Padding', min: 0, max: 96, step: 8, default: 48 },
+    badge: { kind: 'toggle', label: 'Badge', default: true },
+  } as const
+  assert.deepEqual(valuesFor('hero', 1, specs), { padding: 48, badge: false })
+})
+
+test('the MCP server leaves when its agent closes stdio, so no ghost session stays', async () => {
+  const { spawn } = await import('node:child_process')
+  const child = spawn(process.execPath, ['plugin/dist/mcp.mjs'], { stdio: ['pipe', 'pipe', 'ignore'], env })
+  const send = (message: object) => child.stdin.write(JSON.stringify(message) + '\n')
+  send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '0' } } })
+  await new Promise((resolve) => setTimeout(resolve, 200))
+  send({ jsonrpc: '2.0', method: 'notifications/initialized' })
+  send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'live_connect', arguments: { projectRoot: project } } })
+  await new Promise((resolve) => setTimeout(resolve, 1000))
+  const exited = new Promise<number | null>((resolve) => child.once('exit', resolve))
+  child.stdin.end()
+  const code = await Promise.race([exited, new Promise<string>((resolve) => setTimeout(() => resolve('still running'), 3000))])
+  assert.equal(code, 0)
+})

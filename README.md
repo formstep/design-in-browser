@@ -91,7 +91,11 @@ Any Claude Code session can connect; nothing has to be passed when you start `cl
 4. Send from the dock (or tick **Send to <agent>** in the comment card to send right away). The agent fetches the batch, edits the source and replies per comment: done, a question, or skipped with a reason. Pin discs turn green with a check (done) or amber with a question mark (question); waiting and skipped pins go grey. Click a pin to read the reply.
 5. To answer a question, type in the **Answer** field under it, in the dock or in the pin's thread. The answer joins your comments with the question attached; send it like any other comment, and the agent closes the question when it acts on it.
 
-While picking, clicks don't reach the page, so buttons and links don't fire.
+6. To explore a part of the page, pick it and switch the comment card to **Alternatives**: choose how many (1 to 4) and, if you like, what they should try. The agent builds them in your code behind a `<Variants>` wrapper (from `design-in-browser/react`), with the current design kept as the first version.
+7. A switcher appears on that part of the page. With one alternative it is a **Before / After** toggle; with more, a **Before / <alternative>** toggle plus arrows through the alternatives ("1 / 2"), so the original is always one click away. The switcher sits where it covers none of the page's text, and holds still while you use it. **Tweaks** (on hover) shows the knobs the agent gave the alternative you're looking at (an optional feature on or off, a padding or size slider, a choice between options), and every change shows at once. Your choices survive reloads. Comment on a version to have it reworked in place.
+8. **Use this** (or **Keep after**) sends your pick, with every tweak's value, to the agent, which writes that version into the code and removes the wrapper and the other versions. **Keep before** puts the original back.
+
+While picking, clicks don't reach the page, so buttons and links don't fire. Alternatives need React; a production build fails while a `<Variants>` group is still in the code, so one never ships by accident.
 
 ## Security
 

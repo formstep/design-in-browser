@@ -39,6 +39,14 @@ export const draftCommentSchema: z.ZodType<DraftComment> = z.object({
       }),
     ])
     .optional(),
+  variant: z
+    .object({
+      group: z.string().max(100),
+      index: z.number().int().min(0).max(10),
+      label: z.string().max(200),
+      tweaks: z.array(z.object({ id: z.string().max(60), label: z.string().max(100), value: z.union([z.boolean(), z.number(), z.string().max(200)]) })).max(12),
+    })
+    .optional(),
   inReplyTo: z
     .object({
       batchId: z.string().max(20),

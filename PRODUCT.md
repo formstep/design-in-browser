@@ -32,13 +32,16 @@ Comments are anchored to real elements of the developer's own running app and go
 - Any Claude Code session can connect; no special launch flags. OpenCode and other agents later.
 - UI copy names the connected agent and falls back to "Agent"; nothing in the UI hard-codes Claude.
 - Standalone repository, not part of Formstep.
-- Next on the roadmap: stamping source locations on elements through a dev-only Vite plugin, then switchable variants that the agent renders from source.
+- Alternatives (React + Vite): the user asks for 1 to 4 alternatives of a part of the page; the agent builds them in source behind a dev-only `<Variants>` wrapper, the original kept as the first version. The user cycles through them on the page and picks one; the agent then writes the pick into the code and removes the rest. One alternative shows as a Before/After toggle; with more, Before stays one click away beside the pages through the alternatives.
+- Tweaks belong to alternatives: each alternative carries knobs the agent chose (a feature on or off, a spacing or size, a choice between options). The user adjusts them live, and the pick carries their final values into the code. Tweaks are not a general property editor.
+- Next on the roadmap: stamping source locations on elements through the Vite plugin.
 - Decided 2026-11-19: the Vite plugin replaced the Chrome extension. Pages not served by Vite (Astro's own pages need an integration) are not covered yet.
 
 ## Product Principles
 
 - The comment stays on the element: every comment, reply and question is visible where it was made.
-- Stack, then send. Comments collect until the developer sends them as one batch.
+- Stack, then send. Comments collect until the developer sends them as one batch. A pick is a decision and goes at once.
+- Try, then decide: alternatives are real code running in the real page, and nothing is final until the user picks.
 - Agent-neutral: the look follows Claude Design, the words follow whichever agent is connected.
 - The agent changes source, never just the page.
 - Nothing is lost: a batch sent while the agent isn't listening waits and rings when it is back.

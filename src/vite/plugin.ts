@@ -17,6 +17,9 @@ export type DesignInBrowserOptions = {
 }
 
 const RESOLVED_CLIENT = `\0${CLIENT_MODULE}`
+const REACT_MODULE = 'design-in-browser/react'
+const RESOLVED_REACT = '\0design-in-browser:react'
+const LEFTOVER = `A <Variants> group from ${REACT_MODULE} is still in the code. Pick a version in the browser (the agent then removes the wrapper), or remove it by hand, before building.`
 
 function gitRoot(dir: string): string {
   const result = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: dir, encoding: 'utf8' })
@@ -29,7 +32,24 @@ function loopbackOnly(address: AddressInfo | string | null | undefined): boolean
   return address.address === '::1' || address.address.startsWith('127.')
 }
 
-export default function designInBrowser(options: DesignInBrowserOptions = {}): Plugin {
+export default function designInBrowser(options: DesignInBrowserOptions = {}): Plugin[] {
+  return [devServer(options), buildGuard()]
+}
+
+/** A build that still imports the alternatives wrapper fails here, with the reason, instead of shipping it. */
+function buildGuard(): Plugin {
+  return {
+    name: `${PRODUCT_NAME}:build-guard`,
+    apply: 'build',
+    enforce: 'pre',
+    resolveId(id) {
+      if (id === REACT_MODULE) this.error(LEFTOVER)
+      return undefined
+    },
+  }
+}
+
+function devServer(options: DesignInBrowserOptions): Plugin {
   let enabled = false
   let hub: Hub | null = null
 
@@ -40,12 +60,15 @@ export default function designInBrowser(options: DesignInBrowserOptions = {}): P
 
     resolveId(id) {
       if (id === CLIENT_MODULE) return RESOLVED_CLIENT
+      // Served from here, not from the package, so `react` inside it is the app's own React.
+      if (id === REACT_MODULE) return RESOLVED_REACT
       return undefined
     },
 
     load(id) {
-      if (id !== RESOLVED_CLIENT) return undefined
-      return fs.readFileSync(fileURLToPath(new URL('./client.js', import.meta.url)), 'utf8')
+      if (id === RESOLVED_CLIENT) return fs.readFileSync(fileURLToPath(new URL('./client.js', import.meta.url)), 'utf8')
+      if (id === RESOLVED_REACT) return fs.readFileSync(fileURLToPath(new URL('./react-dev.js', import.meta.url)), 'utf8')
+      return undefined
     },
 
     transformIndexHtml() {

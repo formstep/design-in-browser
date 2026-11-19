@@ -36,6 +36,10 @@
     "./vite": {
       "types": "./dist/vite.d.mts",
       "import": "./dist/vite.mjs"
+    },
+    "./react": {
+      "types": "./dist/react.d.mts",
+      "import": "./dist/react.mjs"
     }
   }
 }

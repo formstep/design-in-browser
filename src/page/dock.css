@@ -49,7 +49,7 @@
   min-width: 40px;
   padding: 0 11px;
   border: 0;
-  border-radius: 20px;
+  border-radius: 999px;
   background: var(--card);
   box-shadow: var(--shadow-float);
   color: var(--ink);
@@ -278,7 +278,7 @@ kbd {
 }
 
 .copied {
-  color: #6fd394;
+  color: var(--done-ink);
   font-size: 12px;
 }
 
@@ -370,7 +370,7 @@ kbd {
   color: var(--ink-3);
 }
 
-/* Claude's working state shimmers, as in claude.ai; the sweep is the state, so it only runs with motion on. */
+/* The agent's working state shimmers, as in Claude Design; the sweep is the state, so it only runs with motion on. */
 @media (prefers-reduced-motion: no-preference) {
   .working {
     background: linear-gradient(90deg, var(--ink-3) 30%, var(--ink) 50%, var(--ink-3) 70%) 0 0 / 300% 100%;
@@ -422,6 +422,21 @@ kbd {
 .summary {
   font: 15px/22px var(--serif);
   overflow-wrap: anywhere;
+}
+
+.show-group {
+  margin-top: 8px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--blue-tint);
+  color: var(--blue-ink);
+  font: 500 13px/18px var(--font);
+  cursor: pointer;
+}
+
+.show-group:hover {
+  background: var(--blue-tint-2);
 }
 
 .followup {

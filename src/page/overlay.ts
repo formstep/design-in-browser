@@ -10,6 +10,7 @@ import { fillIcons, icon } from './icons.ts'
 import overlayCss from './overlay.css'
 import { defaultSession, onStateChange, readState, sendOp, type PageState } from './store.ts'
 import tokensCss from './tokens.css'
+import { mountVariants, onGroupsChange, renderVariants, syncFromState, variantContextOf } from './variants-ui.ts'
 
 const PIN = 32
 const CARD_WIDTH = 300
@@ -28,8 +29,18 @@ root.innerHTML = `
 <div class="pins"></div>
 <div class="pin-wrap composing" hidden><span class="pin"><span class="disc"></span></span></div>
 <form class="composer" hidden>
+  <div class="modes" role="tablist" aria-label="What to ask for">
+    <button type="button" class="mode" data-mode="comment" role="tab" aria-selected="true">Comment</button>
+    <button type="button" class="mode" data-mode="alternatives" role="tab" aria-selected="false">Alternatives</button>
+  </div>
   <p class="target"></p>
   <div class="field"><span class="chip"></span><textarea rows="1"></textarea></div>
+  <div class="count-row" hidden>
+    <span class="count-label">How many</span>
+    <span class="choices" role="radiogroup" aria-label="How many alternatives">
+      <button type="button" class="choice" data-count="1">1</button><button type="button" class="choice" data-count="2">2</button><button type="button" class="choice" data-count="3">3</button><button type="button" class="choice" data-count="4">4</button>
+    </span>
+  </div>
   <p class="composer-error" role="alert" hidden></p>
   <div class="composer-foot">
     <label class="check"><input type="checkbox" class="send-on-add" /> <span class="check-text"></span></label>
@@ -81,6 +92,22 @@ const chip = $<HTMLSpanElement>('.chip')
 const checkText = $<HTMLSpanElement>('.check-text')
 const textarea = $<HTMLTextAreaElement>('.composer textarea')
 const composerError = $<HTMLParagraphElement>('.composer-error')
+const countRow = $<HTMLDivElement>('.count-row')
+const countLabel = $<HTMLSpanElement>('.count-label')
+
+/** Comment in words, or ask for alternatives of the element; the count persists between cards. */
+let composerMode: 'comment' | 'alternatives' = 'comment'
+let alternativeCount = 2
+
+function setComposerMode(next: 'comment' | 'alternatives'): void {
+  composerMode = next
+  for (const tab of root.querySelectorAll<HTMLButtonElement>('.mode')) tab.setAttribute('aria-selected', String(tab.dataset.mode === next))
+  countRow.hidden = next !== 'alternatives'
+  for (const choice of countRow.querySelectorAll<HTMLButtonElement>('.choice')) choice.setAttribute('aria-pressed', String(Number(choice.dataset.count) === alternativeCount))
+  countLabel.textContent = alternativeCount === 1 ? 'How many · shown as before / after' : 'How many'
+  textarea.placeholder = next === 'alternatives' ? 'What should they try? (optional)' : ''
+  placeComposer()
+}
 const sendOnAdd = $<HTMLInputElement>('.send-on-add')
 const hint = $<HTMLSpanElement>('.hint')
 const dock = $<HTMLDivElement>('.dock')
@@ -219,6 +246,7 @@ function openComposer(next: { element: Element; offset: Point; then: 'picking' |
   showHighlight(next.element, true)
   setTarget(next.element)
   composerError.hidden = true
+  setComposerMode('comment')
   textarea.value = ''
   sendOnAdd.checked = state?.sendOnAdd ?? false
   updateHint()
@@ -277,11 +305,13 @@ async function addComment(comment: DraftComment, send: boolean): Promise<void> {
 
 async function submitComment(): Promise<void> {
   if (mode.kind !== 'commenting') return
-  const text = textarea.value.trim()
-  if (text === '') {
+  const typed = textarea.value.trim()
+  const asking = composerMode === 'alternatives'
+  if (typed === '' && !asking) {
     textarea.focus()
     return
   }
+  const text = typed || (alternativeCount === 1 ? 'An alternative for this' : `${alternativeCount} alternatives for this`)
   const send = sendOnAdd.checked
   if (send && !tabSession()) {
     showComposerError(`No agent session is connected to send to. Untick the box to keep it with your comments, or connect a session (in Claude Code: ${START_COMMAND}).`)
@@ -294,6 +324,9 @@ async function submitComment(): Promise<void> {
     page: capturePage(),
     element: { ...captureElement(element), clickOffset: { x: Math.round(offset.x), y: Math.round(offset.y) } },
     inReplyTo: null,
+    ...(asking ? { intent: { kind: 'alternatives' as const, count: alternativeCount } } : {}),
+    // Made on one version of a group: the agent gets which version, and its tweaks as the user left them.
+    ...(variantContextOf(element) ? { variant: variantContextOf(element) } : {}),
     createdAt: new Date().toISOString(),
   }
   // Leave first: an Esc pressed while the save is in flight must find the mode already moved on.
@@ -303,10 +336,27 @@ async function submitComment(): Promise<void> {
   } catch {
     // Most often the extension was reloaded and this tab still runs the old overlay. Keep the text.
     openComposer({ element, offset, then })
-    textarea.value = text
+    setComposerMode(asking ? 'alternatives' : 'comment')
+    textarea.value = typed
     showComposerError('Couldn’t save this comment. Copy your text, reload the tab, and add it again.')
   }
 }
+
+composer.addEventListener('click', (event) => {
+  const target = event.target as HTMLElement
+  const tab = target.closest<HTMLButtonElement>('.mode')
+  if (tab) {
+    setComposerMode(tab.dataset.mode === 'alternatives' ? 'alternatives' : 'comment')
+    textarea.focus()
+    return
+  }
+  const choice = target.closest<HTMLButtonElement>('[data-count]')
+  if (choice) {
+    alternativeCount = Number(choice.dataset.count)
+    setComposerMode('alternatives')
+    textarea.focus()
+  }
+})
 
 composer.addEventListener('submit', (event) => {
   event.preventDefault()
@@ -463,12 +513,16 @@ function pinsForThisPage(current: PageState): PinModel[] {
   const answered = answeredIds(current)
   const ownProject = defaultSession(current)?.projectRoot ?? null
   const drafts = current.draft.flatMap((comment, index): PinModel[] =>
-    hasElement(comment) && samePage(comment.page.url)
+    hasElement(comment) && samePage(comment.page.url) && comment.intent?.kind !== 'choose-variant'
       ? [{ key: comment.id, agent: agentName(), ref: comment.element, status: 'draft', number: index + 1, text: comment.text, createdAt: comment.createdAt, reply: null, answer: null, draftId: comment.id }]
       : [],
   )
+  // A pick needs no pin: the group's switcher already shows it.
   const sent = current.batches.flatMap((batch) =>
-    batch.comments.filter(hasElement).filter((comment) => samePage(comment.page.url)).map((comment) => sentPin(batch, comment, answered, ownProject)),
+    batch.comments
+      .filter(hasElement)
+      .filter((comment) => samePage(comment.page.url) && comment.intent?.kind !== 'choose-variant')
+      .map((comment) => sentPin(batch, comment, answered, ownProject)),
   )
   return [...drafts, ...sent]
 }
@@ -662,6 +716,7 @@ function scheduleRender(): void {
   frame = requestAnimationFrame(() => {
     frame = 0
     renderPins()
+    renderVariants()
     nameAgent()
     toolsCount.textContent = draftCount()
     if (mode.kind === 'commenting') {
@@ -673,9 +728,12 @@ function scheduleRender(): void {
 
 function refresh(): void {
   state = readState()
+  syncFromState(state)
   scheduleRender()
 }
 
+mountVariants({ root, state: () => state, agent: agentName, addComment, usableWidth })
+onGroupsChange(scheduleRender)
 onStateChange(refresh)
 window.addEventListener('scroll', scheduleRender, { capture: true, passive: true })
 window.addEventListener('resize', scheduleRender)
