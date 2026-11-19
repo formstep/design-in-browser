@@ -1,0 +1,16 @@
+{
+  "name": "design-in-browser",
+  "owner": {
+    "name": "Onur"
+  },
+  "plugins": [
+    {
+      "name": "design-in-browser",
+      "source": "./plugin",
+      "description": "Comment on your local app's UI in Chrome and have this Claude Code session act on the comments live."
+    }
+  ],
+  "metadata": {
+    "description": "Design in Browser: comment on your local app in Chrome, act on it from Claude Code."
+  }
+}

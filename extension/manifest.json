@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Design in Browser",
+  "version": "0.1.0",
+  "description": "Comment on your local app's UI and send the comments to a running Claude Code session.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwKO4oYCWusS8hkVXfQLptV3UPBtDxF4HDNfCKjvHS4hekmLXhx7uJH1LHsAaCSCDwhdD56AskJ6an9TjRSLi3o9FcCr6pjVWqkSdQXu8wRi2v1nzSotlAtgzc+2X4iEVMuhyB7oHFy4QiEZbCpAdic+skT+Kk2a43KKL8zybTu/t5Rvv7Ew8UBrhlL9SDwJUGk5sfVmWgPesLQq4qiVvTIbhdQodiIUrdNClq81ssJwePKAc4/lJzV8MJHi90y4r2llavoirDrP23a+u5vUBjui6OfnXSC5ODIuIVujMISmYKqshW44p6gPkA4m9rQ05wlGHKLdTvCOQzEw5zbiMIQIDAQAB",
+  "minimum_chrome_version": "120",
+  "permissions": ["sidePanel", "storage", "alarms"],
+  "host_permissions": [
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "http://*.localhost/*",
+    "https://localhost/*",
+    "https://*.localhost/*",
+    "http://*.test/*",
+    "https://*.test/*"
+  ],
+  "background": { "service_worker": "dist/background.js", "type": "module" },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost/*",
+        "http://127.0.0.1/*",
+        "http://*.localhost/*",
+        "https://localhost/*",
+        "https://*.localhost/*",
+        "http://*.test/*",
+        "https://*.test/*"
+      ],
+      "js": ["dist/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "side_panel": { "default_path": "sidepanel.html" },
+  "action": { "default_title": "Design in Browser" }
+}

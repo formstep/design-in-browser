@@ -1,0 +1,610 @@
+@import './tokens.css';
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  color-scheme: light dark;
+  scrollbar-color: var(--line-2) transparent;
+  scrollbar-width: thin;
+}
+
+body {
+  margin: 0;
+  padding: 12px 14px 0;
+  background: var(--surface);
+  color: var(--ink);
+  font: 13px/1.45 var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent-tint);
+}
+
+p {
+  margin: 0;
+}
+
+code {
+  font: 500 11.5px/1.4 var(--mono);
+}
+
+.icon {
+  display: block;
+  flex: none;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- controls ------------------------------------------------------------------ */
+
+button,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 120ms,
+    border-color 120ms,
+    color 120ms;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.button:active:not(:disabled) {
+  background: var(--surface-3);
+}
+
+.button:disabled {
+  color: var(--ink-2);
+  cursor: default;
+  opacity: 0.6;
+}
+
+.button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.button.primary:hover:not(:disabled) {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
+/* Nothing to send is not an error: the button goes quiet instead of fading out. */
+.button.primary:disabled {
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  opacity: 1;
+}
+
+.button.small {
+  min-height: 28px;
+  padding: 0 10px;
+}
+
+.button.quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-2);
+}
+
+.button.quiet:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-stroke);
+  outline-offset: 2px;
+}
+
+kbd {
+  padding: 0 5px;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  color: var(--ink-2);
+  font: 500 11px/16px var(--font);
+}
+
+textarea {
+  display: block;
+  width: 100%;
+  min-height: 34px;
+  max-height: 220px;
+  padding: 7px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  caret-color: var(--accent-ink);
+  resize: none;
+  field-sizing: content;
+}
+
+textarea::placeholder {
+  color: var(--ink-2);
+}
+
+textarea:focus {
+  border-color: var(--accent-stroke);
+  outline: 3px solid var(--accent-tint);
+  outline-offset: 0;
+}
+
+/* --- status ----------------------------------------------------------------------- */
+
+.status {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-l);
+  background: var(--surface-2);
+}
+
+.dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: var(--skipped);
+}
+
+.status[data-state='listening'] .dot {
+  background: var(--listening);
+}
+
+/* Listening is live: a slow ring says so without asking for attention. */
+.status[data-state='listening'] .dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--listening);
+  animation: listen 2.4s var(--ease-out) infinite;
+}
+
+.status[data-state='queued'] .dot {
+  background: var(--waiting);
+}
+
+.status-title {
+  font-weight: 600;
+}
+
+.status-detail {
+  grid-column: 2;
+  overflow: hidden;
+  color: var(--ink-2);
+  text-overflow: ellipsis;
+}
+
+.command {
+  grid-column: 2;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  margin-top: 6px;
+  padding: 4px 6px 4px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.command:hover {
+  border-color: var(--ink-2);
+}
+
+.command .icon {
+  color: var(--ink-2);
+}
+
+.copied {
+  color: var(--done-ink);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.session {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--ink-2);
+}
+
+.session select {
+  flex: 1;
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* --- toolbar ------------------------------------------------------------------------- */
+
+.toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.pick kbd {
+  margin-left: auto;
+}
+
+.pick {
+  justify-content: flex-start;
+}
+
+.pick[aria-pressed='true'] {
+  border-color: var(--accent-stroke);
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+}
+
+.pick[aria-pressed='true'] kbd {
+  border-color: currentColor;
+  color: inherit;
+}
+
+.tab-hint {
+  margin-top: 8px;
+  color: var(--ink-2);
+}
+
+/* --- sections ----------------------------------------------------------------------- */
+
+h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 22px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.count {
+  color: var(--ink-2);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  color: var(--ink-2);
+}
+
+.empty kbd {
+  margin: 0 1px;
+}
+
+/* --- draft comments ------------------------------------------------------------------ */
+
+.draft {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.comment {
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+}
+
+.comment-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 6px;
+}
+
+.badge {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 10px 10px 3px 10px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.where {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  align-items: baseline;
+  min-width: 0;
+  color: var(--ink-2);
+}
+
+.where code {
+  flex: none;
+  max-width: 60%;
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.where-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.path {
+  flex: none;
+  max-width: 34%;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context {
+  margin: 0 0 6px;
+  padding: 6px 8px;
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.context b {
+  color: var(--question-ink);
+  font-weight: 600;
+}
+
+/* Send stays in reach however long the list gets. */
+.send-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: 0 -14px;
+  padding: 10px 14px 12px;
+  background: linear-gradient(to bottom, transparent, var(--surface) 10px);
+}
+
+.send {
+  width: 100%;
+  min-height: 36px;
+  font-weight: 600;
+}
+
+.error {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-m);
+  background: var(--danger-tint);
+  color: var(--danger-ink);
+}
+
+.error .icon {
+  margin-top: 1px;
+}
+
+/* --- sent -------------------------------------------------------------------------------- */
+
+.sent-section {
+  padding-bottom: 16px;
+}
+
+.sent-section h2 {
+  margin-top: 12px;
+}
+
+.sent {
+  display: grid;
+  gap: 10px;
+}
+
+.batch {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+}
+
+.batch-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.batch-title {
+  font-weight: 600;
+}
+
+.batch-meta {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.batch-state[data-status='fetched'] {
+  color: var(--accent-ink);
+}
+
+.batch-summary {
+  padding: 8px 10px 0;
+}
+
+.sent-comments {
+  margin: 0;
+  padding: 2px 0;
+  list-style: none;
+}
+
+.sent-comment {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.sent-comment + .sent-comment {
+  border-top: 1px solid var(--line);
+}
+
+.status-icon {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 9px 9px 2px 9px;
+  background: var(--surface-3);
+  color: var(--ink-2);
+}
+
+.status-icon .icon {
+  width: 11px;
+  height: 11px;
+  stroke-width: 3;
+}
+
+.sent-comment[data-status='done'] .status-icon {
+  background: var(--done);
+  color: #fff;
+}
+
+.sent-comment[data-status='question'] .status-icon {
+  background: var(--question);
+  color: var(--on-question);
+}
+
+.sent-comment[data-status='skipped'] .status-icon {
+  background: var(--skipped);
+  color: #fff;
+}
+
+.sent-text {
+  overflow-wrap: anywhere;
+}
+
+.reply {
+  margin-top: 4px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.reply b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.sent-comment[data-status='question'] .reply b {
+  color: var(--question-ink);
+}
+
+.followup {
+  margin-top: 6px;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.answer-button {
+  margin-top: 8px;
+}
+
+.composer {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+@keyframes listen {
+  from {
+    opacity: 0.55;
+    scale: 1;
+  }
+  to {
+    opacity: 0;
+    scale: 2.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

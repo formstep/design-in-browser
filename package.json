@@ -1,0 +1,30 @@
+{
+  "name": "design-in-browser",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Comment on your local app's UI in Chrome and send it to a running Claude Code session.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/build.mjs && node --test test/*.test.ts",
+    "test:e2e": "node scripts/build.mjs && playwright test --config test/e2e/playwright.config.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "ws": "^8.23.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/chrome": "^0.3.7",
+    "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
+    "esbuild": "^0.28.2",
+    "playwright": "1.63.0",
+    "typescript": "^7.0.2"
+  }
+}

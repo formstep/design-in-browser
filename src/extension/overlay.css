@@ -1,0 +1,444 @@
+/* Page overlay. Loaded after tokens.css into the shadow root as a constructed sheet. */
+
+/* The host's inline `all: initial` resets inherited fonts, so each top-level part sets its own. */
+.highlight,
+.banner,
+.popover,
+.pin-wrap {
+  font: 13px/1.45 var(--font);
+  color: var(--ink);
+  text-align: left;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent-tint);
+}
+
+.icon {
+  display: block;
+  flex: none;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  border: 1px solid rgb(255 255 255 / 0.28);
+  border-radius: 4px;
+  font: 600 11px/16px var(--font);
+  text-align: center;
+}
+
+/* --- highlight while picking ------------------------------------------------- */
+
+.highlight {
+  position: fixed;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  border: 2px solid var(--accent-stroke);
+  border-radius: 3px;
+  background: var(--accent-tint);
+  /* A light halo keeps the box visible on red, orange and dark pages alike. */
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.85),
+    inset 0 0 0 1px rgb(255 255 255 / 0.5);
+  pointer-events: none;
+  transition:
+    transform 90ms var(--ease-out),
+    width 90ms var(--ease-out),
+    height 90ms var(--ease-out);
+}
+
+.tag {
+  position: absolute;
+  bottom: calc(100% + 3px);
+  left: -2px;
+  display: flex;
+  gap: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font: 500 11px/16px var(--mono);
+  white-space: nowrap;
+}
+
+.highlight.below .tag {
+  top: calc(100% + 3px);
+  bottom: auto;
+}
+
+.tag-size {
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- banner while picking --------------------------------------------------- */
+
+.banner {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px 7px 14px;
+  border-radius: 999px;
+  background: #1c1917;
+  color: #f3efea;
+  box-shadow: var(--shadow-pop);
+  transform: translateX(-50%);
+  animation: rise 160ms var(--ease-out);
+}
+
+.banner-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent-stroke);
+}
+
+.banner-count {
+  padding-left: 10px;
+  border-left: 1px solid rgb(255 255 255 / 0.2);
+  color: #c9c2ba;
+  font-variant-numeric: tabular-nums;
+}
+
+.banner-count:empty {
+  display: none;
+}
+
+.banner-stop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.1);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.banner-stop:hover {
+  background: rgb(255 255 255 / 0.18);
+}
+
+/* --- comment popover --------------------------------------------------------- */
+
+.popover {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 320px;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  pointer-events: auto;
+  animation: rise 140ms var(--ease-out);
+}
+
+.target {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  min-width: 0;
+  margin: 0 2px 8px;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.target code {
+  flex: none;
+  color: var(--ink);
+  font: 500 11.5px/1.4 var(--mono);
+}
+
+.target-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asked {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+}
+
+.asked-label {
+  margin: 0 0 2px;
+  color: var(--question-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.asked-text {
+  margin: 0;
+}
+
+textarea {
+  display: block;
+  width: 100%;
+  min-height: 60px;
+  max-height: 200px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  color: var(--ink);
+  caret-color: var(--accent-ink);
+  font: inherit;
+  resize: none;
+  field-sizing: content;
+}
+
+textarea::placeholder {
+  color: var(--ink-2);
+}
+
+textarea:focus {
+  border-color: var(--accent-stroke);
+  outline: 3px solid var(--accent-tint);
+  outline-offset: 0;
+}
+
+.popover-error {
+  margin: 8px 0 0;
+  padding: 7px 10px;
+  border-radius: var(--radius-m);
+  background: var(--danger-tint);
+  color: var(--danger-ink);
+  font-size: 12px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.hint {
+  flex: 1;
+  color: var(--ink-2);
+  font-size: 11.5px;
+}
+
+.hint kbd {
+  border-color: var(--line-2);
+  color: var(--ink-2);
+}
+
+button {
+  font: inherit;
+}
+
+.button {
+  padding: 5px 11px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms;
+}
+
+.button:hover {
+  background: var(--surface-2);
+}
+
+.button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.button.primary:hover {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
+.button:focus-visible,
+.pin:focus-visible,
+.banner-stop:focus-visible {
+  outline: 2px solid var(--accent-stroke);
+  outline-offset: 2px;
+}
+
+/* --- pins ----------------------------------------------------------------------- */
+
+/* A pin is a drop whose sharp corner points at the element's top-left corner,
+   so it never covers the content it marks. */
+.pin-wrap {
+  position: fixed;
+  top: 0;
+  left: 0;
+  pointer-events: auto;
+}
+
+.pin {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 2px solid var(--surface);
+  border-radius: 12px 12px 3px 12px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font: 700 11px/1 var(--font);
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 2px rgb(28 25 23 / 0.2), 0 3px 8px rgb(28 25 23 / 0.18);
+  cursor: pointer;
+  transform-origin: 100% 100%;
+  animation: pin-in 200ms var(--ease-out);
+  transition: transform 120ms var(--ease-out);
+}
+
+.pin:hover,
+.pin-wrap.open .pin {
+  transform: scale(1.12);
+}
+
+.pin .icon {
+  width: 13px;
+  height: 13px;
+  stroke-width: 3;
+}
+
+.pin-wrap[data-status='pending'] .pin,
+.pin-wrap[data-status='answered'] .pin {
+  border-color: var(--line-2);
+  background: var(--surface);
+  color: var(--ink-2);
+}
+
+.pin-wrap[data-status='done'] .pin {
+  background: var(--done);
+}
+
+.pin-wrap[data-status='question'] .pin {
+  background: var(--question);
+  color: var(--on-question);
+}
+
+.pin-wrap[data-status='skipped'] .pin {
+  background: var(--skipped);
+}
+
+.card {
+  display: none;
+  position: absolute;
+  top: 30px;
+  left: 0;
+  width: 280px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  animation: rise 140ms var(--ease-out);
+}
+
+.pin-wrap.flip-x .card {
+  right: 0;
+  left: auto;
+}
+
+.pin-wrap.flip-y .card {
+  top: auto;
+  bottom: 30px;
+}
+
+.pin-wrap:hover .card,
+.pin-wrap:focus-within .card,
+.pin-wrap.open .card {
+  display: block;
+}
+
+.card-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pin-wrap[data-status='done'] .card-status {
+  color: var(--done-ink);
+}
+
+.pin-wrap[data-status='question'] .card-status {
+  color: var(--question-ink);
+}
+
+.pin-wrap[data-status='draft'] .card-status {
+  color: var(--accent-ink);
+}
+
+.card-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.card-reply {
+  margin: 8px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.card-reply b {
+  font-weight: 600;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.card-actions:empty {
+  display: none;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+
+@keyframes pin-in {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before {
+    animation: none !important;
+    transition: none !important;
+  }
+}

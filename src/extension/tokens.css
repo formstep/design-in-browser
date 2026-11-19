@@ -1,0 +1,67 @@
+/* Shared by the side panel (:root) and the page overlay (:host of its shadow root).
+   Accent is markup vermilion, a reviewer's redline. Status reads by glyph and lightness,
+   never by hue alone: draft = vermilion + number, question = bright amber + "?",
+   done = green + check, skipped = grey + dash, waiting = outlined clock. */
+:root,
+:host {
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+
+  --ink: #1c1917;
+  --ink-2: #6b645d;
+  --surface: #ffffff;
+  --surface-2: #f6f4f1;
+  --surface-3: #ece8e3;
+  --line: #e7e2dc;
+  --line-2: #d4cdc5;
+
+  --accent: #c93a12;
+  --accent-hover: #a92f0c;
+  --accent-ink: #c93a12;
+  --accent-stroke: #e2511f;
+  --accent-tint: rgb(226 81 31 / 0.1);
+  --on-accent: #ffffff;
+
+  --done: #15803d;
+  --done-ink: #15803d;
+  --question: #f59e0b;
+  --question-ink: #b45309;
+  --on-question: #1c1917;
+  --skipped: #78716c;
+  --danger-ink: #b42318;
+  --danger-tint: rgb(180 35 24 / 0.08);
+  --listening: #16a34a;
+  --waiting: #d97706;
+
+  --radius-s: 6px;
+  --radius-m: 8px;
+  --radius-l: 12px;
+  --shadow-pop: 0 1px 2px rgb(28 25 23 / 0.06), 0 10px 28px rgb(28 25 23 / 0.16);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root,
+  :host {
+    --ink: #f3efea;
+    --ink-2: #a8a097;
+    --surface: #1a1817;
+    --surface-2: #24211f;
+    --surface-3: #2e2b28;
+    --line: #35312e;
+    --line-2: #4a4541;
+
+    --accent-hover: #b33410;
+    --accent-ink: #ff7a4f;
+    --accent-stroke: #ff6a3d;
+    --accent-tint: rgb(255 106 61 / 0.14);
+
+    --done-ink: #4ade80;
+    --question-ink: #fbbf24;
+    --skipped: #8a827a;
+    --danger-ink: #f87171;
+    --danger-tint: rgb(248 113 113 / 0.12);
+
+    --shadow-pop: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px rgb(0 0 0 / 0.5);
+  }
+}
