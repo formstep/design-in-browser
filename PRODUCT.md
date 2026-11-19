@@ -8,7 +8,7 @@ web
 
 ## Users
 
-A developer who builds their app with a coding agent and reviews its UI in the browser. The app runs on a local dev server; the agent runs in a terminal beside the browser. Claude Code is supported today; OpenCode and other agents are planned, so the product never assumes one agent. The first user is the builder of Formstep, reviewing their own React and Vite apps.
+A developer who builds their app with a coding agent and reviews its UI in the browser. The app runs on a local dev server; the agent runs in a terminal beside the browser. Claude Code is supported today; OpenCode and other agents are planned, so the product never assumes one agent.
 
 ## Product Purpose
 
@@ -31,11 +31,9 @@ Comments are anchored to real elements of the developer's own running app and go
 - React and Vite first; other frameworks later.
 - Any Claude Code session can connect; no special launch flags. OpenCode and other agents later.
 - UI copy names the connected agent and falls back to "Agent"; nothing in the UI hard-codes Claude.
-- Standalone repository, not part of Formstep.
 - Alternatives (React + Vite): the user asks for 1 to 4 alternatives of a part of the page; the agent builds them in source behind a dev-only `<Variants>` wrapper, the original kept as the first version. The user cycles through them on the page and picks one; the agent then writes the pick into the code and removes the rest. One alternative shows as a Before/After toggle; with more, Before stays one click away beside the pages through the alternatives.
 - Tweaks belong to alternatives: each alternative carries knobs the agent chose (a feature on or off, a spacing or size, a choice between options). The user adjusts them live, and the pick carries their final values into the code. Tweaks are not a general property editor.
-- Next on the roadmap: stamping source locations on elements through the Vite plugin.
-- Decided 2026-11-19: the Vite plugin replaced the Chrome extension. Pages not served by Vite (Astro's own pages need an integration) are not covered yet.
+- Pages not served by Vite (Astro's own pages need an integration) are not covered yet.
 
 ## Product Principles
 

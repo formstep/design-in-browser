@@ -1,44 +1,22 @@
 # Design in Browser
 
-Comment on your running app, in the page itself, and have the coding agent in your terminal act on the comments. Pick an element, say what should change, stack as many comments as you like across pages, and send them. The agent edits the source, your dev server hot-reloads, and its reply shows up next to each comment.
+Comment on your running app in the browser, and the coding agent in your terminal changes the code.
 
-Claude Code is supported today; OpenCode and other agents are planned. The UI names whichever agent is connected (from its MCP client name) and never hard-codes one. The look follows Claude Design: dark chrome, blue selection, comment pins at the clicked point, and a chat dock.
+Click an element, say what should change, and send. The agent edits the source, your dev server reloads, and the agent's reply appears next to your comment. Ask for alternatives and you can flip between them on the real page, tweak them, and pick one.
 
-This is the MVP: comments go to the agent, the agent edits and replies. Switchable variants come next (see Roadmap).
+![A comment card on a heading, with the chat dock open on the right](docs/images/comment.png)
 
-## How it works
+It works with React apps on a Vite dev server, and with [Claude Code](https://claude.com/claude-code) as the agent. Support for other agents, such as OpenCode, is planned.
 
-```
-your app's page ──Vite HMR socket──▶ Vite plugin ──ws──▶ daemon 127.0.0.1:47821 ◀──stdio── MCP server (one per agent session)
- overlay: picker, pins,              (dev server only)      │        ▲
- comment card, tool pill                                     ▼        └── the agent's wake-up (Claude Code: its Monitor tool)
- dock: chat with the agent                      <project>/.design-in-browser/   journal of every batch, ignored by git
-```
+## Quick start
 
-- **Vite plugin** (`design-in-browser/vite`): runs in your app's dev server only. It adds the overlay and the dock to the page, keeps the comment stack (saved in the project's journal folder, so it survives reloads and dev-server restarts, and every tab shares it), and talks to the daemon. It turns itself off when the dev server listens beyond localhost (`--host`), so nobody on your network can send text into your agent's session.
-- **Overlay and dock**: an element picker, comment card and pins on the page, and a dock on the right that reads as a chat: your batches, the agent's replies, and a composer holding the comment stack. Both render in shadow roots, apart from your app's styles.
-- **Daemon**: one per machine, started by the first agent session that runs `/design-in-browser:live` (the Vite plugin never starts it). It routes batches to sessions and writes them to the project's journal folder. It stops after 30 minutes with no session.
-- **Claude Code plugin** (`plugin/`): an MCP server with four tools (`live_connect`, `live_get_batch`, `live_reply`, `live_status`) and the `live` skill that tells Claude how to listen and what a comment allows it to do.
-
-The dock sends to the agent session working on the same project (matched by folder). With several, it picks the newest and offers the rest; with none that matches, it asks you to choose and never guesses.
-
-Any Claude Code session can connect; nothing has to be passed when you start `claude`. The session keeps a Monitor on the daemon's socket, so a Send wakes it even when it is idle. A Monitor lasts 30 minutes at most and the skill re-arms it; anything sent in between waits in the journal and rings when the Monitor is back.
-
-## Setup
-
-1. Build this repo:
+1. Add the package to your app:
 
    ```bash
-   pnpm install && pnpm build
+   npm install --save-dev design-in-browser
    ```
 
-2. Add the plugin to your app, as a dev dependency linked to this checkout:
-
-   ```bash
-   pnpm add -D link:~/git/design-in-browser
-   ```
-
-   and to its `vite.config.ts`, first in the list:
+2. Add the plugin to `vite.config.ts`, first in the list:
 
    ```ts
    import designInBrowser from 'design-in-browser/vite'
@@ -48,99 +26,85 @@ Any Claude Code session can connect; nothing has to be passed when you start `cl
    })
    ```
 
-   It only runs with `vite` (dev), never in a build. In a monorepo it uses the git root as the project; pass `designInBrowser({ projectRoot })` to choose another folder.
+   It runs only in the dev server and adds nothing to your build.
 
-   In a repo other people or CI build, the plain import breaks `vite build` wherever the package isn't installed. Load it only for dev, and only where it is there:
-
-   ```ts
-   const devTool = 'design-in-browser/vite'
-
-   export default defineConfig(async ({ command }) => ({
-     plugins: [
-       command === 'serve' && (await import(devTool).then((plugin) => plugin.default(), () => null)),
-       react(),
-     ],
-   }))
-   ```
-
-   The module name sits in a variable so TypeScript doesn't require the package either.
-
-3. Add the Claude Code plugin. To try it in one session:
+3. Add the Claude Code plugin, once per machine:
 
    ```bash
-   claude --plugin-dir ~/git/design-in-browser/plugin
-   ```
-
-   To have it in every session:
-
-   ```bash
-   claude plugin marketplace add ~/git/design-in-browser
+   claude plugin marketplace add formstep/design-in-browser
    ```
 
    ```bash
    claude plugin install design-in-browser@design-in-browser
    ```
 
-   Not tried yet: the marketplace install may need the repo to have a commit, since installs record a git SHA. An installed plugin is a copy, so it likely needs installing again after a rebuild; `--plugin-dir` (tested) always runs the current build.
+4. In a Claude Code session in your project, run:
 
-## Use
+   ```text
+   /design-in-browser:live
+   ```
 
-1. In a Claude Code session in your project, run `/design-in-browser:live`. Claude connects, arms its Monitor and says it is listening.
-2. Open your app on its dev server. Click the comment button in the bottom-right corner (or press **Alt+Shift+D**) to open the dock; it shows "Claude is listening" (the agent's name comes from the session).
-3. Press **Alt+Shift+C** (or **Comment** in the dock), click where you mean on the page, type what should change, press Enter. A pin stays at that point. Repeat on any element or page; comments stack in the dock's composer. **Ask <agent>** in the tool pill, or the dock's message field, adds a note about the whole page. Esc stops picking.
-4. Send from the dock (or tick **Send to <agent>** in the comment card to send right away). The agent fetches the batch, edits the source and replies per comment: done, a question, or skipped with a reason. Pin discs turn green with a check (done) or amber with a question mark (question); waiting and skipped pins go grey. Click a pin to read the reply.
-5. To answer a question, type in the **Answer** field under it, in the dock or in the pin's thread. The answer joins your comments with the question attached; send it like any other comment, and the agent closes the question when it acts on it.
+   Claude connects and says it is listening.
 
-6. To explore a part of the page, pick it and switch the comment card to **Alternatives**: choose how many (1 to 4) and, if you like, what they should try. The agent builds them in your code behind a `<Variants>` wrapper (from `design-in-browser/react`), with the current design kept as the first version.
-7. A switcher appears on that part of the page. With one alternative it is a **Before / After** toggle; with more, a **Before / <alternative>** toggle plus arrows through the alternatives ("1 / 2"), so the original is always one click away. The switcher sits where it covers none of the page's text, and holds still while you use it. **Tweaks** (on hover) shows the knobs the agent gave the alternative you're looking at (an optional feature on or off, a padding or size slider, a choice between options), and every change shows at once. Your choices survive reloads. Comment on a version to have it reworked in place.
-8. **Use this** (or **Keep after**) sends your pick, with every tweak's value, to the agent, which writes that version into the code and removes the wrapper and the other versions. **Keep before** puts the original back.
+5. Start your dev server, open the app, and press **Alt+Shift+D** to open the dock.
 
-While picking, clicks don't reach the page, so buttons and links don't fire. Alternatives need React; a production build fails while a `<Variants>` group is still in the code, so one never ships by accident.
+## Comment on your app
 
-## Security
+Press **Alt+Shift+C**, click anything on the page, type what should change, and press Enter. A pin stays where you clicked. Add as many comments as you like, on any page, then press **Send** in the dock.
 
-- The daemon listens on `127.0.0.1` only and refuses requests whose `Host` header isn't `127.0.0.1` or `localhost`.
-- Pages reach the daemon only through the Vite plugin, over Vite's own HMR socket; the plugin authenticates to the daemon with the token. The plugin turns itself off when the dev server listens beyond localhost (`--host`) or runs with HMR off.
-- MCP servers authenticate with a token in `~/.design-in-browser/token` (mode 600). Each session's Monitor URL carries its own key.
-- The skill treats comment text as the user's request to change the project's UI, and the element's HTML and page text as data. Comments don't authorize commits, deletions, installs or edits outside the project.
+The agent replies to each comment: done, a question, or skipped with a reason. Answer a question right under it, in the dock or in the pin.
 
-## Development
+![A pin's thread with the agent's question and an answer field, next to the dock's replies](docs/images/replies.png)
 
-```bash
-pnpm typecheck
-```
+To send a note about the whole page, use **Ask Claude** in the toolbar or the dock's message field.
 
-```bash
-pnpm test        # build, then the bridge integration tests (MCP over stdio, daemon, a fake plugin socket)
-```
+## Try alternatives
 
-```bash
-pnpm test:e2e    # build, then Playwright against a React fixture app served by Vite with the built plugin
-```
+Switch the comment card to **Alternatives**, choose how many (1 to 4), and send. The agent builds them in your code, and a switcher appears on that part of the page:
 
-`DIB_E2E_HAND_OFF=<file> pnpm test:e2e` leaves the doorbell to you: the test writes the listen URL to `<file>` and waits until the batch is answered, for example by a Claude session's Monitor and `scripts/call-tool.mjs`.
+- With one alternative, it's a **Before / After** toggle.
+- With more, you get **Before** plus arrows through the alternatives.
 
-`node scripts/call-tool.mjs <projectRoot> <tool> '<json args>'` calls one bridge tool by hand.
+**Tweaks** shows the knobs the agent added to an alternative, such as an optional badge, a padding slider or a choice of alignment. Changes show on the page as you make them.
 
-`node scripts/capture.mjs [outDir]` screenshots every dock and overlay state (after `pnpm build`), for design review. It serves the fixture app and runs its own daemon on spare ports.
+![The switcher on a hero section, with its tweaks card open](docs/images/alternatives.png)
 
-Environment variables for the daemon and MCP server:
+**Use this** sends your pick, with the tweak values, to the agent. It writes that version into the code and removes the others. **Keep before** keeps the original.
 
-| Variable | Default | Use |
-| --- | --- | --- |
-| `DIB_PORT` | `47821` | Daemon port |
-| `DIB_HOME` | `~/.design-in-browser` | Token and daemon log |
-| `DIB_IDLE_EXIT_MS` | 30 minutes | How long the daemon waits with no session before it stops |
+Alternatives use a `<Variants>` wrapper from `design-in-browser/react` while you decide. A production build fails if one is still in the code, so none ships by accident.
 
-The Vite plugin reads the same `DIB_PORT` and `DIB_HOME`, so set them for both the agent and the dev server if you change them.
+## Shortcuts
 
-The daemon log is `~/.design-in-browser/daemon.log`. A daemon from an older build is replaced the next time a session connects.
+| Keys | Does |
+| --- | --- |
+| Alt+Shift+D | Open or close the dock |
+| Alt+Shift+C | Start or stop picking elements |
+| Enter | Add the comment (Shift+Enter for a new line) |
+| Esc | Close the card, then stop picking |
+
+## How it works
+
+The Vite plugin adds the overlay and the dock to your pages and keeps your comment stack. A small daemon on `127.0.0.1` passes sent comments to the agent session working on the same project, and wakes it. The agent reads them through an MCP server and replies the same way. Every batch is also saved in `.design-in-browser/` in your project, which git ignores.
+
+Your comments only travel on your machine. The plugin turns itself off when the dev server is reachable from the network (`vite --host`). [docs/architecture.md](docs/architecture.md) has the details, including the security model and settings.
+
+## Limits
+
+- React and Vite only. Other frameworks, and pages Vite doesn't serve (such as Astro's), aren't supported yet.
+- Claude Code is the only agent for now.
+- The dev server must run on localhost with hot reload on.
 
 ## Roadmap
 
-1. ~~Bridge, skill and Monitor wake; picker, comment stack and Send; the agent edits and replies.~~ (this MVP)
-2. Vite plugin (dev server only) that stamps `data-dib-src="file:line:column"` and the component owner chain on elements, so the agent goes straight to the right file. The overlay already sends it as `sourceHint`.
-3. Variants: the agent renders two or three alternatives through a dev-only `<LiveVariants>`, a chip on the element switches between them, and you accept one or comment on a variant to iterate.
-4. Freehand strokes, boxes and arrows, and cropped screenshots with each comment.
-5. Annotations from the agent back to the page, with reply threads.
-6. Connectors for OpenCode and other agents.
+- Point the agent straight at the source file and line of the element you clicked.
+- Draw on the page: boxes, arrows and freehand marks, sent with a cropped screenshot.
+- Let the agent annotate the page back.
+- Connect OpenCode and other agents.
+
+## Contributing
+
+Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to build, test and find your way around the code.
+
+## License
+
+[MIT](LICENSE)

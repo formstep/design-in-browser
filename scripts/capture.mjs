@@ -1,7 +1,7 @@
 // Screenshots every overlay and dock state for design review. The UI is dark only, like Claude Design.
 // Serves the fixture app (test/e2e/app) with the built plugin, and runs a real daemon and MCP server on
 // spare ports; nothing touches ~/.design-in-browser.
-// Usage: pnpm build && node scripts/capture.mjs [outDir]
+// Usage: pnpm capture [outDir], or CAPTURE_SCALE=2 pnpm capture docs/images for the README's images.
 import fs from 'node:fs'
 import net from 'node:net'
 import os from 'node:os'
@@ -41,7 +41,12 @@ await vite.listen()
 const appUrl = `http://localhost:${appPort}/`
 
 const browser = await chromium.launch()
-const context = await browser.newContext({ viewport: { width: 1100, height: 720 }, colorScheme: 'dark' })
+// CAPTURE_SCALE=2 for images people will see, such as the README's.
+const context = await browser.newContext({
+  viewport: { width: 1100, height: 720 },
+  colorScheme: 'dark',
+  deviceScaleFactor: Number(process.env.CAPTURE_SCALE ?? 1),
+})
 context.setDefaultTimeout(15_000)
 const page = await context.newPage()
 const shot = async (name) => {

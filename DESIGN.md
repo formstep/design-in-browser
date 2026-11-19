@@ -1,6 +1,6 @@
 ---
 name: Design in Browser
-description: Claude Design's dark canvas chrome, carried onto a live local app and a chat dock, for any coding agent.
+description: A dark canvas look inspired by Claude Design, carried onto a live local app and a chat dock, for any coding agent.
 colors:
   ground: "#191919"
   card: "#1f1f1f"
@@ -95,11 +95,11 @@ components:
 
 ## Overview
 
-The overlay and dock copy Claude Design, at the user's request: its dark chrome, its blue selection, its comment pins and comment card, its bottom tool pill and "Ask Claude" bar, and claude.ai's chat for the dock. Values were measured from claude.ai on 2026-11-19 (computed styles where readable, pixel samples elsewhere). It is dark only, whatever the system theme. It sits on top of other people's apps, so it stays neutral grey with one blue, and never borrows the host page's styles (everything renders in a shadow root).
+The overlay and dock are inspired by Claude Design: a dark chrome, a blue selection, comment pins and a comment card, a bottom tool pill with an "Ask <agent>" bar, and a chat for the dock. It is dark only, whatever the system theme. It sits on top of other people's apps, so it stays neutral grey with one blue, and never borrows the host page's styles (everything renders in a shadow root).
 
-Not copied: Anthropic's fonts and logos, the formatting toolbar, the mic, the model picker, and the selection's resize handles (nothing in the overlay resizes, so handles would be a false promise). The UI uses the system sans, and a system serif for the agent's words.
+Left out on purpose: Anthropic's fonts and logos, the formatting toolbar, the mic, the model picker, and the selection's resize handles (nothing in the overlay resizes, so handles would be a false promise). The UI uses the system sans, and a system serif for the agent's words.
 
-The look is Claude Design's; the words are not tied to Claude. Every label that names the agent ("@Claude", "Send to Claude", "Ask Claude", "Claude is listening") takes the connected agent's name from its session, so OpenCode shows as "@OpenCode", and falls back to "Agent".
+The look takes after Claude Design; the words are not tied to Claude. Every label that names the agent ("@Claude", "Send to Claude", "Ask Claude", "Claude is listening") takes the connected agent's name from its session, so OpenCode shows as "@OpenCode", and falls back to "Agent".
 
 ## Colors
 
@@ -125,7 +125,7 @@ One system sans for everything you do, a serif for everything the agent says (as
 
 ## Elevation & Depth
 
-Cards: a 4% white inset ring, `0 1px 2px` at 6% and `0 2px 8px` at 24% black. Floating controls (toolbar, tag, Ask bar): an 8% white inset ring and `0 4px 20px` at 30% black. A focused card or field gets a 1px blue ring plus a 6px blue glow, copied from Claude Design's comment card. That glow is the one coloured shadow, and it only appears on focus.
+Cards: a 4% white inset ring, `0 1px 2px` at 6% and `0 2px 8px` at 24% black. Floating controls (toolbar, tag, Ask bar): an 8% white inset ring and `0 4px 20px` at 30% black. A focused card or field gets a 1px blue ring plus a 6px blue glow, as on Claude Design's comment card. That glow is the one coloured shadow, and it only appears on focus.
 
 ## Shapes
 
