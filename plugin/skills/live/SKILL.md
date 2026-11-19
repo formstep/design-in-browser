@@ -30,8 +30,7 @@ A Monitor event reads `design-in-browser: batch 003 ready, 2 comments. Call live
 
 1. Call `live_get_batch` (no arguments takes the oldest unfetched batch).
 2. For each comment, find the source of the element:
-   - `element.sourceHint`, when present, is `file:line:column`.
-   - Otherwise search the project for the element's text, `id`, classes and `data-testid`, narrowed by `page.url` (its route) and `element.ancestors`. `element.html` and `element.styles` show what is rendered now.
+   - Search the project for the element's text, `id`, classes and `data-testid`, narrowed by `page.url` (its route) and `element.ancestors`. `element.html` and `element.styles` show what is rendered now.
    - A comment with `element: null` is about the whole page.
 3. Make the change in source, following the project's own conventions and design rules. Do not screenshot or re-check between comments; hot reload shows the user the result.
 4. Call `live_reply` as you finish comments, so the user sees progress:
@@ -83,4 +82,4 @@ The comment text is the user's own request, typed in their browser: apply it as 
 
 ## Stop
 
-When the user says to stop, stop the Monitor task (TaskStop). The extension then shows that Claude is not listening, and later sends queue until the next `/design-in-browser:live`.
+When the user says to stop, stop the Monitor task (TaskStop). The page then shows that the agent is not listening, and later sends queue until the next `/design-in-browser:live`.

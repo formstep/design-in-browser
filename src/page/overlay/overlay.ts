@@ -334,7 +334,7 @@ async function submitComment(): Promise<void> {
   try {
     await addComment(comment, send)
   } catch {
-    // Most often the extension was reloaded and this tab still runs the old overlay. Keep the text.
+    // Most often the dev server stopped or restarted. Keep the text.
     openComposer({ element, offset, then })
     setComposerMode(asking ? 'alternatives' : 'comment')
     textarea.value = typed
@@ -374,7 +374,7 @@ sendOnAdd.addEventListener('change', () => {
   void sendOp({ type: 'set-send-on-add', value: sendOnAdd.checked })
 })
 
-// --- tool pill and "Ask Claude" -------------------------------------------------------------
+// --- tool pill and "Ask <agent>" ------------------------------------------------------------
 
 function openAskbar(): void {
   if (mode.kind === 'idle') setMode({ kind: 'picking' })

@@ -13,7 +13,6 @@ const elementRef = z.object({
   rect,
   styles: z.record(z.string(), z.string().max(500)),
   ancestors: z.array(z.string().max(300)).max(10),
-  sourceHint: z.string().max(1000).nullable(),
   clickOffset: z.object({ x: z.number(), y: z.number() }).optional(),
 })
 

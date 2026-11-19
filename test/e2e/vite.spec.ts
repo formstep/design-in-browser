@@ -1,5 +1,5 @@
 // The Vite plugin end to end: a React fixture app served by Vite with the built plugin, a real daemon and
-// MCP server, and a listener standing in for the agent's Monitor. Same assertions as the extension suite.
+// MCP server, and a listener standing in for the agent's Monitor.
 import fs from 'node:fs'
 import net from 'node:net'
 import os from 'node:os'

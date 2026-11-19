@@ -307,7 +307,7 @@ const when = (iso: string) => {
   return (date.toDateString() === new Date().toDateString() ? time : dayAndTime).format(date)
 }
 
-/** Answers being typed under Claude's questions, by comment id. Kept outside the DOM so a rebuild doesn't lose them. */
+/** Answers being typed under the agent's questions, by comment id. Kept outside the DOM so a rebuild doesn't lose them. */
 const answerDrafts = new Map<string, string>()
 let renderedTurns = ''
 let scrollToEnd = true
@@ -374,7 +374,7 @@ function answerForm(batch: Batch, comment: BatchComment): HTMLFormElement {
   return form
 }
 
-function claudeSide(batch: Batch, answered: Map<string, string>): HTMLElement {
+function agentSide(batch: Batch, answered: Map<string, string>): HTMLElement {
   const side = el('div', { className: 'agent' })
   if (batch.status === 'queued') {
     side.append(el('p', { className: 'waiting', textContent: `Waiting for ${batch.agent}` }))
@@ -432,7 +432,7 @@ function renderTurns(state: PageState, batches: Batch[]): void {
         ]),
         el('p', { className: 'meta', textContent: `Batch ${batch.id} · ${when(batch.createdAt)}` }),
       ])
-      const turn = el('article', { className: 'turn' }, [you, claudeSide(batch, answered)])
+      const turn = el('article', { className: 'turn' }, [you, agentSide(batch, answered)])
       turn.dataset.batch = batch.id
       return turn
     }),

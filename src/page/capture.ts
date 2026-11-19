@@ -1,4 +1,4 @@
-// What the extension records about a picked element, so Claude can find it in source.
+// What the page records about a picked element, so the agent can find it in the source.
 import type { ElementRef, PageRef } from '../shared/protocol.ts'
 
 const STYLE_KEYS = [
@@ -54,7 +54,7 @@ export function buildSelector(element: Element): string {
   return parts.join(' > ')
 }
 
-/** `button.primary.large` style label, for people and for Claude. */
+/** `button.primary.large` style label, for people and for the agent. */
 export function label(element: Element): string {
   const classes = [...element.classList].slice(0, 3).map((name) => `.${name}`).join('')
   const id = element.id ? `#${element.id}` : ''
@@ -86,7 +86,6 @@ export function captureElement(element: Element): ElementRef {
     rect: { x: box.x + scrollX, y: box.y + scrollY, width: box.width, height: box.height },
     styles,
     ancestors,
-    sourceHint: element.closest('[data-dib-src]')?.getAttribute('data-dib-src') ?? null,
   }
 }
 

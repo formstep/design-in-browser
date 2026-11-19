@@ -4,7 +4,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import WebSocket from 'ws'
-import type { Batch, DaemonToExtension, ExtensionToDaemon } from '../shared/protocol.ts'
+import type { Batch, DaemonToPlugin, PluginToDaemon } from '../shared/protocol.ts'
 import { START_COMMAND } from '../shared/protocol.ts'
 import { sameProject, variantKey, type PageOp, type PageState } from '../shared/page-protocol.ts'
 import { config, tokenPath } from '../node/config.ts'
@@ -123,11 +123,11 @@ export class Hub {
     const ws = new WebSocket(`ws://127.0.0.1:${config.port}/page?token=${token}`)
     this.socket = ws
     ws.on('open', () => {
-      this.post({ type: 'hello', extensionVersion: 'vite', projectRoot: this.state.projectRoot })
+      this.post({ type: 'hello', projectRoot: this.state.projectRoot })
       this.keepalive = setInterval(() => this.post({ type: 'ping' }), KEEPALIVE_MS)
       this.update({ connection: 'connected', lastError: null })
     })
-    ws.on('message', (data) => this.handle(JSON.parse(data.toString()) as DaemonToExtension))
+    ws.on('message', (data) => this.handle(JSON.parse(data.toString()) as DaemonToPlugin))
     ws.on('error', () => {})
     ws.on('close', () => {
       if (this.socket !== ws) return
@@ -147,7 +147,7 @@ export class Hub {
     }, RETRY_MS)
   }
 
-  private post(message: ExtensionToDaemon): void {
+  private post(message: PluginToDaemon): void {
     if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify(message))
   }
 
@@ -161,7 +161,7 @@ export class Hub {
     return next.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 30)
   }
 
-  private handle(message: DaemonToExtension): void {
+  private handle(message: DaemonToPlugin): void {
     switch (message.type) {
       case 'state':
         this.update({ sessions: message.sessions, batches: message.batches.filter((batch) => this.ours(batch)) })

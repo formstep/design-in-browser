@@ -41,8 +41,6 @@ export type ElementRef = {
   styles: Record<string, string>
   /** Short labels of the closest ancestors, nearest first, e.g. `section.hero`. */
   ancestors: string[]
-  /** `data-dib-src` of the element or its nearest ancestor, stamped by a dev build plugin (not shipped yet). */
-  sourceHint: string | null
   /** Where in the element the user clicked, in px from its top-left corner. The pin sits there. Absent on older comments. */
   clickOffset?: { x: number; y: number }
 }
@@ -53,13 +51,13 @@ export type PageRef = {
   viewport: { width: number; height: number }
 }
 
-/** Links an answer to the comment Claude asked a question about, with both texts so the batch reads on its own. */
+/** Links an answer to the comment the agent asked a question about, with both texts so the batch reads on its own. */
 export type InReplyTo = {
   batchId: string
   commentId: string
   /** The original comment. */
   comment: string
-  /** Claude's question. */
+  /** The agent's question. */
   question: string
 }
 
@@ -85,13 +83,13 @@ export type Intent =
   | { kind: 'alternatives'; count: number }
   | { kind: 'choose-variant'; group: string; index: number; label: string; tweaks: ChosenTweak[] }
 
-/** A comment as the extension drafts it. `element` is null for a note about the whole page. */
+/** A comment as the page drafts it. `element` is null for a note about the whole page. */
 export type DraftComment = {
   id: string
   text: string
   page: PageRef
   element: ElementRef | null
-  /** Set when this comment answers a question Claude asked; same page and element as the original. */
+  /** Set when this comment answers a question the agent asked; same page and element as the original. */
   inReplyTo: InReplyTo | null
   /** What kind of change this is; absent for a comment in words. */
   intent?: Intent
@@ -115,8 +113,8 @@ export type BatchComment = DraftComment & {
 }
 
 /**
- * queued: written to the journal, Claude has not fetched it.
- * fetched: Claude called live_get_batch.
+ * queued: written to the journal, the agent has not fetched it.
+ * fetched: the agent called live_get_batch.
  * done: every comment has a reply.
  */
 export type BatchStatus = 'queued' | 'fetched' | 'done'
@@ -141,20 +139,20 @@ export type SessionInfo = {
   agent: string
   projectRoot: string
   origins: string[]
-  /** True while a Monitor socket is open, so a send wakes Claude now. */
+  /** True while a Monitor socket is open, so a send wakes the agent now. */
   listening: boolean
   connectedAt: string
 }
 
 // Vite plugin <-> daemon, over ws://127.0.0.1:<port>/page?token=...
 
-export type ExtensionToDaemon =
-  /** `projectRoot` (from the Vite plugin) asks for that project's batches too, even with no session connected. */
-  | { type: 'hello'; extensionVersion: string; projectRoot?: string }
+export type PluginToDaemon =
+  /** Asks for the sessions and batches; `projectRoot` adds that project's batches even with no session connected. */
+  | { type: 'hello'; projectRoot?: string }
   | { type: 'ping' }
   | { type: 'send-batch'; clientBatchId: string; sessionId: string; comments: DraftComment[] }
 
-export type DaemonToExtension =
+export type DaemonToPlugin =
   | { type: 'state'; sessions: SessionInfo[]; batches: Batch[] }
   | { type: 'sessions'; sessions: SessionInfo[] }
   | { type: 'batch-accepted'; clientBatchId: string; batch: Batch }
@@ -176,7 +174,8 @@ export type ReplyParams = {
 export type StatusResult = {
   sessionId: string
   listening: boolean
-  extensionsConnected: number
+  /** Vite dev servers running the plugin and connected to the daemon. */
+  devServersConnected: number
   unfetched: string[]
   open: Array<{ id: string; status: BatchStatus; pending: number }>
 }

@@ -1,4 +1,4 @@
-// MCP server (stdio), one per Claude Code session. Inert until live_connect:
+// MCP server (stdio), one per agent session. Inert until live_connect:
 // a user-scope plugin starts it in every session, so it must not touch the daemon on its own.
 import crypto from 'node:crypto'
 import path from 'node:path'
@@ -44,13 +44,13 @@ server.registerTool(
   {
     title: 'Connect to the browser',
     description:
-      'Attach this Claude Code session to the design-in-browser extension. Returns a WebSocket URL: arm the Monitor tool on it so browser comments wake you. Call again to change the project or dev server origins.',
+      'Attach this agent session to design-in-browser, the Vite plugin in the dev server. Returns a WebSocket URL: arm the Monitor tool on it so browser comments wake you. Call again to change the project or dev server origins.',
     inputSchema: {
       projectRoot: z.string().optional().describe('Absolute path of the project. Defaults to the working directory.'),
       origins: z
         .array(z.string())
         .optional()
-        .describe('Dev server origins this session owns, e.g. http://localhost:5173. The extension picks this session by default on those tabs.'),
+        .describe('Dev server origins this session works on, e.g. http://localhost:5173. The browser shows them next to the session.'),
     },
   },
   async ({ projectRoot, origins }) => {

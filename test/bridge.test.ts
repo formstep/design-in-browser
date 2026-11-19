@@ -15,7 +15,7 @@ import {
   agentLabel,
   LISTENER_REPLACED_CLOSE_CODE,
   type Batch,
-  type DaemonToExtension,
+  type DaemonToPlugin,
   type DraftComment,
 } from '../src/shared/protocol.ts'
 
@@ -96,8 +96,8 @@ function open<T>(url: string, parse: (raw: string) => T, origin?: string): Promi
   })
 }
 
-const openExtension = () =>
-  open<DaemonToExtension>(`ws://127.0.0.1:${port}/page?token=${fs.readFileSync(path.join(home, 'token'), 'utf8').trim()}`, (raw) => JSON.parse(raw))
+const openDevServer = () =>
+  open<DaemonToPlugin>(`ws://127.0.0.1:${port}/page?token=${fs.readFileSync(path.join(home, 'token'), 'utf8').trim()}`, (raw) => JSON.parse(raw))
 
 const openListener = (url: string) => open<string>(url, (raw) => raw)
 
@@ -116,7 +116,6 @@ function comment(text: string, selector = 'main > h1'): DraftComment {
       rect: { x: 0, y: 0, width: 400, height: 40 },
       styles: { 'font-size': '32px' },
       ancestors: ['main'],
-      sourceHint: null,
     },
     inReplyTo: null,
     createdAt: new Date().toISOString(),
@@ -157,9 +156,9 @@ test('a full round trip: send, doorbell, fetch, reply', async () => {
   const health = (await (await fetch(`http://127.0.0.1:${port}/health`)).json()) as { name: string }
   assert.equal(health.name, 'design-in-browser')
 
-  const extension = await openExtension()
-  extension.socket.send(JSON.stringify({ type: 'hello', extensionVersion: 'test' }))
-  const state = await extension.inbox.next((m) => m.type === 'state')
+  const devServer = await openDevServer()
+  devServer.socket.send(JSON.stringify({ type: 'hello' }))
+  const state = await devServer.inbox.next((m) => m.type === 'state')
   assert.equal(state.type === 'state' && state.sessions.length, 1)
   const session = state.type === 'state' ? state.sessions[0]! : assert.fail()
   assert.deepEqual(session.origins, ['http://localhost:5173'])
@@ -168,13 +167,13 @@ test('a full round trip: send, doorbell, fetch, reply', async () => {
   assert.equal(session.listening, false)
 
   const listener = await openListener(listenUrl)
-  const listening = await extension.inbox.next((m) => m.type === 'sessions' && m.sessions[0]?.listening === true)
+  const listening = await devServer.inbox.next((m) => m.type === 'sessions' && m.sessions[0]?.listening === true)
   assert.ok(listening)
 
   const first = comment('Make the title bigger')
   const second = comment('Use the brand color here', 'main > p')
-  extension.socket.send(JSON.stringify({ type: 'send-batch', clientBatchId: 'c1', sessionId: session.id, comments: [first, second] }))
-  const accepted = await extension.inbox.next((m) => m.type === 'batch-accepted')
+  devServer.socket.send(JSON.stringify({ type: 'send-batch', clientBatchId: 'c1', sessionId: session.id, comments: [first, second] }))
+  const accepted = await devServer.inbox.next((m) => m.type === 'batch-accepted')
   assert.equal(accepted.type === 'batch-accepted' && accepted.batch.id, '001')
 
   const doorbell = await listener.inbox.next(() => true)
@@ -187,7 +186,7 @@ test('a full round trip: send, doorbell, fetch, reply', async () => {
   const fetched = JSON.parse(await callTool(client, 'live_get_batch')) as Batch
   assert.equal(fetched.status, 'fetched')
   assert.deepEqual(fetched.comments.map((c) => c.text), ['Make the title bigger', 'Use the brand color here'])
-  await extension.inbox.next((m) => m.type === 'batch-updated' && m.batch.status === 'fetched')
+  await devServer.inbox.next((m) => m.type === 'batch-updated' && m.batch.status === 'fetched')
   assert.equal(await callTool(client, 'live_get_batch'), 'No unfetched batch.')
 
   const partly = await callTool(client, 'live_reply', {
@@ -201,7 +200,7 @@ test('a full round trip: send, doorbell, fetch, reply', async () => {
     replies: [{ commentId: second.id, status: 'question', message: 'Accent or primary?' }],
     summary: 'One change, one question.',
   })
-  const done = await extension.inbox.next((m) => m.type === 'batch-updated' && m.batch.status === 'done')
+  const done = await devServer.inbox.next((m) => m.type === 'batch-updated' && m.batch.status === 'done')
   assert.ok(done.type === 'batch-updated')
   assert.deepEqual(
     done.batch.comments.map((c) => [c.status, c.reply]),
@@ -216,19 +215,19 @@ test('a full round trip: send, doorbell, fetch, reply', async () => {
   assert.deepEqual(events, ['created', 'fetched', 'replied', 'replied'])
 
   listener.socket.close()
-  extension.socket.close()
+  devServer.socket.close()
 })
 
 test('a batch rings when a listener connects, and again on re-arm until it is fetched', async () => {
   const client = shims[0]!
   const listenUrl = listenUrlFrom(await callTool(client, 'live_connect', { projectRoot: project }))
-  const extension = await openExtension()
-  extension.socket.send(JSON.stringify({ type: 'hello', extensionVersion: 'test' }))
-  const state = await extension.inbox.next((m) => m.type === 'state')
+  const devServer = await openDevServer()
+  devServer.socket.send(JSON.stringify({ type: 'hello' }))
+  const state = await devServer.inbox.next((m) => m.type === 'state')
   const sessionId = state.type === 'state' ? state.sessions[0]!.id : assert.fail()
 
-  extension.socket.send(JSON.stringify({ type: 'send-batch', clientBatchId: 'c2', sessionId, comments: [comment('Tighter spacing')] }))
-  await extension.inbox.next((m) => m.type === 'batch-accepted')
+  devServer.socket.send(JSON.stringify({ type: 'send-batch', clientBatchId: 'c2', sessionId, comments: [comment('Tighter spacing')] }))
+  await devServer.inbox.next((m) => m.type === 'batch-accepted')
 
   const firstListener = await openListener(listenUrl)
   assert.equal(await firstListener.inbox.next(() => true), 'design-in-browser: batch 002 ready, 1 comment. Call live_get_batch.')
@@ -248,14 +247,14 @@ test('a batch rings when a listener connects, and again on re-arm until it is fe
   const thirdListener = await openListener(listenUrl)
   await new Promise((resolve) => setTimeout(resolve, 300))
   assert.deepEqual(thirdListener.inbox.items, [])
-  extension.socket.close()
+  devServer.socket.close()
 })
 
 test('a new session on the same project takes over open batches', async () => {
   await shims[0]!.close()
-  const extension = await openExtension()
-  extension.socket.send(JSON.stringify({ type: 'hello', extensionVersion: 'test' }))
-  await extension.inbox.next((m) => m.type === 'state' && m.sessions.length === 0)
+  const devServer = await openDevServer()
+  devServer.socket.send(JSON.stringify({ type: 'hello' }))
+  await devServer.inbox.next((m) => m.type === 'state' && m.sessions.length === 0)
 
   const client = await startShim()
   await callTool(client, 'live_connect', { projectRoot: project })
@@ -263,7 +262,7 @@ test('a new session on the same project takes over open batches', async () => {
   assert.deepEqual(status.open, [{ id: '002', status: 'fetched', pending: 1 }])
   const batch = JSON.parse(await callTool(client, 'live_get_batch', { batchId: '002' })) as Batch
   assert.equal(batch.comments[0]!.text, 'Tighter spacing')
-  extension.socket.close()
+  devServer.socket.close()
 })
 
 test('the daemon refuses wrong tokens and foreign hosts', async () => {
@@ -276,26 +275,26 @@ test('the daemon refuses wrong tokens and foreign hosts', async () => {
 })
 
 test('a bad comment is refused without dropping the socket', async () => {
-  const extension = await openExtension()
-  extension.socket.send(JSON.stringify({ type: 'send-batch', clientBatchId: 'c3', sessionId: 'x', comments: [{ text: '' }] }))
-  const error = await extension.inbox.next((m) => m.type === 'error')
+  const devServer = await openDevServer()
+  devServer.socket.send(JSON.stringify({ type: 'send-batch', clientBatchId: 'c3', sessionId: 'x', comments: [{ text: '' }] }))
+  const error = await devServer.inbox.next((m) => m.type === 'error')
   assert.ok(error.type === 'error' && error.message.startsWith('Bad message'))
-  extension.socket.send(JSON.stringify({ type: 'ping' }))
-  await extension.inbox.next((m) => m.type === 'pong')
-  extension.socket.close()
+  devServer.socket.send(JSON.stringify({ type: 'ping' }))
+  await devServer.inbox.next((m) => m.type === 'pong')
+  devServer.socket.close()
 })
 
 test('an answer is refused by a session whose project never asked the question', async () => {
-  const extension = await openExtension()
-  extension.socket.send(JSON.stringify({ type: 'hello', extensionVersion: 'test' }))
-  const state = await extension.inbox.next((m) => m.type === 'state' && m.sessions.length > 0)
+  const devServer = await openDevServer()
+  devServer.socket.send(JSON.stringify({ type: 'hello' }))
+  const state = await devServer.inbox.next((m) => m.type === 'state' && m.sessions.length > 0)
   const sessionId = state.type === 'state' ? state.sessions[0]!.id : assert.fail()
   const answer = { ...comment('Purple'), inReplyTo: { batchId: '999', commentId: 'nope', comment: 'Use the accent', question: 'Which one?' } }
-  extension.socket.send(JSON.stringify({ type: 'send-batch', clientBatchId: 'c4', sessionId, comments: [answer] }))
-  const error = await extension.inbox.next((m) => m.type === 'error')
+  devServer.socket.send(JSON.stringify({ type: 'send-batch', clientBatchId: 'c4', sessionId, comments: [answer] }))
+  const error = await devServer.inbox.next((m) => m.type === 'error')
   assert.ok(error.type === 'error' && error.message.startsWith('An answer goes to the project that asked the question'))
   assert.equal(error.type === 'error' && error.clientBatchId, 'c4')
-  extension.socket.close()
+  devServer.socket.close()
 })
 
 test('agents are named from their MCP client name', () => {

@@ -1,7 +1,7 @@
 // One daemon per machine. It holds three kinds of sockets:
 //   /page?token=...          a Vite dev server running the plugin, relaying for its pages
-//   /shim?token=...          one MCP shim per Claude Code session that ran /live
-//   /listen/<session>?key=   Claude's Monitor; each text frame wakes Claude
+//   /shim?token=...          one MCP server per agent session that ran /design-in-browser:live
+//   /listen/<session>?key=   the agent's Monitor; each text frame wakes the agent
 // Batches live in the project's journal folder; memory only caches them.
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -16,7 +16,7 @@ import {
   type Batch,
   type ConnectParams,
   type ConnectResult,
-  type DaemonToExtension,
+  type DaemonToPlugin,
   type GetBatchParams,
   type Health,
   type ReplyParams,
@@ -43,7 +43,8 @@ type Session = {
 }
 
 const sessions = new Map<string, Session>()
-const extensions = new Set<WebSocket>()
+/** Vite dev servers running the plugin. */
+const devServers = new Set<WebSocket>()
 /** projectRoot -> batchId -> batch */
 const projects = new Map<string, Map<string, Batch>>()
 let lastActivity = Date.now()
@@ -118,9 +119,9 @@ function sessionInfo(session: Session): SessionInfo {
   }
 }
 
-function broadcast(message: DaemonToExtension): void {
+function broadcast(message: DaemonToPlugin): void {
   const data = JSON.stringify(message)
-  for (const socket of extensions) socket.send(data)
+  for (const socket of devServers) socket.send(data)
 }
 
 function broadcastSessions(): void {
@@ -220,7 +221,7 @@ function status(sessionId: string): StatusResult {
   return {
     sessionId,
     listening: session.listener !== null,
-    extensionsConnected: extensions.size,
+    devServersConnected: devServers.size,
     unfetched: unfetchedFor(session).map((batch) => batch.id),
     open: open.map((batch) => ({
       id: batch.id,
@@ -243,10 +244,10 @@ function handleShimRequest(request: ShimRequest, shim: WebSocket): unknown {
   }
 }
 
-// --- extension messages -----------------------------------------------------
+// --- messages from Vite dev servers ------------------------------------------
 
-const extensionMessageSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('hello'), extensionVersion: z.string(), projectRoot: z.string().max(2000).optional() }),
+const pluginMessageSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('hello'), projectRoot: z.string().max(2000).optional() }),
   z.object({ type: z.literal('ping') }),
   z.object({
     type: z.literal('send-batch'),
@@ -256,8 +257,8 @@ const extensionMessageSchema = z.discriminatedUnion('type', [
   }),
 ])
 
-function handleExtensionMessage(socket: WebSocket, raw: string): void {
-  const parsed = extensionMessageSchema.safeParse(JSON.parse(raw))
+function handlePluginMessage(socket: WebSocket, raw: string): void {
+  const parsed = pluginMessageSchema.safeParse(JSON.parse(raw))
   if (!parsed.success) {
     send(socket, { type: 'error', message: `Bad message: ${parsed.error.message}` })
     return
@@ -312,7 +313,7 @@ function handleExtensionMessage(socket: WebSocket, raw: string): void {
   }
 }
 
-function send(socket: WebSocket, message: DaemonToExtension): void {
+function send(socket: WebSocket, message: DaemonToPlugin): void {
   socket.send(JSON.stringify(message))
 }
 
@@ -354,7 +355,7 @@ server.on('upgrade', (req, socket, head) => {
   // The Vite plugin's dev server: a Node client on this machine, so it proves itself with the token.
   if (url.pathname === '/page') {
     if (!sameSecret(url.searchParams.get('token') ?? '', token)) return reject(401)
-    wss.handleUpgrade(req, socket, head, (ws) => acceptExtension(ws))
+    wss.handleUpgrade(req, socket, head, (ws) => acceptDevServer(ws))
     return
   }
 
@@ -376,17 +377,17 @@ server.on('upgrade', (req, socket, head) => {
   reject(404)
 })
 
-function acceptExtension(ws: WebSocket): void {
-  extensions.add(ws)
+function acceptDevServer(ws: WebSocket): void {
+  devServers.add(ws)
   ws.on('message', (data) => {
     try {
-      handleExtensionMessage(ws, data.toString())
+      handlePluginMessage(ws, data.toString())
     } catch (error) {
-      log('extension message failed', error)
+      log('dev server message failed', error)
       send(ws, { type: 'error', message: error instanceof Error ? error.message : String(error) })
     }
   })
-  ws.on('close', () => extensions.delete(ws))
+  ws.on('close', () => devServers.delete(ws))
 }
 
 function acceptShim(ws: WebSocket): void {
@@ -430,7 +431,7 @@ function acceptListener(session: Session, ws: WebSocket): void {
   })
   broadcastSessions()
   // Ring again for everything not fetched yet. The previous Monitor may have died before a
-  // doorbell reached Claude; a repeat costs one live_get_batch that answers "No unfetched batch".
+  // doorbell reached the agent; a repeat costs one live_get_batch that answers "No unfetched batch".
   // The short wait keeps a frame out of the handshake's packet, for clients that listen late.
   setTimeout(() => {
     if (session.listener !== ws) return
