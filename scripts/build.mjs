@@ -8,11 +8,15 @@ import { build } from 'esbuild'
 // Start clean, so files from older builds never ship.
 fs.rmSync('dist', { recursive: true, force: true })
 
-// The build ID tells an MCP server whether the running daemon is from the same build. It is a hash of the
-// inputs, so building the same source twice gives the same committed plugin/dist.
+// The build ID tells an MCP server whether the running daemon is from the same build. It is a hash of what
+// the daemon and the MCP server are built from, so the same source gives the same committed plugin/dist, and a
+// change to the page alone leaves it alone.
+const BRIDGE_SOURCES = ['src/daemon', 'src/mcp', 'src/node', 'src/shared']
+
 function buildId() {
   const hash = crypto.createHash('sha256')
-  const files = ['package.json', 'pnpm-lock.yaml', 'scripts/build.mjs', ...fs.readdirSync('src', { recursive: true }).map((name) => path.join('src', name))]
+  const sources = BRIDGE_SOURCES.flatMap((dir) => fs.readdirSync(dir, { recursive: true }).map((name) => path.join(dir, name)))
+  const files = ['package.json', 'pnpm-lock.yaml', 'scripts/build.mjs', ...sources]
   for (const file of files.sort()) {
     if (!fs.statSync(file).isFile()) continue
     hash.update(file)
