@@ -1,6 +1,6 @@
 node_modules/
-extension/dist/
 test-results/
 playwright-report/
 .design-in-browser/
 .impeccable/review/
+dist/

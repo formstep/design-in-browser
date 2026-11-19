@@ -8,7 +8,7 @@ web
 
 ## Users
 
-A developer who builds their app with a coding agent and reviews its UI in Chrome. The app runs on a local dev server; the agent runs in a terminal beside the browser. Claude Code is supported today; OpenCode and other agents are planned, so the product never assumes one agent. The first user is the builder of Formstep, reviewing their own React and Vite apps.
+A developer who builds their app with a coding agent and reviews its UI in the browser. The app runs on a local dev server; the agent runs in a terminal beside the browser. Claude Code is supported today; OpenCode and other agents are planned, so the product never assumes one agent. The first user is the builder of Formstep, reviewing their own React and Vite apps.
 
 ## Product Purpose
 
@@ -20,7 +20,7 @@ Comments are anchored to real elements of the developer's own running app and go
 
 ## Operating Context
 
-- A Chrome extension: an overlay on the page (picker, comment box, pins) and a side panel (comments, sending, replies).
+- A Vite plugin in the app's own dev server (dev only): it puts an overlay on the page (picker, comment card, pins) and a dock (comments, sending, replies) into the app's page, and keeps the comment stack for that app.
 - A local daemon routes batches to agent sessions and journals every batch in the project's `.design-in-browser` folder. An agent connects through the MCP server; the UI names it from the MCP client name ("Claude", "OpenCode").
 - A Claude Code plugin: any running Claude Code session connects with `/design-in-browser:live` and wakes on each batch through a Monitor. Other agents need their own connector.
 - The agent replies per comment with done, a question, or skipped. The developer can answer a question from the panel or from its pin.
@@ -33,7 +33,7 @@ Comments are anchored to real elements of the developer's own running app and go
 - UI copy names the connected agent and falls back to "Agent"; nothing in the UI hard-codes Claude.
 - Standalone repository, not part of Formstep.
 - Next on the roadmap: stamping source locations on elements through a dev-only Vite plugin, then switchable variants that the agent renders from source.
-- Open decision: whether a Vite plugin with an in-page dock replaces the Chrome extension.
+- Decided 2026-11-19: the Vite plugin replaced the Chrome extension. Pages not served by Vite (Astro's own pages need an integration) are not covered yet.
 
 ## Product Principles
 

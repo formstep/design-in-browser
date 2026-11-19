@@ -1,5 +1,5 @@
 // One daemon per machine. It holds three kinds of sockets:
-//   /ext                     the Chrome extension (Origin must be the pinned extension)
+//   /page?token=...          a Vite dev server running the plugin, relaying for its pages
 //   /shim?token=...          one MCP shim per Claude Code session that ran /live
 //   /listen/<session>?key=   Claude's Monitor; each text frame wakes Claude
 // Batches live in the project's journal folder; memory only caches them.
@@ -82,8 +82,9 @@ function saveBatch(batch: Batch, event: Record<string, unknown>): void {
   broadcast({ type: 'batch-updated', batch })
 }
 
-function recentBatches(): Batch[] {
+function recentBatches(projectRoot?: string): Batch[] {
   const roots = new Set([...sessions.values()].map((session) => session.projectRoot))
+  if (projectRoot && path.isAbsolute(projectRoot) && fs.existsSync(projectRoot)) roots.add(projectRoot)
   return [...roots]
     .flatMap((root) => [...projectBatches(root).values()])
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -244,7 +245,7 @@ function handleShimRequest(request: ShimRequest, shim: WebSocket): unknown {
 // --- extension messages -----------------------------------------------------
 
 const extensionMessageSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('hello'), extensionVersion: z.string() }),
+  z.object({ type: z.literal('hello'), extensionVersion: z.string(), projectRoot: z.string().max(2000).optional() }),
   z.object({ type: z.literal('ping') }),
   z.object({
     type: z.literal('send-batch'),
@@ -263,7 +264,7 @@ function handleExtensionMessage(socket: WebSocket, raw: string): void {
   const message = parsed.data
   switch (message.type) {
     case 'hello':
-      send(socket, { type: 'state', sessions: [...sessions.values()].map(sessionInfo), batches: recentBatches() })
+      send(socket, { type: 'state', sessions: [...sessions.values()].map(sessionInfo), batches: recentBatches(message.projectRoot) })
       return
     case 'ping':
       send(socket, { type: 'pong' })
@@ -317,7 +318,6 @@ function send(socket: WebSocket, message: DaemonToExtension): void {
 // --- http + upgrade -----------------------------------------------------------
 
 const allowedHosts = new Set([`127.0.0.1:${config.port}`, `localhost:${config.port}`])
-const allowedOrigins = new Set(config.allowedExtensionIds.map((id) => `chrome-extension://${id}`))
 
 const server = http.createServer((req, res) => {
   if (!allowedHosts.has(req.headers.host ?? '')) {
@@ -350,11 +350,9 @@ server.on('upgrade', (req, socket, head) => {
   }
   if (!allowedHosts.has(req.headers.host ?? '')) return reject(403)
 
-  if (url.pathname === '/ext') {
-    if (!allowedOrigins.has(req.headers.origin ?? '')) {
-      log('rejected extension socket from origin', req.headers.origin)
-      return reject(403)
-    }
+  // The Vite plugin's dev server: a Node client on this machine, so it proves itself with the token.
+  if (url.pathname === '/page') {
+    if (!sameSecret(url.searchParams.get('token') ?? '', token)) return reject(401)
     wss.handleUpgrade(req, socket, head, (ws) => acceptExtension(ws))
     return
   }

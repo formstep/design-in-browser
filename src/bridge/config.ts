@@ -1,6 +1,6 @@
 import os from 'node:os'
 import path from 'node:path'
-import { DEFAULT_PORT, PINNED_EXTENSION_ID } from '../shared/protocol.ts'
+import { DEFAULT_PORT } from '../shared/protocol.ts'
 
 declare const __BUILD_ID__: string
 
@@ -19,10 +19,6 @@ export const config = {
   port: readPort(),
   /** Token, daemon log and other per-user state. */
   home: process.env.DIB_HOME ?? path.join(os.homedir(), '.design-in-browser'),
-  allowedExtensionIds: [
-    PINNED_EXTENSION_ID,
-    ...(process.env.DIB_EXTENSION_IDS ?? '').split(',').map((id) => id.trim()).filter(Boolean),
-  ],
   /** The daemon exits after this long with no session connected. */
   idleExitMs: Number(process.env.DIB_IDLE_EXIT_MS ?? 30 * 60 * 1000),
 }

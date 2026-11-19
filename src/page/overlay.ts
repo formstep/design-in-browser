@@ -1,4 +1,4 @@
-// Page overlay, modelled on Claude Design's canvas: hover outline, selected outline,
+// Page overlay (in the app's own page, served by the Vite plugin), modelled on Claude Design's canvas: hover outline, selected outline,
 // a comment card beside a pin at the clicked point, pin threads with Claude's replies,
 // and a bottom tool pill while picking.
 // Everything renders inside one shadow root so page CSS can't reach it and it can't reach the page.
@@ -8,7 +8,7 @@ import { FALLBACK_AGENT, START_COMMAND } from '../shared/protocol.ts'
 import { captureElement, capturePage, label, samePage } from './capture.ts'
 import { fillIcons, icon } from './icons.ts'
 import overlayCss from './overlay.css'
-import { defaultSession, onStateChange, readState, sendToBackground, writeState, type ContentMessage, type ExtensionState } from './state.ts'
+import { defaultSession, onStateChange, readState, sendOp, type PageState } from './store.ts'
 import tokensCss from './tokens.css'
 
 const PIN = 32
@@ -53,6 +53,21 @@ root.innerHTML = `
 fillIcons(root)
 document.documentElement.append(host)
 
+/** Hosts of this tool's own UI (the overlay and the dock): never picked, and clicks on them reach them. */
+const uiHosts = new Set<Element>([host])
+export function registerUiHost(element: Element): void {
+  uiHosts.add(element)
+}
+
+/** Width the dock takes on the right; cards and the tool pill keep out of it. */
+let reservedRight = 0
+export function setReservedRight(px: number): void {
+  reservedRight = px
+  host.style.setProperty('--reserved-right', `${px}px`)
+  scheduleRender()
+}
+const usableWidth = () => innerWidth - reservedRight
+
 const $ = <T extends Element>(selector: string) => root.querySelector(selector) as T
 const highlight = $<HTMLDivElement>('.highlight')
 const tagLabel = $<HTMLSpanElement>('.tag-label')
@@ -85,11 +100,11 @@ type Mode =
 
 let mode: Mode = { kind: 'idle' }
 let hovered: Element | null = null
-let state: ExtensionState | null = null
+let state: PageState | null = null
 
 /** The agent this page talks to, as the UI names it: "Claude", "OpenCode", or "Agent" when none is connected. */
 function agentName(): string {
-  return (state ? defaultSession(state, location.href)?.agent : undefined) ?? FALLBACK_AGENT
+  return (state ? defaultSession(state)?.agent : undefined) ?? FALLBACK_AGENT
 }
 
 let namedAgent = ''
@@ -111,7 +126,7 @@ function nameAgent(): void {
 
 function elementAt(x: number, y: number): Element | null {
   const element = document.elementFromPoint(x, y)
-  return element && element !== host && element !== document.documentElement ? element : null
+  return element && !uiHosts.has(element) && element !== document.documentElement ? element : null
 }
 
 function showHighlight(element: Element | null, selected = false): void {
@@ -132,6 +147,7 @@ function showHighlight(element: Element | null, selected = false): void {
 
 function setMode(next: Mode): void {
   mode = next
+  for (const listener of modeListeners) listener()
   dock.hidden = mode.kind === 'idle'
   document.documentElement.style.cursor = mode.kind === 'picking' ? 'crosshair' : ''
   if (mode.kind !== 'commenting') {
@@ -144,7 +160,7 @@ function setMode(next: Mode): void {
   }
 }
 
-const fromOverlay = (event: Event) => event.composedPath().includes(host)
+const fromOverlay = (event: Event) => event.composedPath().some((node) => uiHosts.has(node as Element))
 
 function onPointerMove(event: MouseEvent): void {
   if (mode.kind !== 'picking') return
@@ -228,7 +244,7 @@ function placeComposer(): void {
   composingPin.style.transform = `translate(${point.x}px, ${point.y - PIN}px)`
   const height = composer.offsetHeight || 140
   const right = point.x + PIN + 8
-  const left = right + CARD_WIDTH > innerWidth - 8 ? Math.max(8, point.x - CARD_WIDTH - 8) : right
+  const left = right + CARD_WIDTH > usableWidth() - 8 ? Math.max(8, point.x - CARD_WIDTH - 8) : right
   const top = Math.min(Math.max(8, point.y - PIN), innerHeight - height - 8)
   composer.style.transform = `translate(${left}px, ${top}px)`
 }
@@ -250,13 +266,13 @@ function showComposerError(message: string): void {
 }
 
 function tabSession() {
-  return state && state.connection === 'connected' ? defaultSession(state, location.href) : null
+  return state && state.connection === 'connected' ? defaultSession(state) : null
 }
 
 async function addComment(comment: DraftComment, send: boolean): Promise<void> {
-  await sendToBackground({ type: 'add-comment', comment })
+  await sendOp({ type: 'add-comment', comment })
   const session = tabSession()
-  if (send && session) await sendToBackground({ type: 'send', sessionId: session.id })
+  if (send && session) await sendOp({ type: 'send', sessionId: session.id })
 }
 
 async function submitComment(): Promise<void> {
@@ -305,7 +321,7 @@ textarea.addEventListener('keydown', (event) => {
 textarea.addEventListener('input', placeComposer)
 sendOnAdd.addEventListener('change', () => {
   updateHint()
-  void writeState({ sendOnAdd: sendOnAdd.checked })
+  void sendOp({ type: 'set-send-on-add', value: sendOnAdd.checked })
 })
 
 // --- tool pill and "Ask Claude" -------------------------------------------------------------
@@ -347,7 +363,7 @@ for (const part of [composer, askbar, pins]) {
 
 // --- keyboard + messages --------------------------------------------------------
 
-function togglePicker(): void {
+export function togglePicker(): void {
   setMode(mode.kind === 'idle' ? { kind: 'picking' } : { kind: 'idle' })
 }
 
@@ -374,19 +390,13 @@ window.addEventListener(
   true,
 )
 
-chrome.runtime.onMessage.addListener((message: ContentMessage, _sender, sendResponse) => {
-  switch (message.type) {
-    case 'toggle-picker':
-      togglePicker()
-      break
-    case 'page-info':
-      sendResponse({ ok: true, page: capturePage() })
-      return
-    case 'ping':
-      break
-  }
-  sendResponse({ ok: true, picking: mode.kind !== 'idle' })
-})
+export const isPicking = () => mode.kind !== 'idle'
+
+/** Picker state changes, for the dock's Comment button. */
+const modeListeners = new Set<() => void>()
+export function onModeChange(listener: () => void): void {
+  modeListeners.add(listener)
+}
 
 // --- pins --------------------------------------------------------------------------
 
@@ -413,10 +423,11 @@ const statusLabel: Record<PinStatus, string> = {
   done: 'Done',
   question: 'Needs your answer',
   skipped: 'Skipped',
+  variants: 'Alternatives on the page',
   answered: 'Answered',
 }
 
-function answeredIds(current: ExtensionState): Set<string> {
+function answeredIds(current: PageState): Set<string> {
   const ids = new Set<string>()
   for (const comment of current.draft) if (comment.inReplyTo) ids.add(comment.inReplyTo.commentId)
   for (const batch of current.batches) for (const comment of batch.comments) if (comment.inReplyTo) ids.add(comment.inReplyTo.commentId)
@@ -448,9 +459,9 @@ function sentPin(batch: Batch, comment: BatchComment & { element: ElementRef }, 
 
 const hasElement = <T extends { element: ElementRef | null }>(comment: T): comment is T & { element: ElementRef } => comment.element !== null
 
-function pinsForThisPage(current: ExtensionState): PinModel[] {
+function pinsForThisPage(current: PageState): PinModel[] {
   const answered = answeredIds(current)
-  const ownProject = defaultSession(current, location.href)?.projectRoot ?? null
+  const ownProject = defaultSession(current)?.projectRoot ?? null
   const drafts = current.draft.flatMap((comment, index): PinModel[] =>
     hasElement(comment) && samePage(comment.page.url)
       ? [{ key: comment.id, agent: agentName(), ref: comment.element, status: 'draft', number: index + 1, text: comment.text, createdAt: comment.createdAt, reply: null, answer: null, draftId: comment.id }]
@@ -467,6 +478,7 @@ const pinGlyph: Record<Exclude<PinStatus, 'draft'>, string> = {
   done: icon('check'),
   question: icon('question'),
   skipped: icon('minus'),
+  variants: icon('layers'),
   answered: icon('clock'),
 }
 
@@ -568,10 +580,10 @@ function renderPins(): void {
     const shift = taken.get(spot) ?? 0
     taken.set(spot, shift + 1)
     wrap.hidden = false
-    const x = Math.min(Math.max(4, point.x + shift * (PIN + 4)), innerWidth - PIN - 4)
+    const x = Math.min(Math.max(4, point.x + shift * (PIN + 4)), usableWidth() - PIN - 4)
     const y = Math.min(Math.max(4, point.y - PIN), innerHeight - PIN - 4)
     wrap.style.transform = `translate(${x}px, ${y}px)`
-    wrap.classList.toggle('flip-x', x + PIN + 8 + CARD_WIDTH > innerWidth)
+    wrap.classList.toggle('flip-x', x + PIN + 8 + CARD_WIDTH > usableWidth())
     placeThread(wrap.querySelector<HTMLElement>('.thread')!, y)
   }
 }
@@ -601,7 +613,7 @@ pins.addEventListener('click', (event) => {
   }
   const action = target.closest<HTMLButtonElement>('[data-action="remove"]')
   const pin = action ? models.get(action.dataset.key ?? '') : undefined
-  if (pin?.draftId) void sendToBackground({ type: 'remove-comment', id: pin.draftId })
+  if (pin?.draftId) void sendOp({ type: 'remove-comment', id: pin.draftId })
 })
 
 async function submitAnswer(form: HTMLFormElement): Promise<void> {
@@ -621,7 +633,7 @@ async function submitAnswer(form: HTMLFormElement): Promise<void> {
   field.blur()
   form.closest('.pin-wrap')?.classList.remove('open')
   try {
-    await sendToBackground({ type: 'add-comment', comment })
+    await sendOp({ type: 'add-comment', comment })
   } catch {
     field.value = text
   }
@@ -659,14 +671,14 @@ function scheduleRender(): void {
   })
 }
 
-async function refresh(): Promise<void> {
-  state = await readState()
+function refresh(): void {
+  state = readState()
   scheduleRender()
 }
 
-onStateChange(() => void refresh())
+onStateChange(refresh)
 window.addEventListener('scroll', scheduleRender, { capture: true, passive: true })
 window.addEventListener('resize', scheduleRender)
 // Hot reloads and client-side routing move elements without a scroll or resize.
 setInterval(scheduleRender, 800)
-void refresh()
+refresh()

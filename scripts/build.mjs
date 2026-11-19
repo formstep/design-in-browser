@@ -1,6 +1,7 @@
-// Bundles the bridge into the plugin (self-contained, no node_modules at install time)
-// and the extension scripts into extension/dist.
+// Bundles the bridge into the Claude Code plugin (self-contained, no node_modules at install time),
+// and the Vite plugin with the client it serves into dist/.
 import crypto from 'node:crypto'
+import fs from 'node:fs'
 import { build } from 'esbuild'
 
 const buildId = `${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${crypto.randomBytes(3).toString('hex')}`
@@ -23,32 +24,32 @@ await build({
   logLevel: 'warning',
 })
 
+// Vite plugin (Node) and the client it serves to pages.
 await build({
-  entryPoints: { background: 'src/extension/background.ts' },
-  outdir: 'extension/dist',
+  entryPoints: { vite: 'src/vite/plugin.ts' },
+  outdir: 'dist',
+  outExtension: { '.js': '.mjs' },
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  target: 'node22',
+  external: ['vite', 'bufferutil', 'utf-8-validate'],
+  banner: { js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);" },
+  logLevel: 'warning',
+})
+fs.writeFileSync(
+  'dist/vite.d.mts',
+  `import type { Plugin } from 'vite'\nexport type DesignInBrowserOptions = { projectRoot?: string }\nexport default function designInBrowser(options?: DesignInBrowserOptions): Plugin\n`,
+)
+
+await build({
+  entryPoints: { client: 'src/page/client.ts' },
+  outdir: 'dist',
   bundle: true,
   format: 'esm',
   target: 'chrome120',
-  logLevel: 'warning',
-})
-
-await build({
-  entryPoints: { content: 'src/extension/content.ts', sidepanel: 'src/extension/sidepanel.ts' },
-  outdir: 'extension/dist',
-  bundle: true,
-  format: 'iife',
-  // The overlay's CSS goes into its shadow root as a string.
+  // Styles go into shadow roots as strings; import.meta.hot stays for Vite to fill in.
   loader: { '.css': 'text' },
-  target: 'chrome120',
-  logLevel: 'warning',
-})
-
-// The panel stylesheet pulls in the shared tokens with @import.
-await build({
-  entryPoints: { sidepanel: 'src/extension/sidepanel.css' },
-  outdir: 'extension/dist',
-  bundle: true,
-  target: 'chrome120',
   logLevel: 'warning',
 })
 

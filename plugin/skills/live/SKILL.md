@@ -1,6 +1,6 @@
 ---
 name: live
-description: Connect this session to the Design in Browser Chrome extension, so the user can pick elements on their local app, stack comments and send them here; you change the source and reply in the browser. Use when the user runs /design-in-browser:live or asks to take UI comments from the browser.
+description: Connect this session to Design in Browser, so the user can pick elements on their local app, stack comments and send them here; you change the source and reply in the browser. Use when the user runs /design-in-browser:live or asks to take UI comments from the browser.
 ---
 
 # Design in Browser: live comments
@@ -11,10 +11,11 @@ Tools come from this plugin's MCP server: `live_connect`, `live_get_batch`, `liv
 
 ## Start
 
-1. Find the project root (`git rev-parse --show-toplevel`, else the working directory) and the dev server origin the user will comment on, such as `http://localhost:5173`. Read it from a running server's output, the Vite config's `server.port`, or the `dev` script. Origins are optional; pass the ones you are sure of.
+1. Find the project root (`git rev-parse --show-toplevel`, else the working directory). The browser side runs inside the app's Vite dev server, which matches sessions to its project by folder, so origins are optional.
 2. Call `live_connect` with `projectRoot` and `origins`.
 3. Arm the Monitor tool on the `ws` URL it returns: `Monitor({ ws: { url }, timeout_ms: 1800000, description: "browser comments" })`.
-4. Tell the user in one or two lines that you are listening: open the app, click the Design in Browser toolbar icon, press Alt+Shift+C (or "Pick element") to pick, type, then Send. If the extension is not installed, it loads unpacked from the `extension` folder of the design-in-browser repo after `pnpm build` (chrome://extensions, Developer mode, Load unpacked).
+4. Check that the app's Vite config loads the plugin (`designInBrowser()` from `design-in-browser/vite`). If it does not, show the user the two lines (the import and the `plugins` entry) and the install command from the design-in-browser README, and ask before you change their config: it is outside what a comment authorizes.
+5. Tell the user in one or two lines that you are listening: open the app on its dev server, click the comment button in the bottom-right corner (or press Alt+Shift+D) to open the dock, press Alt+Shift+C to pick an element, type, then send.
 
 ## Keep listening
 

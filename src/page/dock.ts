@@ -1,12 +1,78 @@
-// Side panel as a chat with the coding agent (styled after Claude's): each sent batch is your message, the agent's replies follow it,
-// and the composer at the bottom holds the stacked comments plus an optional note.
+// The dock: a chat with the coding agent inside the app's own page, styled after Claude's chat.
+// Each sent batch is your message, the agent's replies follow it, and the composer at the bottom holds
+// the stacked comments plus an optional note. It has its own shadow root, apart from the overlay's.
 // Lists are rebuilt only when their data changes, so the periodic render never wipes text being typed.
-import { FALLBACK_AGENT, START_COMMAND, type Batch, type BatchComment, type DraftComment, type PageRef, type SessionInfo } from '../shared/protocol.ts'
+import { FALLBACK_AGENT, START_COMMAND, type Batch, type BatchComment, type DraftComment, type SessionInfo } from '../shared/protocol.ts'
+import { capturePage } from './capture.ts'
+import dockCss from './dock.css'
 import { fillIcons, icon, type IconName } from './icons.ts'
-import { defaultSession, onStateChange, pickKey, readState, sendToBackground, writeState, type ContentMessage, type ExtensionState } from './state.ts'
+import { isPicking, onModeChange, registerUiHost, setReservedRight, togglePicker } from './overlay.ts'
+import { defaultSession, onStateChange, readState, sendOp, type PageState } from './store.ts'
+import tokensCss from './tokens.css'
 
-const $ = <T extends Element>(selector: string) => document.querySelector(selector) as T
+const DOCK_WIDTH = 380
+const OPEN_KEY = 'design-in-browser:dock-open'
 
+const host = document.createElement('dib-dock')
+host.style.cssText = 'all: initial; position: fixed; inset: 0; pointer-events: none; z-index: 2147483647;'
+const root = host.attachShadow({ mode: 'open' })
+const sheet = new CSSStyleSheet()
+sheet.replaceSync(tokensCss + dockCss)
+root.adoptedStyleSheets = [sheet]
+root.innerHTML = `
+<button type="button" class="launcher" data-testid="launcher" aria-label="Open Design in Browser" title="Comments (⌥⇧D)">
+  <span data-icon="comment" data-size="18"></span><span class="launcher-count"></span>
+</button>
+<aside class="dock" aria-label="Design in Browser" hidden>
+  <header class="top">
+    <span class="dot" aria-hidden="true"></span>
+    <div class="title">
+      <span class="project"></span>
+      <label class="picker" hidden>
+        <span class="picker-text"></span>
+        <span data-icon="chevronDown" data-size="14"></span>
+        <select data-testid="session" aria-label="Agent session"></select>
+      </label>
+    </div>
+    <span class="state" data-testid="status" aria-live="polite"></span>
+    <button type="button" class="icon-button close" aria-label="Close" title="Close (⌥⇧D)"><span data-icon="close" data-size="15"></span></button>
+  </header>
+  <main class="thread" data-testid="sent">
+    <div class="intro">
+      <p class="intro-title"></p>
+      <p class="intro-text"></p>
+      <button type="button" class="command" data-testid="copy-command" hidden>
+        <code class="command-text"></code>
+        <span data-icon="copy" data-size="14"></span>
+        <span class="copied" hidden>Copied</span>
+      </button>
+    </div>
+    <div class="turns"></div>
+  </main>
+  <footer class="bottom">
+    <p class="notice" hidden></p>
+    <p class="error" data-testid="error" role="alert" hidden><span data-icon="alert" data-size="15"></span><span class="error-text"></span></p>
+    <form class="compose">
+      <ol class="drafts" data-testid="draft"></ol>
+      <textarea class="message" data-testid="message" rows="1" placeholder="Describe a change" aria-label="Message about this page"></textarea>
+      <div class="compose-bar">
+        <button type="button" class="tool pick" data-testid="pick" aria-pressed="false" title="Comment on an element">
+          <span data-icon="comment" data-size="16"></span><span>Comment</span><kbd class="shortcut"></kbd>
+        </button>
+        <span class="count"></span>
+        <button type="submit" class="send" data-testid="send" aria-label="Send" disabled><span data-icon="arrowUp" data-size="16"></span></button>
+      </div>
+    </form>
+  </footer>
+</aside>`
+document.documentElement.append(host)
+registerUiHost(host)
+
+const $ = <T extends Element>(selector: string) => root.querySelector(selector) as T
+
+const launcher = $<HTMLButtonElement>('.launcher')
+const launcherCount = $<HTMLElement>('.launcher-count')
+const dock = $<HTMLElement>('.dock')
 const top = $<HTMLElement>('.top')
 const project = $<HTMLElement>('.project')
 const picker = $<HTMLLabelElement>('.picker')
@@ -33,32 +99,45 @@ const sendButton = $<HTMLButtonElement>('.send')
 const isMac = /mac/i.test(navigator.platform)
 $<HTMLElement>('.shortcut').textContent = isMac ? '⌥⇧C' : 'Alt+Shift+C'
 $<HTMLElement>('.command-text').textContent = START_COMMAND
-fillIcons(document)
+fillIcons(root)
 
-// Tests open this page as a normal tab and name the target tab with ?tabId=.
-const pinnedTabId = Number(new URLSearchParams(location.search).get('tabId')) || null
+// Keys typed into the dock belong to it, not to the app's shortcuts.
+for (const type of ['keydown', 'keyup', 'keypress']) dock.addEventListener(type, (event) => event.stopPropagation())
 
-type TargetTab = { id: number; url: string | undefined; title: string | undefined }
+// --- open and close ------------------------------------------------------------------
 
-async function targetTab(): Promise<TargetTab | null> {
-  const tab =
-    pinnedTabId !== null
-      ? await chrome.tabs.get(pinnedTabId).catch(() => null)
-      : (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0]
-  return tab?.id === undefined ? null : { id: tab.id, url: tab.url, title: tab.title }
-}
-
-type TabReply = { ok: boolean; picking?: boolean; page?: PageRef }
-
-async function tellTab(content: ContentMessage): Promise<TabReply | null> {
-  const tab = await targetTab()
-  if (!tab) return null
+function readOpen(): boolean {
   try {
-    return await chrome.tabs.sendMessage(tab.id, content)
+    return localStorage.getItem(OPEN_KEY) === '1'
   } catch {
-    return null
+    return false
   }
 }
+
+function setOpen(open: boolean): void {
+  dock.hidden = !open
+  launcher.hidden = open
+  setReservedRight(open ? DOCK_WIDTH : 0)
+  try {
+    localStorage.setItem(OPEN_KEY, open ? '1' : '0')
+  } catch {
+    // A page that blocks storage just opens closed next time.
+  }
+  if (open) scheduleRender()
+}
+
+launcher.addEventListener('click', () => setOpen(true))
+$<HTMLButtonElement>('.close').addEventListener('click', () => setOpen(false))
+window.addEventListener(
+  'keydown',
+  (event) => {
+    if (!(event.altKey && event.shiftKey && event.code === 'KeyD')) return
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    setOpen(dock.hasAttribute('hidden'))
+  },
+  true,
+)
 
 type Props = { className?: string; textContent?: string; title?: string; value?: string; type?: string; rows?: number; placeholder?: string }
 
@@ -81,33 +160,34 @@ const hostsOf = (session: SessionInfo) => session.origins.map((origin) => new UR
 
 let renderedSessions = ''
 
-function renderHeader(state: ExtensionState, session: SessionInfo | null): void {
+function renderHeader(state: PageState, session: SessionInfo | null): void {
   const connected = state.connection === 'connected'
   top.dataset.state = !connected || !session ? 'offline' : session.listening ? 'listening' : 'queued'
   stateLabel.textContent = !connected ? 'Offline' : !session ? 'No session' : session.listening ? `${session.agent} is listening` : 'Not listening'
   project.textContent = session ? session.label : 'Design in Browser'
   project.title = session ? [session.projectRoot, hostsOf(session)].filter(Boolean).join(' · ') : ''
 
-  // A picker only when there is a choice to make.
-  const choose = state.sessions.length > 1
+  // A picker when there is a choice to make, or when no session works on this project: then the user
+  // picks one, and nothing is sent by guesswork.
+  const choose = state.sessions.length > 1 || (state.sessions.length > 0 && !session)
   picker.hidden = !choose
   project.hidden = choose
-  const signature = JSON.stringify(state.sessions.map((entry) => [entry.id, entry.label, entry.agent, entry.origins]))
+  const signature = JSON.stringify([session === null, state.sessions.map((entry) => [entry.id, entry.label, entry.agent, entry.origins])])
   if (signature !== renderedSessions) {
     renderedSessions = signature
     sessionSelect.replaceChildren(
+      ...(session ? [] : [el('option', { value: '', textContent: 'Choose a session' })]),
       ...state.sessions.map((entry) =>
         el('option', { value: entry.id, textContent: `${entry.label} · ${entry.agent}`, title: [entry.projectRoot, hostsOf(entry)].filter(Boolean).join(' · ') }),
       ),
     )
   }
   // A render that read state before the user's pick landed must not flip the select back under them.
-  if (session && document.activeElement !== sessionSelect) sessionSelect.value = session.id
-  const shown = state.sessions.find((entry) => entry.id === sessionSelect.value) ?? session
-  pickerText.textContent = shown ? `${shown.label} · ${shown.agent}` : ''
+  if (root.activeElement !== sessionSelect) sessionSelect.value = session?.id ?? ''
+  pickerText.textContent = session ? `${session.label} · ${session.agent}` : 'Choose a session'
 }
 
-function renderIntro(state: ExtensionState, session: SessionInfo | null, hasTurns: boolean): void {
+function renderIntro(state: PageState, session: SessionInfo | null, hasTurns: boolean): void {
   const needsStart = state.connection === 'offline' || !session
   intro.hidden = hasTurns && !needsStart
   commandButton.hidden = !needsStart
@@ -138,7 +218,7 @@ function where(comment: DraftComment | BatchComment): string {
 
 let renderedDraft = ''
 
-function renderComposer(state: ExtensionState, session: SessionInfo | null, canSend: boolean): void {
+function renderComposer(state: PageState, session: SessionInfo | null, canSend: boolean): void {
   const ready = state.draft.filter((comment) => comment.text.trim() !== '').length
   const typed = message.value.trim() !== ''
   sendButton.disabled = !canSend || state.sending || (ready === 0 && !typed)
@@ -151,17 +231,17 @@ function renderComposer(state: ExtensionState, session: SessionInfo | null, canS
   const signature = JSON.stringify(state.draft.map((comment) => [comment.id, comment.text, comment.page.url]))
   if (signature === renderedDraft) return
   renderedDraft = signature
-  const focused = document.activeElement instanceof HTMLTextAreaElement ? document.activeElement.dataset.id : undefined
+  const focused = root.activeElement instanceof HTMLTextAreaElement ? root.activeElement.dataset.id : undefined
 
   draftList.replaceChildren(
     ...state.draft.map((comment, index) => {
       const field = el('textarea', { rows: 1, value: comment.text, placeholder: comment.inReplyTo ? 'Your answer' : 'What should change?' })
       field.dataset.id = comment.id
       field.setAttribute('aria-label', `Comment ${index + 1}`)
-      field.addEventListener('change', () => void sendToBackground({ type: 'update-comment', id: comment.id, text: field.value }))
+      field.addEventListener('change', () => void sendOp({ type: 'update-comment', id: comment.id, text: field.value }))
       const remove = el('button', { type: 'button', className: 'icon-button', title: 'Remove comment' }, [iconNode('close', 14)])
       remove.setAttribute('aria-label', `Remove comment ${index + 1}`)
-      remove.addEventListener('click', () => void sendToBackground({ type: 'remove-comment', id: comment.id }))
+      remove.addEventListener('click', () => void sendOp({ type: 'remove-comment', id: comment.id }))
       const item = el('li', { className: 'draft' }, [
         el('div', { className: 'draft-head' }, [
           el('span', { className: 'num', textContent: String(index + 1) }),
@@ -179,27 +259,22 @@ function renderComposer(state: ExtensionState, session: SessionInfo | null, canS
 }
 
 /** The agent that asked a question: the one that owns its batch. Batch ids repeat per project, so match the project too. */
-function askedBy(state: ExtensionState, session: SessionInfo | null, batchId: string): string {
+function askedBy(state: PageState, session: SessionInfo | null, batchId: string): string {
   return state.batches.find((batch) => batch.id === batchId && batch.projectRoot === session?.projectRoot)?.agent ?? session?.agent ?? FALLBACK_AGENT
 }
 
-async function pageFor(tab: TargetTab | null): Promise<PageRef> {
-  const reply = await tellTab({ type: 'page-info' })
-  return reply?.page ?? { url: tab?.url ?? '', title: tab?.title ?? '', viewport: { width: 0, height: 0 } }
-}
-
 async function send(): Promise<void> {
-  const [state, tab] = await Promise.all([readState(), targetTab()])
-  const session = state.sessions.find((entry) => entry.id === sessionSelect.value) ?? defaultSession(state, tab?.url)
+  const state = readState()
+  const session = defaultSession(state)
   const text = message.value.trim()
   const ready = state.draft.some((comment) => comment.text.trim() !== '')
   if (!session || state.connection !== 'connected' || state.sending || (!ready && text === '')) return
   if (text !== '') {
-    const note: DraftComment = { id: crypto.randomUUID(), text, page: await pageFor(tab), element: null, inReplyTo: null, createdAt: new Date().toISOString() }
-    await sendToBackground({ type: 'add-comment', comment: note })
+    const note: DraftComment = { id: crypto.randomUUID(), text, page: capturePage(), element: null, inReplyTo: null, createdAt: new Date().toISOString() }
+    await sendOp({ type: 'add-comment', comment: note })
     message.value = ''
   }
-  await sendToBackground({ type: 'send', sessionId: session.id })
+  await sendOp({ type: 'send', sessionId: session.id })
   scrollToEnd = true
 }
 
@@ -222,6 +297,7 @@ const statusWord: Record<BatchComment['status'], string> = {
   done: 'Done',
   question: 'Question',
   skipped: 'Skipped',
+  variants: 'Alternatives',
 }
 
 const time = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
@@ -237,7 +313,7 @@ let renderedTurns = ''
 let scrollToEnd = true
 
 /** Where each question's answer is: in the composer, or sent in a batch. */
-function answers(state: ExtensionState): Map<string, string> {
+function answers(state: PageState): Map<string, string> {
   const found = new Map<string, string>()
   for (const batch of state.batches) {
     for (const comment of batch.comments) if (comment.inReplyTo) found.set(comment.inReplyTo.commentId, `Answered in batch ${batch.id}.`)
@@ -262,7 +338,7 @@ function answerForm(batch: Batch, comment: BatchComment): HTMLFormElement {
       return
     }
     answerDrafts.delete(comment.id)
-    await sendToBackground({
+    await sendOp({
       type: 'add-comment',
       comment: {
         id: crypto.randomUUID(),
@@ -320,12 +396,12 @@ function claudeSide(batch: Batch, answered: Map<string, string>): HTMLElement {
   return side
 }
 
-function renderTurns(state: ExtensionState, batches: Batch[]): void {
+function renderTurns(state: PageState, batches: Batch[]): void {
   const answered = answers(state)
   const signature = JSON.stringify([batches, [...answered]])
   if (signature === renderedTurns) return
   renderedTurns = signature
-  const focused = document.activeElement instanceof HTMLTextAreaElement ? document.activeElement.dataset.answer : undefined
+  const focused = root.activeElement instanceof HTMLTextAreaElement ? root.activeElement.dataset.answer : undefined
 
   turns.replaceChildren(
     ...[...batches].reverse().map((batch) => {
@@ -363,52 +439,47 @@ thread.addEventListener('scroll', () => {
 function keepEnd(): void {
   if (atEnd) thread.scrollTop = thread.scrollHeight
 }
-new ResizeObserver(keepEnd).observe(document.querySelector('.bottom')!)
+new ResizeObserver(keepEnd).observe(root.querySelector('.bottom')!)
 new ResizeObserver(keepEnd).observe(turns)
 
 // --- render loop -----------------------------------------------------------------
 
-async function render(): Promise<void> {
-  const [state, tab] = await Promise.all([readState(), targetTab()])
-  const session = defaultSession(state, tab?.url)
+function render(): void {
+  const state = readState()
+  const session = defaultSession(state)
+  const ready = state.draft.filter((comment) => comment.text.trim() !== '').length
+  launcherCount.textContent = ready ? String(ready) : ''
+  pickButton.setAttribute('aria-pressed', String(isPicking()))
+  if (dock.hidden) return
   renderHeader(state, session)
 
-  const reply = await tellTab({ type: 'ping' })
-  const pageReady = reply?.ok === true
-  pickButton.disabled = !pageReady
-  pickButton.setAttribute('aria-pressed', String(reply?.picking === true))
-
   const connected = state.connection === 'connected' && session !== null
-  notice.hidden = pageReady && (!connected || session.listening)
-  notice.textContent = !pageReady
-    ? 'Open your app on a local dev server (localhost, *.localhost or *.test). If the extension was just installed, reload the tab.'
+  const unmatched = state.connection === 'connected' && state.sessions.length > 0 && session === null
+  notice.hidden = !unmatched && (!connected || session.listening)
+  notice.textContent = unmatched
+    ? 'No agent session is working on this project. Choose one above to send to it.'
     : `${session?.agent ?? FALLBACK_AGENT} isn’t listening right now. What you send waits until it’s back.`
 
   renderComposer(state, session, connected)
-  const batches = session ? state.batches.filter((batch) => batch.projectRoot === session.projectRoot) : state.batches
-  renderIntro(state, session, batches.length > 0)
-  renderTurns(state, batches)
+  renderIntro(state, session, state.batches.length > 0)
+  renderTurns(state, state.batches)
 }
 
-let rendering: Promise<void> = Promise.resolve()
+let frame = 0
 function scheduleRender(): void {
-  rendering = rendering.then(render, render)
+  if (frame) return
+  frame = requestAnimationFrame(() => {
+    frame = 0
+    render()
+  })
 }
 
-sessionSelect.addEventListener('change', async () => {
-  const [state, tab] = await Promise.all([readState(), targetTab()])
-  await writeState({ pickedSessions: { ...state.pickedSessions, [pickKey(tab?.url)]: sessionSelect.value } })
+sessionSelect.addEventListener('change', () => {
+  if (sessionSelect.value) void sendOp({ type: 'pick-session', sessionId: sessionSelect.value })
 })
-pickButton.addEventListener('click', async () => {
-  await tellTab({ type: 'toggle-picker' })
-  scheduleRender()
-})
+pickButton.addEventListener('click', () => togglePicker())
 
-onStateChange(() => scheduleRender())
-chrome.tabs.onActivated.addListener(() => scheduleRender())
-chrome.tabs.onUpdated.addListener((_id, change) => {
-  if (change.status === 'complete' || change.url) scheduleRender()
-})
-// The picker can be toggled from the page with the shortcut; poll so the button state follows.
-setInterval(() => scheduleRender(), 1500)
+onStateChange(scheduleRender)
+onModeChange(scheduleRender)
+setOpen(readOpen())
 scheduleRender()

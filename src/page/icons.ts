@@ -11,6 +11,10 @@ const paths = {
   arrowUp: '<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>',
   chevronDown: '<path d="m7 10 5 5 5-5"/>',
   trash: '<path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13"/>',
+  layers: '<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>',
+  chevronLeft: '<path d="m15 6-6 6 6 6"/>',
+  chevronRight: '<path d="m9 6 6 6-6 6"/>',
+  sliders: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
 } as const
 
 export type IconName = keyof typeof paths

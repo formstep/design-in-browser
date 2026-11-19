@@ -1,7 +1,6 @@
-@import './tokens.css';
-
-/* The side panel reads as Claude's chat: a thread of sent comments and Claude's replies,
-   with the composer pinned at the bottom holding the stacked comments. */
+/* The dock reads as Claude's chat: a thread of sent batches and the agent's replies,
+   with the composer pinned at the bottom holding the stacked comments.
+   Loaded after tokens.css into the dock's own shadow root. */
 
 * {
   box-sizing: border-box;
@@ -11,21 +10,72 @@
   display: none !important;
 }
 
-html {
-  height: 100%;
-  scrollbar-color: rgb(255 255 255 / 0.16) transparent;
-  scrollbar-width: thin;
+.dock,
+.launcher {
+  font: 14px/21px var(--font);
+  color: var(--ink);
+  text-align: left;
+  -webkit-font-smoothing: antialiased;
 }
 
-body {
+.dock {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  margin: 0;
+  width: 380px;
+  max-width: 100vw;
   background: var(--ground);
+  box-shadow:
+    inset 1px 0 0 var(--ring-2),
+    -12px 0 32px rgb(0 0 0 / 0.25);
+  pointer-events: auto;
+  scrollbar-color: rgb(255 255 255 / 0.16) transparent;
+  scrollbar-width: thin;
+  animation: slide-in 180ms var(--ease-out);
+}
+
+/* Closed: a small button in the corner, with the number of comments waiting to be sent. */
+.launcher {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  min-width: 40px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--card);
+  box-shadow: var(--shadow-float);
   color: var(--ink);
-  font: 14px/21px var(--font);
-  -webkit-font-smoothing: antialiased;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.launcher:hover {
+  background: var(--control);
+}
+
+.launcher-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--blue-badge);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.launcher-count:empty {
+  display: none;
 }
 
 ::selection {
@@ -599,6 +649,13 @@ textarea::placeholder {
   color: var(--ink-3);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+}
+
+@keyframes slide-in {
+  from {
+    translate: 24px 0;
+    opacity: 0;
+  }
 }
 
 @keyframes listen {

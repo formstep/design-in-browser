@@ -1,5 +1,4 @@
-// Messages and records shared by the daemon, the MCP shim and the extension.
-// The extension is bundled from TypeScript too, so these types are the one source of truth.
+// Messages and records shared by the daemon, the MCP shim, the Vite plugin and the page client.
 
 export const PRODUCT_NAME = 'design-in-browser'
 export const DEFAULT_PORT = 47821
@@ -21,10 +20,6 @@ export function agentLabel(clientName: string | undefined): string {
   const key = (clientName ?? '').toLowerCase()
   return KNOWN_AGENTS[key] ?? FALLBACK_AGENT
 }
-
-// The extension's id is pinned by the `key` in extension/manifest.json.
-// The daemon only accepts extension sockets whose Origin is one of these.
-export const PINNED_EXTENSION_ID = 'acgljpfcidgogojgnhpagcglfkmkpipo'
 
 /** Close code the daemon uses when a newer listener replaces an older one. */
 export const LISTENER_REPLACED_CLOSE_CODE = 4001
@@ -68,6 +63,28 @@ export type InReplyTo = {
   question: string
 }
 
+/** A knob the agent gives one alternative, for the user to adjust live: a feature on or off, a size, or a choice. */
+export type TweakSpec =
+  | { kind: 'toggle'; label: string; default: boolean }
+  | { kind: 'range'; label: string; min: number; max: number; step: number; default: number; unit?: string }
+  | { kind: 'choice'; label: string; options: string[]; default: string }
+
+export type TweakValue = boolean | number | string
+
+/** A tweak as the user left it when picking a version, with its label so the batch reads on its own. */
+export type ChosenTweak = { id: string; label: string; value: TweakValue }
+
+/**
+ * What a comment asks for. Absent means a plain comment in words.
+ * - alternatives: build `count` versions of the element in source, behind a `<Variants>` wrapper, each with a few
+ *   tweaks, for the user to cycle through and adjust.
+ * - choose-variant: the user picked a version of a `<Variants>` group with these tweak values; keep that one with
+ *   the values written in, and remove the wrapper and the other versions.
+ */
+export type Intent =
+  | { kind: 'alternatives'; count: number }
+  | { kind: 'choose-variant'; group: string; index: number; label: string; tweaks: ChosenTweak[] }
+
 /** A comment as the extension drafts it. `element` is null for a note about the whole page. */
 export type DraftComment = {
   id: string
@@ -76,10 +93,13 @@ export type DraftComment = {
   element: ElementRef | null
   /** Set when this comment answers a question Claude asked; same page and element as the original. */
   inReplyTo: InReplyTo | null
+  /** What kind of change this is; absent for a comment in words. */
+  intent?: Intent
   createdAt: string
 }
 
-export type CommentStatus = 'pending' | 'done' | 'question' | 'skipped'
+/** `variants`: alternatives are in the page behind a `<Variants>` wrapper, waiting for the user to pick one. */
+export type CommentStatus = 'pending' | 'done' | 'question' | 'skipped' | 'variants'
 export type ReplyStatus = Exclude<CommentStatus, 'pending'>
 
 export type BatchComment = DraftComment & {
@@ -119,10 +139,11 @@ export type SessionInfo = {
   connectedAt: string
 }
 
-// Extension <-> daemon, over ws://127.0.0.1:<port>/ext
+// Vite plugin <-> daemon, over ws://127.0.0.1:<port>/page?token=...
 
 export type ExtensionToDaemon =
-  | { type: 'hello'; extensionVersion: string }
+  /** `projectRoot` (from the Vite plugin) asks for that project's batches too, even with no session connected. */
+  | { type: 'hello'; extensionVersion: string; projectRoot?: string }
   | { type: 'ping' }
   | { type: 'send-batch'; clientBatchId: string; sessionId: string; comments: DraftComment[] }
 

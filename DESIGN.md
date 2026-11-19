@@ -1,6 +1,6 @@
 ---
 name: Design in Browser
-description: Claude Design's dark canvas chrome, carried onto a live local app and a chat side panel, for any coding agent.
+description: Claude Design's dark canvas chrome, carried onto a live local app and a chat dock, for any coding agent.
 colors:
   ground: "#191919"
   card: "#1f1f1f"
@@ -77,7 +77,7 @@ components:
 
 ## Overview
 
-The extension copies Claude Design, at the user's request: its dark chrome, its blue selection, its comment pins and comment card, its bottom tool pill and "Ask Claude" bar, and claude.ai's chat for the side panel. Values were measured from claude.ai on 2026-11-19 (computed styles where readable, pixel samples elsewhere). It is dark only, whatever the system theme. It sits on top of other people's apps, so it stays neutral grey with one blue, and never borrows the host page's styles (everything renders in a shadow root).
+The overlay and dock copy Claude Design, at the user's request: its dark chrome, its blue selection, its comment pins and comment card, its bottom tool pill and "Ask Claude" bar, and claude.ai's chat for the dock. Values were measured from claude.ai on 2026-11-19 (computed styles where readable, pixel samples elsewhere). It is dark only, whatever the system theme. It sits on top of other people's apps, so it stays neutral grey with one blue, and never borrows the host page's styles (everything renders in a shadow root).
 
 Not copied: Anthropic's fonts and logos, the formatting toolbar, the mic, the model picker, and the selection's resize handles (nothing in the overlay resizes, so handles would be a false promise). The UI uses the system sans, and a system serif for the agent's words.
 
@@ -91,7 +91,7 @@ The look is Claude Design's; the words are not tied to Claude. Every label that 
 
 ### Neutral
 
-- **Ground `#191919`** behind the side panel. **Card `#1f1f1f`** for the comment card, pin threads and the tool pill. **Control `#303030`** for the composer, the Ask bar and the reply fields.
+- **Ground `#191919`** behind the dock. **Card `#1f1f1f`** for the comment card, pin threads and the tool pill. **Control `#303030`** for the composer, the Ask bar and the reply fields.
 - Text is white at 93%, 62% and 52%. The reference uses 40% for labels; 52% keeps 12px labels at 4.5:1 on the card.
 
 ### Named Rules
@@ -116,7 +116,7 @@ Radii step 8 (controls), 12 (bubbles, reply fields), 14 (composer, Ask bar), 16 
 - **Comment card:** 300px, beside the pin at the clicked point. A muted line naming the element, the "@<agent>" chip on the first line of the text, "Send to <agent>" (off by default: comments stack until sent) and an Enter hint.
 - **Pin thread:** opens on click, hover or focus. You, then the agent in the serif, then an "Answer <agent>" field when the agent asked something.
 - **Tool pill:** bottom centre while picking. Comment tool, comment count, "Ask <agent>" (a page note in a bar above it) and Done.
-- **Side panel:** a 44px header with the project and a listening dot; a chat thread where each batch is your bubble and the agent's numbered replies follow; a composer holding stacked comments like attachments, a message field and a send button.
+- **Dock:** opens from a launcher in the bottom-right corner (Alt+Shift+D) on the right of the page, 380px wide. A 44px header with the project, a listening dot and a close button; a chat thread where each batch is your bubble and the agent's numbered replies follow; a composer holding stacked comments like attachments, a message field and a send button.
 
 ## Do's and Don'ts
 

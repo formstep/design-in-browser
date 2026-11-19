@@ -1,5 +1,5 @@
 // Runs the built plugin bundles end to end: MCP shim over stdio, the daemon it starts,
-// a fake extension socket, and a listener standing in for Claude's Monitor.
+// a fake Vite-plugin socket, and a listener standing in for the agent's Monitor.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import http from 'node:http'
@@ -10,10 +10,10 @@ import { after, before, test } from 'node:test'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import WebSocket from 'ws'
+import { defaultSession, sameProject, type PageState } from '../src/shared/page.ts'
 import {
   agentLabel,
   LISTENER_REPLACED_CLOSE_CODE,
-  PINNED_EXTENSION_ID,
   type Batch,
   type DaemonToExtension,
   type DraftComment,
@@ -97,7 +97,7 @@ function open<T>(url: string, parse: (raw: string) => T, origin?: string): Promi
 }
 
 const openExtension = () =>
-  open<DaemonToExtension>(`ws://127.0.0.1:${port}/ext`, (raw) => JSON.parse(raw), `chrome-extension://${PINNED_EXTENSION_ID}`)
+  open<DaemonToExtension>(`ws://127.0.0.1:${port}/page?token=${fs.readFileSync(path.join(home, 'token'), 'utf8').trim()}`, (raw) => JSON.parse(raw))
 
 const openListener = (url: string) => open<string>(url, (raw) => raw)
 
@@ -266,10 +266,9 @@ test('a new session on the same project takes over open batches', async () => {
   extension.socket.close()
 })
 
-test('the daemon refuses foreign origins and hosts', async () => {
-  await assert.rejects(open(`ws://127.0.0.1:${port}/ext`, String, 'https://evil.example'), /HTTP 403/)
-  await assert.rejects(open(`ws://127.0.0.1:${port}/ext`, String), /HTTP 403/)
+test('the daemon refuses wrong tokens and foreign hosts', async () => {
   await assert.rejects(open(`ws://127.0.0.1:${port}/shim?token=wrong`, String), /HTTP 401/)
+  await assert.rejects(open(`ws://127.0.0.1:${port}/page?token=wrong`, String), /HTTP 401/)
   const status = await new Promise<number>((resolve) => {
     http.get({ host: '127.0.0.1', port, path: '/health', headers: { host: 'evil.example' } }, (res) => resolve(res.statusCode ?? 0))
   })
@@ -304,4 +303,28 @@ test('agents are named from their MCP client name', () => {
   assert.equal(agentLabel('OpenCode'), 'OpenCode')
   assert.equal(agentLabel('something-else'), 'Agent')
   assert.equal(agentLabel(undefined), 'Agent')
+})
+
+test('the dock routes to the session on its project, or to none', () => {
+  assert.ok(sameProject('/repo', '/repo'))
+  assert.ok(sameProject('/repo', '/repo/apps/web'))
+  assert.ok(sameProject('/repo/apps/web/', '/repo'))
+  assert.ok(!sameProject('/repo', '/repo-other'))
+  const session = (id: string, projectRoot: string, connectedAt: string) => ({ id, label: id, agent: 'Claude', projectRoot, origins: [], listening: true, connectedAt })
+  const state: PageState = {
+    connection: 'connected',
+    projectRoot: '/repo/apps/web',
+    sessions: [session('old', '/repo', '2026-01-01'), session('new', '/repo', '2026-01-02'), session('other', '/elsewhere', '2026-01-03')],
+    batches: [],
+    draft: [],
+    sending: false,
+    lastError: null,
+    pickedSessionId: null,
+    sendOnAdd: false,
+    variantChoices: {},
+    tweakValues: {},
+  }
+  assert.equal(defaultSession(state)?.id, 'new')
+  assert.equal(defaultSession({ ...state, pickedSessionId: 'other' })?.id, 'other')
+  assert.equal(defaultSession({ ...state, sessions: [state.sessions[2]!] }), null)
 })

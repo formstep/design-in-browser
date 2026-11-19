@@ -98,10 +98,11 @@ kbd {
 
 /* --- tool pill while picking ----------------------------------------------------------- */
 
+/* Centred in the part of the window the dock leaves free. */
 .dock {
   position: fixed;
   bottom: 16px;
-  left: 50%;
+  left: calc((100% - var(--reserved-right, 0px)) / 2);
   display: grid;
   justify-items: center;
   gap: 8px;

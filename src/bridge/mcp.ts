@@ -116,7 +116,7 @@ server.registerTool(
         .array(
           z.object({
             commentId: z.string(),
-            status: z.enum(['done', 'question', 'skipped']),
+            status: z.enum(['done', 'question', 'skipped', 'variants']),
             message: z.string().describe('One or two short sentences for the user.'),
           }),
         )
