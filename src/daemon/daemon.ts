@@ -1,52 +1,22 @@
-// One daemon per machine. It holds three kinds of sockets:
+// One daemon per machine, started by the first agent session that connects. It holds three kinds of sockets:
 //   /page?token=...          a Vite dev server running the plugin, relaying for its pages
 //   /shim?token=...          one MCP server per agent session that ran /design-in-browser:live
 //   /listen/<session>?key=   the agent's Monitor; each text frame wakes the agent
-// Batches live in the project's journal folder; memory only caches them.
+// The state (sessions and batches) lives in state.ts; this file is the network and the process.
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import http from 'node:http'
-import path from 'node:path'
 import { WebSocket, WebSocketServer } from 'ws'
 import { z } from 'zod'
-import {
-  LISTENER_REPLACED_CLOSE_CODE,
-  PRODUCT_NAME,
-  START_COMMAND,
-  type Batch,
-  type ConnectParams,
-  type ConnectResult,
-  type DaemonToPlugin,
-  type GetBatchParams,
-  type Health,
-  type ReplyParams,
-  type SessionInfo,
-  type ShimRequest,
-  type ShimResponse,
-  type StatusResult,
-} from '../shared/protocol.ts'
+import { LISTENER_REPLACED_CLOSE_CODE, PRODUCT_NAME, type DaemonToPlugin, type Health, type ShimRequest, type ShimResponse } from '../shared/protocol.ts'
 import { BUILD_ID, config, tokenPath } from '../node/config.ts'
-import { appendEvent, ensureJournal, nextBatchId, readBatches, writeBatch } from '../node/journal.ts'
 import { draftCommentSchema } from './schemas.ts'
+import * as state from './state.ts'
 
 const log = (...parts: unknown[]) => console.error(new Date().toISOString(), ...parts)
 
-type Session = {
-  id: string
-  projectRoot: string
-  agent: string
-  origins: string[]
-  connectedAt: string
-  shim: WebSocket
-  listenKey: string
-  listener: WebSocket | null
-}
-
-const sessions = new Map<string, Session>()
 /** Vite dev servers running the plugin. */
 const devServers = new Set<WebSocket>()
-/** projectRoot -> batchId -> batch */
-const projects = new Map<string, Map<string, Batch>>()
 let lastActivity = Date.now()
 
 function readOrCreateToken(): string {
@@ -66,185 +36,84 @@ function sameSecret(a: string, b: string): boolean {
   return left.length === right.length && crypto.timingSafeEqual(left, right)
 }
 
-// --- projects and batches ---------------------------------------------------
+const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
-function projectBatches(projectRoot: string): Map<string, Batch> {
-  const cached = projects.get(projectRoot)
-  if (cached) return cached
-  const loaded = new Map(readBatches(projectRoot).map((batch) => [batch.id, batch]))
-  projects.set(projectRoot, loaded)
-  return loaded
-}
-
-function saveBatch(batch: Batch, event: Record<string, unknown>): void {
-  projectBatches(batch.projectRoot).set(batch.id, batch)
-  writeBatch(batch)
-  appendEvent(batch.projectRoot, { batch: batch.id, ...event })
-  broadcast({ type: 'batch-updated', batch })
-}
-
-function recentBatches(projectRoot?: string): Batch[] {
-  const roots = new Set([...sessions.values()].map((session) => session.projectRoot))
-  if (projectRoot && path.isAbsolute(projectRoot) && fs.existsSync(projectRoot)) roots.add(projectRoot)
-  return [...roots]
-    .flatMap((root) => [...projectBatches(root).values()])
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, 30)
-}
-
-function unfetchedFor(session: Session): Batch[] {
-  return [...projectBatches(session.projectRoot).values()].filter(
-    (batch) => batch.sessionId === session.id && batch.status === 'queued',
-  )
-}
-
-function ringDoorbell(session: Session, batch: Batch): void {
-  if (session.listener?.readyState !== WebSocket.OPEN) return
-  const count = batch.comments.length
-  const noun = count === 1 ? 'comment' : 'comments'
-  session.listener.send(`${PRODUCT_NAME}: batch ${batch.id} ready, ${count} ${noun}. Call live_get_batch.`)
-}
-
-// --- sessions ------------------------------------------------------------------
-
-function sessionInfo(session: Session): SessionInfo {
-  return {
-    id: session.id,
-    label: path.basename(session.projectRoot),
-    agent: session.agent,
-    projectRoot: session.projectRoot,
-    origins: session.origins,
-    listening: session.listener !== null,
-    connectedAt: session.connectedAt,
-  }
+function send(socket: WebSocket, message: DaemonToPlugin): void {
+  socket.send(JSON.stringify(message))
 }
 
 function broadcast(message: DaemonToPlugin): void {
-  const data = JSON.stringify(message)
-  for (const socket of devServers) socket.send(data)
+  for (const socket of devServers) send(socket, message)
 }
 
-function broadcastSessions(): void {
-  broadcast({ type: 'sessions', sessions: [...sessions.values()].map(sessionInfo) })
-}
+state.onChanges({
+  batchSaved: (batch) => broadcast({ type: 'batch-updated', batch }),
+  sessionsChanged: () => broadcast({ type: 'sessions', sessions: state.allSessions().map(state.sessionInfo) }),
+})
 
-function requireSession(sessionId: string): Session {
-  const session = sessions.get(sessionId)
-  if (!session) throw new Error(`No connected session ${sessionId}. Call live_connect first.`)
-  return session
-}
-
-function connect(params: ConnectParams, shim: WebSocket): ConnectResult {
-  if (!path.isAbsolute(params.projectRoot)) throw new Error(`projectRoot must be absolute: ${params.projectRoot}`)
-  if (!fs.statSync(params.projectRoot, { throwIfNoEntry: false })?.isDirectory()) {
-    throw new Error(`projectRoot is not a directory: ${params.projectRoot}`)
-  }
-  const journalDir = ensureJournal(params.projectRoot)
-  // A repeated connect updates the session in place: listener close handlers hold on to this object.
-  const existing = sessions.get(params.sessionId)
-  const session: Session = existing ?? {
-    id: params.sessionId,
-    projectRoot: params.projectRoot,
-    agent: params.agent,
-    origins: params.origins,
-    connectedAt: new Date().toISOString(),
-    shim,
-    listenKey: crypto.randomBytes(16).toString('hex'),
-    listener: null,
-  }
-  session.projectRoot = params.projectRoot
-  session.agent = params.agent
-  session.origins = params.origins
-  session.shim = shim
-  sessions.set(session.id, session)
-
-  // Open batches whose session is gone move to this one, so nothing sent is lost.
-  for (const batch of projectBatches(session.projectRoot).values()) {
-    if (batch.status === 'done' || batch.sessionId === session.id || sessions.has(batch.sessionId)) continue
-    saveBatch({ ...batch, sessionId: session.id, agent: session.agent }, { type: 'adopted', session: session.id })
-  }
-
-  broadcastSessions()
-  log('session connected', session.id, session.projectRoot, session.origins.join(','))
-  return {
-    listenUrl: `ws://127.0.0.1:${config.port}/listen/${session.id}?key=${session.listenKey}`,
-    journalDir,
-    unfetched: unfetchedFor(session).map((batch) => batch.id),
-  }
-}
-
-function getBatch(params: GetBatchParams): Batch | null {
-  const session = requireSession(params.sessionId)
-  const batches = projectBatches(session.projectRoot)
-  const batch =
-    params.batchId === undefined
-      ? unfetchedFor(session)[0]
-      : batches.get(params.batchId)
-  if (!batch) {
-    if (params.batchId !== undefined) throw new Error(`No batch ${params.batchId} in ${session.projectRoot}`)
-    return null
-  }
-  if (batch.status !== 'queued') return batch
-  const fetched: Batch = { ...batch, status: 'fetched', sessionId: session.id, agent: session.agent }
-  saveBatch(fetched, { type: 'fetched', session: session.id })
-  return fetched
-}
-
-function reply(params: ReplyParams): Batch {
-  const session = requireSession(params.sessionId)
-  const batch = projectBatches(session.projectRoot).get(params.batchId)
-  if (!batch) throw new Error(`No batch ${params.batchId} in ${session.projectRoot}`)
-  const byId = new Map(params.replies.map((entry) => [entry.commentId, entry]))
-  const unknown = [...byId.keys()].filter((id) => !batch.comments.some((comment) => comment.id === id))
-  if (unknown.length > 0) throw new Error(`Unknown comment ids in batch ${batch.id}: ${unknown.join(', ')}`)
-  const comments = batch.comments.map((comment) => {
-    const entry = byId.get(comment.id)
-    if (!entry) return comment
-    return entry.group ? { ...comment, status: entry.status, reply: entry.message, group: entry.group } : { ...comment, status: entry.status, reply: entry.message }
-  })
-  const allAnswered = comments.every((comment) => comment.status !== 'pending')
-  const updated: Batch = {
-    ...batch,
-    comments,
-    summary: params.summary ?? batch.summary,
-    status: allAnswered ? 'done' : 'fetched',
-  }
-  saveBatch(updated, { type: 'replied', session: session.id, comments: [...byId.keys()] })
-  return updated
-}
-
-function status(sessionId: string): StatusResult {
-  const session = requireSession(sessionId)
-  const open = [...projectBatches(session.projectRoot).values()].filter(
-    (batch) => batch.sessionId === session.id && batch.status !== 'done',
-  )
-  return {
-    sessionId,
-    listening: session.listener !== null,
-    devServersConnected: devServers.size,
-    unfetched: unfetchedFor(session).map((batch) => batch.id),
-    open: open.map((batch) => ({
-      id: batch.id,
-      status: batch.status,
-      pending: batch.comments.filter((comment) => comment.status === 'pending').length,
-    })),
-  }
-}
+// --- MCP servers ---------------------------------------------------------------------
 
 function handleShimRequest(request: ShimRequest, shim: WebSocket): unknown {
   switch (request.method) {
-    case 'connect':
-      return connect(request.params, shim)
+    case 'connect': {
+      const { session, result } = state.connect(request.params, shim)
+      log('session connected', session.id, session.projectRoot, session.origins.join(','))
+      return result
+    }
     case 'getBatch':
-      return getBatch(request.params)
+      return state.getBatch(request.params)
     case 'reply':
-      return reply(request.params)
+      return state.reply(request.params)
     case 'status':
-      return status(request.params.sessionId)
+      return state.status(request.params.sessionId, devServers.size)
   }
 }
 
-// --- messages from Vite dev servers ------------------------------------------
+function acceptShim(ws: WebSocket): void {
+  lastActivity = Date.now()
+  ws.on('message', (data) => {
+    lastActivity = Date.now()
+    let request: ShimRequest
+    try {
+      // The token proved this is our own MCP server; its requests are typed, not validated.
+      request = JSON.parse(data.toString()) as ShimRequest
+    } catch {
+      return
+    }
+    let response: ShimResponse
+    try {
+      response = { id: request.id, result: handleShimRequest(request, ws) }
+    } catch (error) {
+      response = { id: request.id, error: errorMessage(error) }
+    }
+    ws.send(JSON.stringify(response))
+  })
+  ws.on('close', () => {
+    for (const session of state.endSessionsOf(ws)) log('session ended', session.id)
+    lastActivity = Date.now()
+  })
+}
+
+function acceptListener(session: state.Session, ws: WebSocket): void {
+  const previous = session.listener
+  session.listener = ws
+  if (previous) previous.close(LISTENER_REPLACED_CLOSE_CODE, 'replaced by a newer listener')
+  ws.on('close', () => {
+    if (session.listener !== ws) return
+    session.listener = null
+    broadcast({ type: 'sessions', sessions: state.allSessions().map(state.sessionInfo) })
+  })
+  broadcast({ type: 'sessions', sessions: state.allSessions().map(state.sessionInfo) })
+  // Ring again for everything not fetched yet. The previous Monitor may have died before a doorbell reached the
+  // agent; a repeat costs one live_get_batch that answers "No unfetched batch". The short wait keeps a frame out
+  // of the handshake's packet, for clients that listen late.
+  setTimeout(() => {
+    if (session.listener !== ws) return
+    for (const batch of state.unfetchedFor(session)) state.ringDoorbell(session, batch)
+  }, 250)
+}
+
+// --- Vite dev servers ------------------------------------------------------------------
 
 const pluginMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('hello'), projectRoot: z.string().max(2000).optional() }),
@@ -266,55 +135,33 @@ function handlePluginMessage(socket: WebSocket, raw: string): void {
   const message = parsed.data
   switch (message.type) {
     case 'hello':
-      send(socket, { type: 'state', sessions: [...sessions.values()].map(sessionInfo), batches: recentBatches(message.projectRoot) })
+      send(socket, { type: 'state', sessions: state.allSessions().map(state.sessionInfo), batches: state.recentBatches(message.projectRoot) })
       return
     case 'ping':
       send(socket, { type: 'pong' })
       return
-    case 'send-batch': {
-      const session = sessions.get(message.sessionId)
-      if (!session) {
-        send(socket, {
-          type: 'error',
-          message: `That agent session has ended. Connect a session again (in Claude Code: ${START_COMMAND}), then send.`,
-          clientBatchId: message.clientBatchId,
-        })
-        return
+    case 'send-batch':
+      try {
+        const batch = state.queueBatch(message.sessionId, message.comments)
+        send(socket, { type: 'batch-accepted', clientBatchId: message.clientBatchId, batch })
+      } catch (error) {
+        send(socket, { type: 'error', message: errorMessage(error), clientBatchId: message.clientBatchId })
       }
-      // An answer must reach the project whose batch asked the question.
-      const known = projectBatches(session.projectRoot)
-      const misrouted = message.comments.some(
-        ({ inReplyTo }) => inReplyTo && !known.get(inReplyTo.batchId)?.comments.some((original) => original.id === inReplyTo.commentId),
-      )
-      if (misrouted) {
-        send(socket, {
-          type: 'error',
-          message: `An answer goes to the project that asked the question, not ${path.basename(session.projectRoot)}. Pick that project's session and send again.`,
-          clientBatchId: message.clientBatchId,
-        })
-        return
-      }
-      ensureJournal(session.projectRoot)
-      const batch: Batch = {
-        id: nextBatchId(session.projectRoot),
-        projectRoot: session.projectRoot,
-        agent: session.agent,
-        sessionId: session.id,
-        createdAt: new Date().toISOString(),
-        status: 'queued',
-        summary: null,
-        comments: message.comments.map((comment) => ({ ...comment, status: 'pending', reply: null })),
-      }
-      saveBatch(batch, { type: 'created', session: session.id, comments: batch.comments.length })
-      send(socket, { type: 'batch-accepted', clientBatchId: message.clientBatchId, batch })
-      ringDoorbell(session, batch)
       return
-    }
   }
 }
 
-function send(socket: WebSocket, message: DaemonToPlugin): void {
-  socket.send(JSON.stringify(message))
+function acceptDevServer(ws: WebSocket): void {
+  devServers.add(ws)
+  ws.on('message', (data) => {
+    try {
+      handlePluginMessage(ws, data.toString())
+    } catch (error) {
+      log('dev server message failed', error)
+      send(ws, { type: 'error', message: errorMessage(error) })
+    }
+  })
+  ws.on('close', () => devServers.delete(ws))
 }
 
 // --- http + upgrade -----------------------------------------------------------
@@ -352,22 +199,18 @@ server.on('upgrade', (req, socket, head) => {
   }
   if (!allowedHosts.has(req.headers.host ?? '')) return reject(403)
 
-  // The Vite plugin's dev server: a Node client on this machine, so it proves itself with the token.
-  if (url.pathname === '/page') {
+  // The Vite plugin's dev server and the MCP servers are Node clients on this machine: they prove themselves with
+  // the token in ~/.design-in-browser, which a web page can't read.
+  if (url.pathname === '/page' || url.pathname === '/shim') {
     if (!sameSecret(url.searchParams.get('token') ?? '', token)) return reject(401)
-    wss.handleUpgrade(req, socket, head, (ws) => acceptDevServer(ws))
-    return
-  }
-
-  if (url.pathname === '/shim') {
-    if (!sameSecret(url.searchParams.get('token') ?? '', token)) return reject(401)
-    wss.handleUpgrade(req, socket, head, (ws) => acceptShim(ws))
+    const accept = url.pathname === '/page' ? acceptDevServer : acceptShim
+    wss.handleUpgrade(req, socket, head, accept)
     return
   }
 
   const listen = /^\/listen\/([\w-]+)$/.exec(url.pathname)
   if (listen) {
-    const session = sessions.get(listen[1] ?? '')
+    const session = state.getSession(listen[1] ?? '')
     if (!session) return reject(404)
     if (!sameSecret(url.searchParams.get('key') ?? '', session.listenKey)) return reject(401)
     wss.handleUpgrade(req, socket, head, (ws) => acceptListener(session, ws))
@@ -377,78 +220,18 @@ server.on('upgrade', (req, socket, head) => {
   reject(404)
 })
 
-function acceptDevServer(ws: WebSocket): void {
-  devServers.add(ws)
-  ws.on('message', (data) => {
-    try {
-      handlePluginMessage(ws, data.toString())
-    } catch (error) {
-      log('dev server message failed', error)
-      send(ws, { type: 'error', message: error instanceof Error ? error.message : String(error) })
-    }
-  })
-  ws.on('close', () => devServers.delete(ws))
-}
-
-function acceptShim(ws: WebSocket): void {
-  lastActivity = Date.now()
-  ws.on('message', (data) => {
-    lastActivity = Date.now()
-    let request: ShimRequest
-    try {
-      request = JSON.parse(data.toString()) as ShimRequest
-    } catch {
-      return
-    }
-    let response: ShimResponse
-    try {
-      response = { id: request.id, result: handleShimRequest(request, ws) }
-    } catch (error) {
-      response = { id: request.id, error: error instanceof Error ? error.message : String(error) }
-    }
-    ws.send(JSON.stringify(response))
-  })
-  ws.on('close', () => {
-    for (const session of [...sessions.values()]) {
-      if (session.shim !== ws) continue
-      sessions.delete(session.id)
-      session.listener?.close(1001, 'session ended')
-      log('session ended', session.id)
-    }
-    lastActivity = Date.now()
-    broadcastSessions()
-  })
-}
-
-function acceptListener(session: Session, ws: WebSocket): void {
-  const previous = session.listener
-  session.listener = ws
-  if (previous) previous.close(LISTENER_REPLACED_CLOSE_CODE, 'replaced by a newer listener')
-  ws.on('close', () => {
-    if (session.listener !== ws) return
-    session.listener = null
-    broadcastSessions()
-  })
-  broadcastSessions()
-  // Ring again for everything not fetched yet. The previous Monitor may have died before a
-  // doorbell reached the agent; a repeat costs one live_get_batch that answers "No unfetched batch".
-  // The short wait keeps a frame out of the handshake's packet, for clients that listen late.
-  setTimeout(() => {
-    if (session.listener !== ws) return
-    for (const batch of unfetchedFor(session)) ringDoorbell(session, batch)
-  }, 250)
-}
+// --- lifecycle ------------------------------------------------------------------------
 
 function shutdown(reason: string): void {
   log('shutting down:', reason)
-  for (const session of sessions.values()) session.listener?.close(1001, 'daemon stopping')
+  for (const session of state.allSessions()) session.listener?.close(1001, 'daemon stopping')
   for (const client of wss.clients) client.terminate()
   server.close(() => process.exit(0))
   setTimeout(() => process.exit(0), 1000).unref()
 }
 
 setInterval(() => {
-  if (sessions.size === 0 && Date.now() - lastActivity > config.idleExitMs) shutdown('idle')
+  if (state.sessionCount() === 0 && Date.now() - lastActivity > config.idleExitMs) shutdown('idle')
 }, 30_000).unref()
 
 process.on('SIGTERM', () => shutdown('SIGTERM'))
