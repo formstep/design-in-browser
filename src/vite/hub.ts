@@ -6,7 +6,7 @@ import path from 'node:path'
 import WebSocket from 'ws'
 import type { Batch, DaemonToPlugin, PluginToDaemon } from '../shared/protocol.ts'
 import { START_COMMAND } from '../shared/protocol.ts'
-import { sameProject, versionKey, type PageOp, type PageState } from '../shared/page-protocol.ts'
+import { sameProject, sendable, versionKey, type PageOp, type PageState } from '../shared/page-protocol.ts'
 import { config, tokenPath } from '../node/config.ts'
 import { ensureJournal } from '../node/journal.ts'
 
@@ -94,7 +94,7 @@ export class Hub {
   }
 
   private send(sessionId: string): string | null {
-    const comments = this.state.draft.filter((comment) => comment.text.trim() !== '')
+    const comments = sendable(this.state.draft)
     if (comments.length === 0) return null
     if (this.socket?.readyState !== WebSocket.OPEN) {
       const message = `Not connected to a coding agent. Connect a session (in Claude Code: ${START_COMMAND}), then send again.`
@@ -195,18 +195,16 @@ export class Hub {
     this.broadcast(this.state)
   }
 
+  /** The saved stack and choices. Fields missing from an older file start empty; an unreadable file is reported. */
   private load(): Saved {
+    const empty: Saved = { draft: [], pickedSessionId: null, sendOnAdd: false, variantChoices: {}, tweakValues: {} }
+    if (!fs.existsSync(this.savedFile)) return empty
     try {
       const saved = JSON.parse(fs.readFileSync(this.savedFile, 'utf8')) as Partial<Saved>
-      return {
-        draft: saved.draft ?? [],
-        pickedSessionId: saved.pickedSessionId ?? null,
-        sendOnAdd: saved.sendOnAdd ?? false,
-        variantChoices: saved.variantChoices ?? {},
-        tweakValues: saved.tweakValues ?? {},
-      }
-    } catch {
-      return { draft: [], pickedSessionId: null, sendOnAdd: false, variantChoices: {}, tweakValues: {} }
+      return { ...empty, ...saved }
+    } catch (error) {
+      console.warn(`[design-in-browser] Starting with an empty comment stack: could not read ${this.savedFile} (${error instanceof Error ? error.message : String(error)}).`)
+      return empty
     }
   }
 

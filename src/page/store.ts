@@ -4,7 +4,7 @@
 import { defaultSession, PAGE_EVENT, type OpAck, type OpRequest, type PageOp, type PageState } from '../shared/page-protocol.ts'
 import { FALLBACK_AGENT, type DraftComment, type SessionInfo } from '../shared/protocol.ts'
 
-export { defaultSession } from '../shared/page-protocol.ts'
+export { defaultSession, sendable } from '../shared/page-protocol.ts'
 export type { PageState } from '../shared/page-protocol.ts'
 
 const OP_TIMEOUT_MS = 4000

@@ -2,12 +2,12 @@
 // corner (Alt+Shift+D). The header names the session, the thread shows sent batches and the agent's replies,
 // and the composer at the bottom holds the stacked comments plus an optional note.
 // Lists are rebuilt only when their data changes, so the periodic render never wipes text being typed.
-import { FALLBACK_AGENT, START_COMMAND, type SessionInfo } from '../../shared/protocol.ts'
+import { START_COMMAND, type SessionInfo } from '../../shared/protocol.ts'
 import { capturePage } from '../capture.ts'
 import { newComment } from '../comments.ts'
 import { fillIcons } from '../icons.ts'
 import { isPicking, onModeChange, togglePicker } from '../overlay/mode.ts'
-import { defaultSession, onStateChange, readState, sendOp, type PageState } from '../store.ts'
+import { agentName, defaultSession, onStateChange, readState, sendable, sendOp, type PageState } from '../store.ts'
 import { el, iconNode, query } from '../ui/dom.ts'
 import { frameScheduler, keepKeys, submitOnEnter } from '../ui/events.ts'
 import { plural } from '../ui/format.ts'
@@ -198,15 +198,15 @@ let renderedDraft = ''
 
 /** The agent that asked a question: the one that owns its batch. Batch ids repeat per project, so match the project too. */
 function askedBy(state: PageState, session: SessionInfo | null, batchId: string): string {
-  return state.batches.find((batch) => batch.id === batchId && batch.projectRoot === session?.projectRoot)?.agent ?? session?.agent ?? FALLBACK_AGENT
+  return state.batches.find((batch) => batch.id === batchId && batch.projectRoot === session?.projectRoot)?.agent ?? agentName(state)
 }
 
 function renderComposer(state: PageState, session: SessionInfo | null, canSend: boolean): void {
-  const ready = state.draft.filter((comment) => comment.text.trim() !== '').length
+  const ready = sendable(state.draft).length
   const typed = message.value.trim() !== ''
   sendButton.disabled = !canSend || state.sending || (ready === 0 && !typed)
   sendButton.title = canSend ? '' : 'Connect an agent session to send'
-  sendButton.setAttribute('aria-label', `Send to ${session?.agent ?? FALLBACK_AGENT}`)
+  sendButton.setAttribute('aria-label', `Send to ${agentName(state)}`)
   count.textContent = ready ? plural(ready, 'comment', 'comments') : ''
   errorLine.hidden = !state.lastError
   errorText.textContent = state.lastError ?? ''
@@ -238,8 +238,7 @@ async function send(): Promise<void> {
   const state = readState()
   const session = defaultSession(state)
   const text = message.value.trim()
-  const ready = state.draft.some((comment) => comment.text.trim() !== '')
-  if (!session || state.connection !== 'connected' || state.sending || (!ready && text === '')) return
+  if (!session || state.connection !== 'connected' || state.sending || (sendable(state.draft).length === 0 && text === '')) return
   if (text !== '') {
     await sendOp({ type: 'add-comment', comment: newComment({ text, page: capturePage(), element: null }) })
     message.value = ''
@@ -289,7 +288,7 @@ new ResizeObserver(keepEnd).observe(turnList)
 function render(): void {
   const state = readState()
   const session = defaultSession(state)
-  const ready = state.draft.filter((comment) => comment.text.trim() !== '').length
+  const ready = sendable(state.draft).length
   launcherCount.textContent = ready ? String(ready) : ''
   pickButton.setAttribute('aria-pressed', String(isPicking()))
   if (dock.hidden) return
@@ -300,7 +299,7 @@ function render(): void {
   notice.hidden = !unmatched && (!connected || session.listening)
   notice.textContent = unmatched
     ? 'No agent session is working on this project. Choose one above to send to it.'
-    : `${session?.agent ?? FALLBACK_AGENT} isn’t listening right now. What you send waits until it’s back.`
+    : `${agentName(state)} isn’t listening right now. What you send waits until it’s back.`
 
   renderComposer(state, session, connected)
   renderIntro(state, session)

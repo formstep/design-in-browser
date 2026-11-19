@@ -7,7 +7,7 @@ import { bridge, notify, shownIndex, subscribe, valuesFor } from '../../shared/v
 import { captureElement, capturePage } from '../capture.ts'
 import { isPick, newComment } from '../comments.ts'
 import { addComment, agentName, readState, sendOp, type PageState } from '../store.ts'
-import { el } from '../ui/dom.ts'
+import { el, query } from '../ui/dom.ts'
 import { keepKeys } from '../ui/events.ts'
 import { addStyles } from '../ui/shadow-host.ts'
 import { bar } from './bar.ts'
@@ -101,7 +101,7 @@ function pendingPick(state: PageState, group: string): { label: string } | null 
 /** The bar's width with Tweaks and the pick button showing: it is placed at that width, so hover never moves it. */
 function fullWidth(node: HTMLElement): number {
   node.classList.add('measuring')
-  const width = node.querySelector<HTMLElement>('.variant-bar')?.offsetWidth ?? 0
+  const width = query<HTMLElement>(node, '.variant-bar').offsetWidth
   node.classList.remove('measuring')
   return width
 }

@@ -4,7 +4,7 @@
 import { icon } from '../icons.ts'
 import { button, el } from '../ui/dom.ts'
 
-export type BarModel = {
+type BarModel = {
   group: string
   labels: string[]
   /** The version shown. */
