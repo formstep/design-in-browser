@@ -10,7 +10,7 @@ fs.rmSync('dist', { recursive: true, force: true })
 const buildId = `${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${crypto.randomBytes(3).toString('hex')}`
 
 await build({
-  entryPoints: { daemon: 'src/bridge/daemon.ts', mcp: 'src/bridge/mcp.ts' },
+  entryPoints: { daemon: 'src/daemon/daemon.ts', mcp: 'src/mcp/server.ts' },
   outdir: 'plugin/dist',
   outExtension: { '.js': '.mjs' },
   bundle: true,

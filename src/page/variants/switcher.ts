@@ -1,12 +1,12 @@
 // The switcher on each `<Variants>` group: step through the versions, adjust the shown version's tweaks
 // live, and pick one. A pick goes to the agent as a comment with the version and every tweak's final value;
 // the agent then writes that version into the code and removes the wrapper.
-import type { ChosenTweak, DraftComment, TweakSpec, TweakValue, VariantContext } from '../shared/protocol.ts'
-import { bridge, notify, shownIndex, subscribe, tweakKey, valuesFor } from '../shared/variants-bridge.ts'
-import { captureElement, capturePage } from './capture.ts'
-import { icon } from './icons.ts'
-import type { PageState } from './store.ts'
-import { sendOp } from './store.ts'
+import type { ChosenTweak, DraftComment, TweakSpec, TweakValue, VariantContext } from '../../shared/protocol.ts'
+import { bridge, notify, shownIndex, subscribe, tweakKey, valuesFor } from '../../shared/variants-bridge.ts'
+import { captureElement, capturePage } from '../capture.ts'
+import { icon } from '../icons.ts'
+import type { PageState } from '../store.ts'
+import { sendOp } from '../store.ts'
 
 const SAVE_DELAY_MS = 250
 

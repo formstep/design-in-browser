@@ -10,7 +10,7 @@ import { after, before, test } from 'node:test'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import WebSocket from 'ws'
-import { defaultSession, sameProject, type PageState } from '../src/shared/page.ts'
+import { defaultSession, sameProject, type PageState } from '../src/shared/page-protocol.ts'
 import {
   agentLabel,
   LISTENER_REPLACED_CLOSE_CODE,

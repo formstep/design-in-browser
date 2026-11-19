@@ -5,7 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import WebSocket from 'ws'
 import { PRODUCT_NAME, type Health, type ShimMethods, type ShimResponse } from '../shared/protocol.ts'
-import { BUILD_ID, config, daemonLogPath, tokenPath } from './config.ts'
+import { BUILD_ID, config, daemonLogPath, tokenPath } from '../node/config.ts'
 
 const baseUrl = () => `http://127.0.0.1:${config.port}`
 
@@ -29,9 +29,10 @@ async function waitFor(check: () => Promise<boolean>, timeoutMs: number): Promis
 }
 
 function daemonScript(): string {
-  // Bundled: dist/mcp.mjs sits next to dist/daemon.mjs. From source: src/bridge/*.ts.
+  // Bundled: plugin/dist/mcp.mjs sits next to plugin/dist/daemon.mjs. From source: src/mcp/ next to src/daemon/.
   const self = fileURLToPath(import.meta.url)
-  return path.join(path.dirname(self), `daemon${path.extname(self)}`)
+  const bundled = path.extname(self) === '.mjs'
+  return bundled ? path.join(path.dirname(self), 'daemon.mjs') : path.join(path.dirname(self), '../daemon/daemon.ts')
 }
 
 function spawnDaemon(): void {

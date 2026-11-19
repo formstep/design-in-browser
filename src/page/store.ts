@@ -1,10 +1,10 @@
 // The page's view of the plugin's state, kept current over Vite's HMR socket.
 // Operations go to the plugin and resolve on its ack. Vite drops a send while its socket is down without
 // telling the caller, so every operation has its own timeout: a failed save must surface, not vanish.
-import { PAGE_EVENT, type OpAck, type OpRequest, type PageOp, type PageState } from '../shared/page.ts'
+import { PAGE_EVENT, type OpAck, type OpRequest, type PageOp, type PageState } from '../shared/page-protocol.ts'
 
-export { defaultSession } from '../shared/page.ts'
-export type { PageState } from '../shared/page.ts'
+export { defaultSession } from '../shared/page-protocol.ts'
+export type { PageState } from '../shared/page-protocol.ts'
 
 const OP_TIMEOUT_MS = 4000
 

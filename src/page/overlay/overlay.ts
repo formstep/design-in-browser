@@ -3,14 +3,14 @@
 // and a bottom tool pill while picking.
 // Everything renders inside one shadow root so page CSS can't reach it and it can't reach the page.
 // Page text and comment text only ever go in through textContent, never innerHTML.
-import type { Batch, BatchComment, CommentStatus, DraftComment, ElementRef, InReplyTo, PageRef } from '../shared/protocol.ts'
-import { FALLBACK_AGENT, START_COMMAND } from '../shared/protocol.ts'
-import { captureElement, capturePage, label, samePage } from './capture.ts'
-import { fillIcons, icon } from './icons.ts'
+import type { Batch, BatchComment, CommentStatus, DraftComment, ElementRef, InReplyTo, PageRef } from '../../shared/protocol.ts'
+import { FALLBACK_AGENT, START_COMMAND } from '../../shared/protocol.ts'
+import { captureElement, capturePage, label, samePage } from '../capture.ts'
+import { fillIcons, icon } from '../icons.ts'
 import overlayCss from './overlay.css'
-import { defaultSession, onStateChange, readState, sendOp, type PageState } from './store.ts'
-import tokensCss from './tokens.css'
-import { mountVariants, onGroupsChange, renderVariants, syncFromState, variantContextOf } from './variants-ui.ts'
+import { defaultSession, onStateChange, readState, sendOp, type PageState } from '../store.ts'
+import tokensCss from '../tokens.css'
+import { mountVariants, onGroupsChange, renderVariants, syncFromState, variantContextOf } from '../variants/switcher.ts'
 
 const PIN = 32
 const CARD_WIDTH = 300

@@ -6,9 +6,9 @@ import path from 'node:path'
 import WebSocket from 'ws'
 import type { Batch, DaemonToExtension, ExtensionToDaemon } from '../shared/protocol.ts'
 import { START_COMMAND } from '../shared/protocol.ts'
-import { sameProject, variantKey, type PageOp, type PageState } from '../shared/page.ts'
-import { config, tokenPath } from '../bridge/config.ts'
-import { ensureJournal } from '../bridge/journal.ts'
+import { sameProject, variantKey, type PageOp, type PageState } from '../shared/page-protocol.ts'
+import { config, tokenPath } from '../node/config.ts'
+import { ensureJournal } from '../node/journal.ts'
 
 const RETRY_MS = 2000
 const KEEPALIVE_MS = 20_000

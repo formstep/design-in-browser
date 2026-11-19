@@ -25,8 +25,8 @@ import {
   type ShimResponse,
   type StatusResult,
 } from '../shared/protocol.ts'
-import { BUILD_ID, config, tokenPath } from './config.ts'
-import { appendEvent, ensureJournal, nextBatchId, readBatches, writeBatch } from './journal.ts'
+import { BUILD_ID, config, tokenPath } from '../node/config.ts'
+import { appendEvent, ensureJournal, nextBatchId, readBatches, writeBatch } from '../node/journal.ts'
 import { draftCommentSchema } from './schemas.ts'
 
 const log = (...parts: unknown[]) => console.error(new Date().toISOString(), ...parts)

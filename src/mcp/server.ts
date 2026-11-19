@@ -6,7 +6,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
 import { LISTENER_REPLACED_CLOSE_CODE, PRODUCT_NAME, agentLabel, type ConnectParams } from '../shared/protocol.ts'
-import { BUILD_ID } from './config.ts'
+import { BUILD_ID } from '../node/config.ts'
 import { DaemonConnection, ensureDaemon } from './daemon-client.ts'
 
 const sessionId = `s-${crypto.randomBytes(4).toString('hex')}`

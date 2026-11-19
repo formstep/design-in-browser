@@ -2,13 +2,13 @@
 // Each sent batch is your message, the agent's replies follow it, and the composer at the bottom holds
 // the stacked comments plus an optional note. It has its own shadow root, apart from the overlay's.
 // Lists are rebuilt only when their data changes, so the periodic render never wipes text being typed.
-import { FALLBACK_AGENT, START_COMMAND, type Batch, type BatchComment, type DraftComment, type SessionInfo } from '../shared/protocol.ts'
-import { capturePage } from './capture.ts'
+import { FALLBACK_AGENT, START_COMMAND, type Batch, type BatchComment, type DraftComment, type SessionInfo } from '../../shared/protocol.ts'
+import { capturePage } from '../capture.ts'
 import dockCss from './dock.css'
-import { fillIcons, icon, type IconName } from './icons.ts'
-import { isPicking, onModeChange, registerUiHost, setReservedRight, togglePicker } from './overlay.ts'
-import { defaultSession, onStateChange, readState, sendOp, type PageState } from './store.ts'
-import tokensCss from './tokens.css'
+import { fillIcons, icon, type IconName } from '../icons.ts'
+import { isPicking, onModeChange, registerUiHost, setReservedRight, togglePicker } from '../overlay/overlay.ts'
+import { defaultSession, onStateChange, readState, sendOp, type PageState } from '../store.ts'
+import tokensCss from '../tokens.css'
 
 const DOCK_WIDTH = 380
 const OPEN_KEY = 'design-in-browser:dock-open'

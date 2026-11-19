@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import type { AddressInfo } from 'node:net'
 import { fileURLToPath } from 'node:url'
 import type { Plugin } from 'vite'
-import { CLIENT_MODULE, PAGE_EVENT, type OpAck, type OpRequest } from '../shared/page.ts'
+import { CLIENT_MODULE, PAGE_EVENT, type OpAck, type OpRequest } from '../shared/page-protocol.ts'
 import { PRODUCT_NAME } from '../shared/protocol.ts'
 import { Hub } from './hub.ts'
 
