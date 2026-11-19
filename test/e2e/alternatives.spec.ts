@@ -202,5 +202,6 @@ test('alternatives: ask for them, comment on a version, and see the agent hand t
   })
   await expect(dock().getByTestId('sent')).toContainText('One alternative is up: a wider card.')
   await expect(dock().getByTestId('show-group')).toHaveCount(1)
-  await expect(page.locator('dib-overlay .pins .pin-wrap[data-status="variants"]')).toHaveCount(1)
+  // Its switcher stands for the alternatives on the page, so the comment's pin steps aside instead of covering them.
+  await expect(page.locator('dib-overlay .pins .pin-wrap[data-status="variants"]')).toHaveCount(0)
 })

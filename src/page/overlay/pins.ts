@@ -85,6 +85,12 @@ function sentPin(
   }
 }
 
+/** Alternatives the agent put on this page: their switcher stands in for the pin, which would sit on top of them. */
+const switcherShows = (comment: BatchComment) =>
+  comment.status === 'variants' &&
+  comment.group !== undefined &&
+  document.querySelector(`dib-variants[data-group="${CSS.escape(comment.group)}"]`) !== null
+
 /** Pins for comments on this page; a pick needs none, since the group's switcher already shows it. */
 function pinsForThisPage(state: PageState): PinModel[] {
   const answered = answeredIds(state.draft, state.batches)
@@ -111,7 +117,7 @@ function pinsForThisPage(state: PageState): PinModel[] {
   const sent = state.batches.flatMap((batch) =>
     batch.comments
       .filter(hasElement)
-      .filter(onThisPage)
+      .filter((comment) => onThisPage(comment) && !switcherShows(comment))
       .map((comment) => sentPin(batch, comment, answered, ownProject))
   )
   return [...drafts, ...sent]
