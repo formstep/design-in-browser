@@ -29,7 +29,7 @@ claude --plugin-dir /path/to/design-in-browser/plugin
 | Command | Does |
 | --- | --- |
 | `pnpm build` | Bundles the daemon and MCP server into `plugin/dist`, and the Vite plugin, page client and React wrapper into `dist` |
-| `pnpm check` | Lint (oxlint), format check (oxfmt) and typecheck |
+| `pnpm check` | Lint (oxlint), format check (oxfmt) and typecheck (after a build, since the test app imports the built package) |
 | `pnpm format` | Formats the code |
 | `pnpm test` | Builds, then runs the bridge tests: MCP over stdio, the daemon, and a stand-in Vite plugin |
 | `pnpm test:e2e` | Builds, then runs Playwright against the React fixture app in `test/e2e/app` |
