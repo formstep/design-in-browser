@@ -32,8 +32,6 @@
     inset 1px 0 0 var(--ring-2),
     -12px 0 32px rgb(0 0 0 / 0.25);
   pointer-events: auto;
-  scrollbar-color: rgb(255 255 255 / 0.16) transparent;
-  scrollbar-width: thin;
   animation: slide-in 180ms var(--ease-out);
 }
 
@@ -824,4 +822,10 @@ textarea::placeholder {
 .confirm-clear:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* Scrollbars in the thread, the stack and the fields: thin and dark, not the browser's light default. */
+* {
+  scrollbar-color: rgb(255 255 255 / 0.16) transparent;
+  scrollbar-width: thin;
 }

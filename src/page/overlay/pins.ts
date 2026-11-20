@@ -116,11 +116,23 @@ const switcherShows = (comment: BatchComment) =>
   comment.group !== undefined &&
   document.querySelector(`dib-variants[data-group="${CSS.escape(comment.group)}"]`) !== null
 
-/** Pins for comments on this page; a pick needs none, since the group's switcher already shows it. */
+/**
+ * A comment made on another page still has its pin here when its element is here too: a shared part such as a
+ * sidebar or a header. Its selector has to find an element that carries the comment's source location, and no other
+ * element on this page may carry it, so a list item or a repeated card never borrows another's pin.
+ */
+function sharedHere(comment: DraftComment): boolean {
+  const own = comment.element?.sources?.[0]
+  const found = comment.element ? findBySelector(comment.element.selector) : null
+  if (!own || !found || found.closest(`[${SOURCE_ATTRIBUTE}]`)?.getAttribute(SOURCE_ATTRIBUTE) !== own) return false
+  return document.querySelectorAll(`[${SOURCE_ATTRIBUTE}="${CSS.escape(own)}"]`).length === 1
+}
+
+/** Pins for comments on this page, or on a part of it other pages share; a pick needs none (its switcher shows it). */
 function pinsForThisPage(state: PageState): PinModel[] {
   const answered = answeredIds(state.draft, state.batches)
   const ownProject = defaultSession(state)?.projectRoot ?? null
-  const onThisPage = (comment: DraftComment) => samePage(comment.page.url) && !isPick(comment)
+  const onThisPage = (comment: DraftComment) => (samePage(comment.page.url) || sharedHere(comment)) && !isPick(comment)
   const drafts = state.draft.flatMap((comment, index): PinModel[] => {
     const place = placeOf(comment)
     return place && onThisPage(comment)

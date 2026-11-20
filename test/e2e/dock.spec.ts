@@ -160,3 +160,23 @@ test('a dev server still running an older plugin gets a restart notice, and the 
   await expect(dock().getByTestId('status')).toContainText('Claude is listening')
   await expect(notice).toBeHidden()
 })
+
+test('a pin follows its element to another page when that element is shared there, and only then', async () => {
+  await page.goto(appUrl)
+  await page.keyboard.press('Alt+Shift+C')
+  await comment('h1', 'Bigger on every page')
+  await page.keyboard.press('Escape')
+  const pin = page.locator('dib-overlay .pins .pin-wrap[data-status="draft"]:not([hidden])')
+  await expect(pin).toHaveCount(1)
+
+  // Client-side routing to another page that renders the same heading: the pin stays on it.
+  await page.evaluate(() => history.pushState({}, '', '/pricing/team'))
+  await page.waitForTimeout(1000)
+  await expect(pin).toHaveCount(1)
+
+  // A second element from the same source line: which one was meant can't be told, so the pin stays home.
+  await page.evaluate(() => document.querySelector('h1')!.after(document.querySelector('h1')!.cloneNode(true)))
+  await expect(pin).toHaveCount(0)
+  await page.evaluate(() => history.pushState({}, '', '/'))
+  await expect(pin).toHaveCount(1)
+})

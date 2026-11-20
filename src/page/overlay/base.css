@@ -17,6 +17,12 @@
   background: var(--blue-tint-2);
 }
 
+/* Scrollbars in the cards and fields, as thin and dark as the dock's; the browser's default is light and wide. */
+* {
+  scrollbar-color: rgb(255 255 255 / 0.16) transparent;
+  scrollbar-width: thin;
+}
+
 .icon {
   display: block;
   flex: none;

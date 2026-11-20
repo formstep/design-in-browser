@@ -218,10 +218,10 @@ test('marks of a comment in the stack move with their element when the dock push
   const mark = page.locator('dib-overlay .ink rect.mark.saved')
   // The overlay draws the stacked comment's mark on its next frame.
   await expect(mark).toBeVisible()
+  // The overlay redraws its marks every frame, so a measurement can catch one just replaced: then try again.
   const offsetFromCard = async () => {
-    const markBox = (await mark.boundingBox())!
-    const cardBox = (await card.boundingBox())!
-    return { x: Math.round(markBox.x - cardBox.x), y: Math.round(markBox.y - cardBox.y) }
+    const [markBox, cardBox] = await Promise.all([mark.boundingBox(), card.boundingBox()])
+    return markBox && cardBox ? { x: Math.round(markBox.x - cardBox.x), y: Math.round(markBox.y - cardBox.y) } : null
   }
   const drawnAt = await offsetFromCard()
   await page.keyboard.press('Alt+Shift+D')
