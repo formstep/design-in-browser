@@ -4,7 +4,7 @@ Comment on your running app in the browser, and the coding agent in your termina
 
 Click an element, say what should change, and send. The agent goes straight to the file and line that rendered it, edits the source, your dev server reloads, and the agent's reply appears next to your comment. Ask for alternatives and you can flip between them on the real page, tweak them, and pick one.
 
-![A comment card on a heading, with the chat dock open on the right](docs/images/comment.png)
+![A comment card on a heading, with the chat dock open on the right](https://raw.githubusercontent.com/formstep/design-in-browser/main/docs/images/comment.png)
 
 It works with React apps on a Vite dev server, and with [Claude Code](https://claude.com/claude-code) as the agent. Support for other agents, such as OpenCode, is planned.
 
@@ -54,7 +54,7 @@ Press **Alt+Shift+C**, click anything on the page, type what should change, and 
 
 The agent replies to each comment: done, a question, or skipped with a reason. Answer a question right under it, in the dock or in the pin.
 
-![A pin's thread with the agent's question and an answer field, next to the dock's replies](docs/images/replies.png)
+![A pin's thread with the agent's question and an answer field, next to the dock's replies](https://raw.githubusercontent.com/formstep/design-in-browser/main/docs/images/replies.png)
 
 To send a note about the whole page, use **Ask Claude** in the toolbar or the dock's message field.
 
@@ -67,7 +67,7 @@ Switch the comment card to **Alternatives**, choose how many (1 to 4), and send.
 
 **Tweaks** shows the knobs the agent added to an alternative, such as an optional badge, a padding slider or a choice of alignment. Changes show on the page as you make them.
 
-![The switcher on a hero section, with its tweaks card open](docs/images/alternatives.png)
+![The switcher on a hero section, with its tweaks card open](https://raw.githubusercontent.com/formstep/design-in-browser/main/docs/images/alternatives.png)
 
 **Use this** sends your pick, with the tweak values, to the agent. It writes that version into the code and removes the others. **Keep before** keeps the original.
 
@@ -86,7 +86,7 @@ Alternatives use a `<Variants>` wrapper from `design-in-browser/react` while you
 
 The Vite plugin adds the overlay and the dock to your pages and keeps your comment stack. A small daemon on `127.0.0.1` passes sent comments to the agent session working on the same project, and wakes it. The agent reads them through an MCP server and replies the same way. Every batch is also saved in `.design-in-browser/` in your project, which git ignores.
 
-Your comments only travel on your machine. The plugin turns itself off when the dev server is reachable from the network (`vite --host`). [docs/architecture.md](docs/architecture.md) has the details, including the security model and settings.
+Your comments only travel on your machine. The plugin turns itself off when the dev server is reachable from the network (`vite --host`). [docs/architecture.md](https://github.com/formstep/design-in-browser/blob/main/docs/architecture.md) has the details, including the security model and settings.
 
 ## Limits
 
@@ -102,7 +102,7 @@ Your comments only travel on your machine. The plugin turns itself off when the 
 
 ## Contributing
 
-Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to build, test and find your way around the code.
+Issues and pull requests are welcome. [CONTRIBUTING.md](https://github.com/formstep/design-in-browser/blob/main/CONTRIBUTING.md) explains how to build, test and find your way around the code.
 
 ## License
 
