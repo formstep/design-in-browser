@@ -47,10 +47,10 @@ test('alternatives: page through them, peek at Before, keep the choice across re
   await expect(hero.getByRole('button', { name: 'Compact', exact: true })).toHaveAttribute('aria-pressed', 'false')
   await hero.getByRole('button', { name: 'Compact', exact: true }).click()
   await expect(page.locator('h1')).toHaveText('Pricing')
-  expect(await hero.getByRole('button', { name: 'Before', exact: true }).boundingBox()).toEqual(spot)
+  await expect.poll(() => hero.getByRole('button', { name: 'Before', exact: true }).boundingBox()).toEqual(spot)
   await hero.getByRole('button', { name: 'Before', exact: true }).click()
   await expect(page.locator('h1')).toHaveText('Simple pricing')
-  expect(await hero.getByRole('button', { name: 'Before', exact: true }).boundingBox()).toEqual(spot)
+  await expect.poll(() => hero.getByRole('button', { name: 'Before', exact: true }).boundingBox()).toEqual(spot)
   await hero.getByRole('button', { name: 'Compact', exact: true }).click()
   await expect(hero.getByRole('button', { name: 'Compact', exact: true })).toHaveAttribute('aria-pressed', 'true')
 
@@ -158,6 +158,7 @@ test('alternatives: a pick sends the version with every tweak value, and the swi
 
 test('alternatives: ask for them, comment on a version, and see the agent hand them over', async () => {
   // Ask for one alternative of an element.
+  const rung = doorbells.length
   await page.keyboard.press('Alt+Shift+C')
   await page
     .locator('.plan')
@@ -175,10 +176,12 @@ test('alternatives: ask for them, comment on a version, and see the agent hand t
   await page.keyboard.press('Escape')
 
   if (await page.locator('dib-dock .launcher').isVisible()) await page.locator('dib-dock .launcher').click()
-  await dock().getByTestId('send').click()
-  await expect.poll(() => doorbells.at(-1)).toMatch(/ready, 2 comments/)
+  // Each went to the agent on Enter, as its own batch.
+  await expect.poll(() => doorbells.length).toBe(rung + 2)
   const batch = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
-  const [ask, onVersion] = batch.comments
+  const second = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
+  const [ask] = batch.comments
+  const [onVersion] = second.comments
   expect(ask!.intent).toEqual({ kind: 'alternatives', count: 1 })
   expect(ask!.text).toBe('An alternative for this')
   expect(onVersion!.variant).toEqual({
@@ -195,10 +198,11 @@ test('alternatives: ask for them, comment on a version, and see the agent hand t
   // The agent puts alternatives in the page and names the group: the dock links to its switcher.
   await callTool(shim, 'live_reply', {
     batchId: batch.id,
-    replies: [
-      { commentId: ask!.id, status: 'variants', message: 'One alternative is up: a wider card.', group: 'plan-cta' },
-      { commentId: onVersion!.id, status: 'done', message: 'Line height is 1.1 on the tinted card.' },
-    ],
+    replies: [{ commentId: ask!.id, status: 'variants', message: 'One alternative is up: a wider card.', group: 'plan-cta' }],
+  })
+  await callTool(shim, 'live_reply', {
+    batchId: second.id,
+    replies: [{ commentId: onVersion!.id, status: 'done', message: 'Line height is 1.1 on the tinted card.' }],
   })
   await expect(dock().getByTestId('sent')).toContainText('One alternative is up: a wider card.')
   await expect(dock().getByTestId('show-group')).toHaveCount(1)

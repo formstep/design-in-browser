@@ -50,7 +50,7 @@ Run one browser spec with `pnpm exec playwright test --config test/e2e/playwrigh
 | Folder | Runs in | Holds |
 | --- | --- | --- |
 | `src/page/` | the browser | `overlay/` (picker, comment card, pins, toolbar), `dock/`, `variants/` (the switcher), `ui/` (shared DOM helpers), `store.ts` (the page's link to the plugin) |
-| `src/vite/` | the dev server | the Vite plugin and `hub.ts`, which keeps the comment stack |
+| `src/vite/` | the dev server | the Vite plugin and `hub.ts`, which relays comments and keeps the user's choices |
 | `src/astro/` | Astro's dev server | the Astro integration, which adds the Vite plugin and puts the client into Astro's pages |
 | `src/daemon/` | its own process | `state.ts` (sessions and batches) and `daemon.ts` (sockets) |
 | `src/mcp/` | one process per agent session | the MCP server and its daemon client |

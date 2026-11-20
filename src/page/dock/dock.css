@@ -693,11 +693,9 @@ textarea::placeholder {
   color: var(--blue-ink);
 }
 
-.count {
+/* The send button sits at the far end of the bar, after Comment. */
+.compose-bar .send {
   margin-left: auto;
-  color: var(--ink-3);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
 }
 
 @keyframes slide-in {
@@ -828,4 +826,12 @@ textarea::placeholder {
 * {
   scrollbar-color: rgb(255 255 255 / 0.16) transparent;
   scrollbar-width: thin;
+}
+
+/* Why an answer didn't go: under the field, which keeps the text. */
+.answer-error {
+  margin: 6px 0 0;
+  color: var(--danger-ink);
+  font-size: 12px;
+  line-height: 17px;
 }

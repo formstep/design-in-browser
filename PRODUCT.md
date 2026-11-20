@@ -12,7 +12,7 @@ A developer who builds their app with a coding agent and reviews its UI in the b
 
 ## Product Purpose
 
-Design in Browser turns UI review into a conversation with the coding agent session that writes the code. The developer comments on the running app itself: picks elements, stacks comments across elements and pages, and sends them in one batch. The agent edits the source, the dev server reloads, and the agent replies to each comment in the browser. Success is a review loop that never leaves the page: point, say what should change, see it change.
+Design in Browser turns UI review into a conversation with the coding agent session that writes the code. The developer comments on the running app itself: picks an element, says what should change, and it goes to the agent on Enter. The agent edits the source, the dev server reloads, and the agent replies to each comment in the browser. Success is a review loop that never leaves the page: point, say what should change, see it change.
 
 ## Positioning
 
@@ -20,7 +20,7 @@ Comments are anchored to real elements of the developer's own running app and go
 
 ## Operating Context
 
-- A Vite plugin in the app's own dev server (dev only): it puts an overlay on the page (picker, comment card, pins) and a dock (comments, sending, replies) into the app's page, and keeps the comment stack for that app.
+- A Vite plugin in the app's own dev server (dev only): it puts an overlay on the page (picker, comment card, pins) and a dock (comments, sending, replies) into the app's page, and keeps that app's choices.
 - A local daemon routes batches to agent sessions and journals every batch in the project's `.design-in-browser` folder. An agent connects through the MCP server; the UI names it from the MCP client name ("Claude", "OpenCode").
 - A Claude Code plugin: any running Claude Code session connects with `/design-in-browser:live` and wakes on each batch through a Monitor. An OpenCode plugin wakes OpenCode sessions the same way. Other agents call `live_wait`, which returns the next batch.
 - The agent replies per comment with done, a question, or skipped. The developer can answer a question from the panel or from its pin.
@@ -38,7 +38,7 @@ Comments are anchored to real elements of the developer's own running app and go
 ## Product Principles
 
 - The comment stays on the element: every comment, reply and question is visible where it was made.
-- Stack, then send. Comments collect until the developer sends them as one batch. A pick is a decision and goes at once.
+- Say it, and it's sent. Every comment, answer and pick goes to the agent as it's made, as its own batch; nothing waits to be sent. Answering a question continues the comment's thread, which stays one pin on the page.
 - Try, then decide: alternatives are real code running in the real page, and nothing is final until the user picks.
 - Agent-neutral: the look follows Claude Design, the words follow whichever agent is connected.
 - The agent changes source, never just the page.

@@ -107,34 +107,42 @@ await comment(
 await comment('.lede', 'Shorter subtitle')
 await page.keyboard.press('Escape')
 await page.mouse.move(300, 600)
-await shot('dock-5-stacked')
-await dock.getByTestId('send').click()
+// Each comment went on Enter, as its own batch; the agent hasn't fetched them yet.
 await shot('dock-6-queued')
 
-const batch = JSON.parse(await call('live_get_batch'))
+/** The oldest batch the agent hasn't fetched, once the daemon has it. */
+const fetchBatch = async () => {
+  for (let tries = 0; tries < 50; tries++) {
+    const answer = await call('live_get_batch')
+    if (answer.startsWith('{')) return JSON.parse(answer)
+    await page.waitForTimeout(100)
+  }
+  throw new Error('No batch arrived.')
+}
+const [headline, button, lede] = [await fetchBatch(), await fetchBatch(), await fetchBatch()]
 await call('live_reply', {
-  batchId: batch.id,
-  replies: [{ commentId: batch.comments[0].id, status: 'done', message: 'Headline is now 40px, weight 800.' }],
+  batchId: headline.id,
+  replies: [{ commentId: headline.comments[0].id, status: 'done', message: 'Headline is now 40px, weight 800.' }],
 })
 await shot('dock-7-working')
 await call('live_reply', {
-  batchId: batch.id,
+  batchId: button.id,
   replies: [
     {
-      commentId: batch.comments[1].id,
+      commentId: button.comments[0].id,
       status: 'question',
       message: 'Accent purple or the green from the logo? The button sits on white, so both pass contrast.',
     },
-    { commentId: batch.comments[2].id, status: 'skipped', message: 'The subtitle is already one line at every breakpoint.' },
   ],
-  summary: 'One change, one question, one skipped.',
+})
+await call('live_reply', {
+  batchId: lede.id,
+  replies: [{ commentId: lede.comments[0].id, status: 'skipped', message: 'The subtitle is already one line at every breakpoint.' }],
 })
 await shot('dock-8-replied')
 await page.locator('dib-overlay .pin-wrap[data-status="question"] .pin').click()
 await shot('overlay-4-pin-thread')
 await page.keyboard.press('Escape')
-await dock.getByTestId('answer-field').fill('Accent purple, the logo green is for success states')
-await dock.getByTestId('answer-field').press('Enter')
 await dock.getByTestId('message').fill('Also tighten the spacing between the two plans')
 await shot('dock-9-composer')
 await page.locator('dib-dock .close').click()
@@ -164,7 +172,6 @@ await page
   )
 await page.locator('dib-overlay .composer textarea').press('Enter')
 await page.keyboard.press('Escape')
-await dock.getByTestId('send').click()
 let long = null
 for (let tries = 0; !long && tries < 50; tries++) {
   const answer = await call('live_get_batch')

@@ -1,5 +1,4 @@
-// Starting over: clears this app's thread, its pins and the comments not sent yet, after a confirmation over the
-// thread. What the agent is still working on stays until it answers, and the agent keeps everything it was sent.
+// Starting over: clears this app's thread and its pins, after a confirmation over the thread. What the agent is still working on stays until it answers, and the agent keeps everything it was sent.
 // The button and the dialog are in the dock's markup; this module gives them their behavior.
 import { isPicking, setMode } from '../overlay/mode.ts'
 import { agentName, pluginOutdated, readState, sendOp, type PageState } from '../store.ts'
@@ -23,7 +22,7 @@ export function startOverControls(root: ShadowRoot, fallback: HTMLElement): (sta
     const agent = agentName(state)
     const working = state.batches.filter((batch) => batch.status !== 'done').flatMap((batch) => batch.comments).length
     const still = working === 0 ? '' : ` The ${plural(working, 'comment', 'comments')} ${agent} is still working on stay until it answers.`
-    text.textContent = `This clears the chat and the pins on this app’s pages, and removes comments you haven’t sent. ${agent} keeps what it was sent.${still}`
+    text.textContent = `This clears the chat and the pins on this app’s pages. ${agent} keeps what it was sent.${still}`
     failure.hidden = true
     clear.disabled = false
     scrim.hidden = false
@@ -63,7 +62,7 @@ export function startOverControls(root: ShadowRoot, fallback: HTMLElement): (sta
   })
 
   return (state) => {
-    trigger.hidden = pluginOutdated() || (state.batches.length === 0 && state.draft.length === 0)
+    trigger.hidden = pluginOutdated() || state.batches.length === 0
     trigger.disabled = state.sending
   }
 }

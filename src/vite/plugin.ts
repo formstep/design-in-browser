@@ -203,11 +203,11 @@ function devServer(options: DesignInBrowserOptions, state: DevState): Plugin {
       hot.on(PAGE_EVENT.hello, (_data, client) => {
         if (hub) client.send(PAGE_EVENT.state, hub.state)
       })
-      hot.on(PAGE_EVENT.op, (request: OpRequest, client) => {
+      hot.on(PAGE_EVENT.op, async (request: OpRequest, client) => {
         if (!hub) return
         let ack: OpAck
         try {
-          const error = hub.apply(request.op)
+          const error = await hub.apply(request.op)
           ack = error === null ? { id: request.id, ok: true } : { id: request.id, ok: false, error }
         } catch (error) {
           ack = { id: request.id, ok: false, error: error instanceof Error ? error.message : String(error) }

@@ -23,11 +23,10 @@ import {
 
 useHarness()
 
-/** Sends the stack and returns the batch the agent fetches. */
-async function sendAndFetch(count: number): Promise<Batch> {
+/** The batch the comment just made went out as, once its doorbell rings, as the agent fetches it. */
+async function fetchSent(): Promise<Batch> {
   if (await page.locator('dib-dock .launcher').isVisible()) await page.locator('dib-dock .launcher').click()
-  await dock().getByTestId('send').click()
-  await expect.poll(() => doorbells.at(-1)).toMatch(count === 1 ? /ready, 1 comment\./ : `ready, ${count} comments.`)
+  await expect.poll(() => doorbells.at(-1)).toMatch(/ready, 1 comment\./)
   return JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
 }
 
@@ -36,7 +35,7 @@ test('two apps in one repo each show their own thread', async () => {
   await page.keyboard.press('Alt+Shift+C')
   await comment('h1', 'Bolder headline')
   await page.keyboard.press('Escape')
-  const batch = await sendAndFetch(1)
+  const batch = await fetchSent()
   await callTool(shim, 'live_reply', {
     batchId: batch.id,
     replies: [{ commentId: batch.comments[0]!.id, status: 'done', message: 'Bolder now.' }],
@@ -66,13 +65,13 @@ test('two apps in one repo each show their own thread', async () => {
   }
 })
 
-test('start over asks first, then clears the chat, the pins and the stack, and keeps what is in progress', async () => {
-  // A question with a pin, a batch the agent hasn't answered yet, and a comment not sent.
+test('start over asks first, then clears the chat and the pins, and keeps what is in progress', async () => {
+  // A question with a pin, and a batch the agent hasn't answered yet.
   await page.goto(appUrl)
   await page.keyboard.press('Alt+Shift+C')
   await comment('.lede', 'Shorter subtitle')
   await page.keyboard.press('Escape')
-  const asked = await sendAndFetch(1)
+  const asked = await fetchSent()
   await callTool(shim, 'live_reply', {
     batchId: asked.id,
     replies: [{ commentId: asked.comments[0]!.id, status: 'question', message: 'Five words or one line?' }],
@@ -81,11 +80,7 @@ test('start over asks first, then clears the chat, the pins and the stack, and k
   await page.keyboard.press('Alt+Shift+C')
   await comment('button[data-testid="starter-cta"]', 'Green button')
   await page.keyboard.press('Escape')
-  const working = await sendAndFetch(1)
-  await page.keyboard.press('Alt+Shift+C')
-  await comment('h1', 'Not sent yet')
-  await page.keyboard.press('Escape')
-  await expect(dock().getByTestId('draft-item')).toHaveCount(1)
+  const working = await fetchSent()
 
   // Cancel, and Esc, keep everything.
   const startOver = dock().getByTestId('start-over')
@@ -101,7 +96,6 @@ test('start over asks first, then clears the chat, the pins and the stack, and k
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
   await expect(dock().locator('.turn')).toHaveCount(3)
-  await expect(dock().getByTestId('draft-item')).toHaveCount(1)
 
   await startOver.click()
   await dock().getByTestId('start-over-confirm').click()
@@ -109,7 +103,6 @@ test('start over asks first, then clears the chat, the pins and the stack, and k
   // Only the batch still in progress stays; its pin too, the question's goes.
   await expect(dock().locator('.turn')).toHaveCount(1)
   await expect(dock().getByTestId('sent')).toContainText('Green button')
-  await expect(dock().getByTestId('draft-item')).toHaveCount(0)
   await expect(page.locator('dib-overlay .pins .pin-wrap[data-status="question"]:not([hidden])')).toHaveCount(0)
 
   // A late reply to a cleared batch stays out of view; the one in progress answers in view.
@@ -130,7 +123,7 @@ test('start over asks first, then clears the chat, the pins and the stack, and k
   await page.keyboard.press('Alt+Shift+C')
   await comment('h1', 'After starting over')
   await page.keyboard.press('Escape')
-  await sendAndFetch(1)
+  await fetchSent()
   await expect(dock().locator('.turn')).toHaveCount(2)
   await expect(dock().getByTestId('sent')).toContainText('After starting over')
 })

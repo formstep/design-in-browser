@@ -87,7 +87,6 @@ textarea::placeholder {
   margin-top: 12px;
 }
 
-.check,
 .shot-check {
   display: flex;
   align-items: center;
@@ -97,7 +96,6 @@ textarea::placeholder {
   user-select: none;
 }
 
-.check input,
 .shot-check input {
   appearance: none;
   display: grid;
@@ -111,13 +109,11 @@ textarea::placeholder {
   cursor: pointer;
 }
 
-.check input:checked,
 .shot-check input:checked {
   border-color: var(--blue);
   background: var(--blue);
 }
 
-.check input:checked::after,
 .shot-check input:checked::after {
   content: '';
   width: 9px;
@@ -129,7 +125,6 @@ textarea::placeholder {
   rotate: -45deg;
 }
 
-.check input:focus-visible,
 .shot-check input:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;

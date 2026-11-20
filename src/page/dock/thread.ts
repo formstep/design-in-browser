@@ -3,14 +3,24 @@
 import type { Batch, BatchComment, DraftComment } from '../../shared/protocol.ts'
 import { answering, newComment, pickOf } from '../comments.ts'
 import { dismissButton } from '../dismiss.ts'
-import { sendOp, type PageState } from '../store.ts'
+import type { IconName } from '../icons.ts'
+import { sendComment, type PageState } from '../store.ts'
 import { button, el, iconNode } from '../ui/dom.ts'
 import { submitOnEnter } from '../ui/events.ts'
 import { elementName, when } from '../ui/format.ts'
 import { shownElements } from '../variants/placement.ts'
 
 /** What the replies need besides their own batch: answers given, dismissals, and picks of alternatives. */
-export type ThreadContext = { answered: Map<string, string>; state: Pick<PageState, 'draft' | 'batches' | 'dismissed'> }
+export type ThreadContext = { answered: Map<string, string>; state: Pick<PageState, 'batches' | 'dismissed'> }
+
+const statusIcon: Record<BatchComment['status'], IconName> = {
+  pending: 'clock',
+  done: 'check',
+  question: 'question',
+  skipped: 'minus',
+  variants: 'layers',
+  note: 'comment',
+}
 
 const statusWord: Record<BatchComment['status'], string> = {
   pending: 'Waiting',
@@ -33,15 +43,13 @@ export function where(comment: DraftComment): string {
   return `${drawn}${target}${path === location.pathname ? '' : ` · ${path}`}`
 }
 
-/** Where each question's answer is: in the composer, or sent in a batch. */
+/** When each question was answered, by the question's comment id. */
 export function answerPlaces(state: PageState): Map<string, string> {
   const found = new Map<string, string>()
   for (const batch of state.batches) {
     for (const comment of batch.comments)
       if (comment.inReplyTo) found.set(comment.inReplyTo.commentId, `You answered at ${when(batch.createdAt)}.`)
   }
-  for (const comment of state.draft)
-    if (comment.inReplyTo) found.set(comment.inReplyTo.commentId, 'Your answer is in the composer, ready to send.')
   return found
 }
 
@@ -56,7 +64,8 @@ function showOnPage(group: string): HTMLElement {
   return link
 }
 
-function answerForm(batch: Batch, comment: BatchComment): HTMLFormElement {
+/** The field to answer a question, and the line that says why an answer didn't go. */
+function answerForm(batch: Batch, comment: BatchComment): HTMLElement[] {
   const field = el('textarea', {
     attrs: {
       rows: '1',
@@ -68,28 +77,39 @@ function answerForm(batch: Batch, comment: BatchComment): HTMLFormElement {
   })
   field.value = answerDrafts.get(comment.id) ?? ''
   field.addEventListener('input', () => answerDrafts.set(comment.id, field.value))
-  const submitButton = el('button', { className: 'send', title: 'Add answer', attrs: { type: 'submit', 'aria-label': 'Add answer' } }, [
-    iconNode('arrowUp', 15),
-  ])
+  const submitButton = el(
+    'button',
+    { className: 'send', title: `Send to ${batch.agent}`, attrs: { type: 'submit', 'aria-label': `Send answer to ${batch.agent}` } },
+    [iconNode('arrowUp', 15)]
+  )
+  const failure = el('p', { className: 'answer-error', attrs: { role: 'alert' } })
+  failure.hidden = true
   const form = el('form', { className: 'answer' }, [field, submitButton])
+  // The answer goes to the agent at once. Its text stays in the field until the daemon has it, and comes back with
+  // the reason if it can't be sent.
   const submit = async () => {
     const text = field.value.trim()
     if (text === '') {
       field.focus()
       return
     }
-    answerDrafts.delete(comment.id)
-    await sendOp({
-      type: 'add-comment',
-      comment: newComment({ text, page: comment.page, element: comment.element, inReplyTo: answering(batch, comment) }),
-    })
+    failure.hidden = true
+    submitButton.disabled = true
+    try {
+      await sendComment(newComment({ text, page: comment.page, element: comment.element, inReplyTo: answering(batch, comment) }))
+      answerDrafts.delete(comment.id)
+    } catch (error) {
+      failure.textContent = error instanceof Error ? error.message : String(error)
+      failure.hidden = false
+      submitButton.disabled = false
+    }
   }
   form.addEventListener('submit', (event) => {
     event.preventDefault()
     void submit()
   })
   submitOnEnter(field, () => void submit())
-  return form
+  return [form, failure]
 }
 
 /** Where an agent's note points, as the agent named it. */
@@ -113,17 +133,20 @@ function reply(batch: Batch, comment: BatchComment, index: number, { answered, s
     const answer = answered.get(comment.id)
     if (answer) body.append(followup(answer))
     else if (dismissed) body.append(followup('Dismissed.'))
-    else body.append(answerForm(batch, comment), dismissButton(comment.id, `Dismiss question ${index + 1}`))
+    else body.append(...answerForm(batch, comment), dismissButton(comment.id, `Dismiss question ${index + 1}`))
   }
   if (comment.status === 'note') body.append(dismissed ? followup('Dismissed.') : dismissButton(comment.id, `Dismiss note ${index + 1}`))
   if (comment.status === 'variants' && comment.group) {
-    const pick = pickOf(comment.group, state.draft, state.batches)
+    const pick = pickOf(comment.group, state.batches)
     body.append(pick ? followup(`You picked “${pick.label}”.`) : showOnPage(comment.group))
   }
-  return el('li', { className: 'reply', attrs: { 'data-status': comment.status } }, [
-    el('span', { className: 'num', textContent: String(index + 1) }),
-    body,
-  ])
+  // Several comments in a batch (the agent's notes) are numbered to tie each reply to its comment; one alone gets
+  // its status as a glyph, since the label above says it in words only for questions and skips.
+  const disc =
+    batch.comments.length > 1
+      ? el('span', { className: 'num', textContent: String(index + 1) })
+      : el('span', { className: 'num', attrs: { 'aria-hidden': 'true' } }, [iconNode(statusIcon[comment.status], 11)])
+  return el('li', { className: 'reply', attrs: { 'data-status': comment.status } }, [disc, body])
 }
 
 function agentSide(batch: Batch, context: ThreadContext): HTMLElement {
@@ -144,7 +167,7 @@ function yourSide(batch: Batch): HTMLElement {
   const comments = batch.comments.map((comment, index) =>
     el('li', {}, [
       el('p', { className: 'ref' }, [
-        el('span', { className: 'num', textContent: String(index + 1) }),
+        ...(batch.comments.length > 1 ? [el('span', { className: 'num', textContent: String(index + 1) })] : []),
         el('span', { className: 'ref-text', textContent: where(comment) }),
       ]),
       el('p', { className: 'comment-text', textContent: comment.text }),

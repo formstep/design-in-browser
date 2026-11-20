@@ -67,7 +67,6 @@ test('draw a box and an arrow, then send them with a comment', async () => {
   await page.keyboard.press('Escape')
 
   if (await page.locator('dib-dock .launcher').isVisible()) await page.locator('dib-dock .launcher').click()
-  await dock().getByTestId('send').click()
   await expect.poll(() => doorbells.at(-1)).toMatch(/ready, 1 comment/)
   const batch = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
   const [box, arrow] = batch.comments[0]!.marks ?? []
@@ -97,7 +96,6 @@ test('a pen stroke with a screenshot of the marked area, without any prompt', as
   await expect(composer).toBeHidden({ timeout: 10_000 })
   await page.keyboard.press('Escape')
 
-  await dock().getByTestId('send').click()
   await expect.poll(() => doorbells.at(-1)).toMatch(/ready, 1 comment/)
   const { batch, jpeg } = await batchWithScreenshot()
   expect(batch.comments[0]!.marks?.[0]?.kind).toBe('pen')
@@ -150,7 +148,6 @@ test('a screenshot still comes out with an image it may not read, a slow image, 
     await page.keyboard.press('Escape')
 
     await page.keyboard.press('Alt+Shift+D')
-    await dock().getByTestId('send').click()
     await expect.poll(() => doorbells.at(-1)).toMatch(/ready, 1 comment\./)
     const { batch, jpeg } = await batchWithScreenshot()
     expect(batch.comments).toHaveLength(1)
@@ -191,13 +188,12 @@ test('a screenshot of a dark page keeps its dark background', async () => {
   await page.keyboard.press('Escape')
 
   await page.keyboard.press('Alt+Shift+D')
-  await dock().getByTestId('send').click()
   await expect.poll(() => doorbells.at(-1)).toMatch(/ready, 1 comment\./)
   const { jpeg } = await batchWithScreenshot()
   for (const channel of await pixelOf(jpeg, 4, 4)) expect(channel).toBeLessThan(20)
 })
 
-test('marks of a comment in the stack move with their element when the dock pushes the page', async () => {
+test('marks of a sent comment move with their element when the dock pushes the page', async () => {
   await page.goto(appUrl)
   if (await dock().isVisible()) await dock().getByRole('button', { name: 'Close' }).click()
   // Centred cards move when the page gets narrower; left-aligned ones would not show it.
@@ -215,9 +211,13 @@ test('marks of a comment in the stack move with their element when the dock push
   await expect(composer).toBeHidden()
   await page.keyboard.press('Escape')
 
-  const mark = page.locator('dib-overlay .ink rect.mark.saved')
-  // The overlay draws the stacked comment's mark on its next frame.
-  await expect(mark).toBeVisible()
+  // Earlier tests' comments are still open, so their marks show too: this test's box is the one where it was drawn.
+  // Its box shows once the comment's batch is back from the daemon.
+  const marks = page.locator('dib-overlay .ink rect.mark.saved')
+  const indexOfThis = () =>
+    marks.evaluateAll((nodes, x) => nodes.findIndex((node) => Math.abs(node.getBoundingClientRect().left - x) < 3), drawnOn.x + 12)
+  await expect.poll(indexOfThis).toBeGreaterThanOrEqual(0)
+  const mark = marks.nth(await indexOfThis())
   // The overlay redraws its marks every frame, so a measurement can catch one just replaced: then try again.
   const offsetFromCard = async () => {
     const [markBox, cardBox] = await Promise.all([mark.boundingBox(), card.boundingBox()])

@@ -1,9 +1,9 @@
 // The comment card: opens beside a pin at the clicked point, takes a comment or a request for alternatives,
 // and adds it to the stack (or sends it, with "Send to <agent>" ticked).
-import { START_COMMAND, type Mark } from '../../shared/protocol.ts'
+import type { Mark } from '../../shared/protocol.ts'
 import { captureElement, capturePage, visibleText } from '../capture.ts'
 import { newComment } from '../comments.ts'
-import { addComment, agentName, connectedSession, readState, sendOp } from '../store.ts'
+import { agentName, sendComment } from '../store.ts'
 import { query } from '../ui/dom.ts'
 import { elementName } from '../ui/format.ts'
 import { keepKeys, submitOnEnter } from '../ui/events.ts'
@@ -28,10 +28,8 @@ const textarea = query<HTMLTextAreaElement>(root, '.composer textarea')
 const countRow = query<HTMLDivElement>(root, '.count-row')
 const countLabel = query<HTMLSpanElement>(root, '.count-label')
 const errorLine = query<HTMLParagraphElement>(root, '.composer-error')
-const sendOnAdd = query<HTMLInputElement>(root, '.send-on-add')
 const shotRow = query<HTMLLabelElement>(root, '.shot-check')
 const attachShot = query<HTMLInputElement>(root, '.attach-shot')
-const checkText = query<HTMLSpanElement>(root, '.check-text')
 const hint = query<HTMLSpanElement>(root, '.hint')
 
 /** A comment in words, or a request for alternatives of the element. The count persists between cards. */
@@ -53,7 +51,7 @@ function setRequest(next: Request): void {
 function updateHint(): void {
   const key = document.createElement('kbd')
   key.textContent = 'Enter'
-  hint.replaceChildren(key, sendOnAdd.checked ? ' to send' : ' to add')
+  hint.replaceChildren(key, ' to send')
 }
 
 function showTarget(element: Element): void {
@@ -81,9 +79,9 @@ export function openComposer(next: Omit<Commenting, 'kind'>): void {
   setRequest('comment')
   textarea.value = ''
   attachShot.checked = false
-  sendOnAdd.checked = readState().sendOnAdd
   updateHint()
-  composingDisc.textContent = String(readState().draft.length + 1)
+  // The new comment's pin, empty until it is sent and the agent's status shows in it.
+  composingDisc.textContent = ''
   composer.hidden = false
   composingPin.hidden = false
   renderComposer()
@@ -137,7 +135,7 @@ async function screenshotOf(marks: Mark[]): Promise<string> {
 function noScreenshot(error: unknown): string {
   const declined = error instanceof DOMException && error.name === 'NotAllowedError'
   const why = declined ? 'The tab wasn’t shared, so there’s no screenshot.' : 'Couldn’t take a screenshot of this area.'
-  return `${why} Untick "Attach a screenshot" to add the comment without one.`
+  return `${why} Untick "Attach a screenshot" to send the comment without one.`
 }
 
 /** Names the agent on the card, fits the textarea's indent to the "@<agent>" chip, and follows the element. */
@@ -149,7 +147,6 @@ export function renderComposer(): void {
   if (agent !== namedAgent) {
     namedAgent = agent
     chip.textContent = `@${agent}`
-    checkText.textContent = 'Send right away'
     textarea.setAttribute('aria-label', `Comment for ${agent}`)
   }
   if (!composer.hidden) textarea.style.textIndent = `${chip.offsetWidth + 7}px`
@@ -166,13 +163,6 @@ async function submit(): Promise<void> {
   const asking = request === 'alternatives'
   if (typed === '' && !asking) {
     textarea.focus()
-    return
-  }
-  const send = sendOnAdd.checked
-  if (send && !connectedSession()) {
-    showError(
-      `No agent session is connected to send to. Untick the box to keep it with your comments, or connect a session (in Claude Code: ${START_COMMAND}).`
-    )
     return
   }
   const { element, offset, marks, after } = mode
@@ -204,16 +194,16 @@ async function submit(): Promise<void> {
     ...(marks.length > 0 ? { marks } : {}),
     ...(screenshot ? { screenshot } : {}),
   })
-  // Leave first: an Esc pressed while the save is in flight must find the mode already moved on.
+  // Leave first: an Esc pressed while the send is in flight must find the mode already moved on.
   leaveComposer()
   try {
-    await addComment(comment, send)
-  } catch {
-    // Most often the dev server stopped or restarted. Keep the text.
+    await sendComment(comment)
+  } catch (error) {
+    // No session, an older dev server, or a lost connection: the card comes back with the text, and says why.
     openComposer({ element, offset, marks, after })
     setRequest(asking ? 'alternatives' : 'comment')
     textarea.value = typed
-    showError('Couldn’t save this comment. Copy your text, reload the tab, and add it again.')
+    showError(error instanceof Error ? error.message : String(error))
   }
 }
 
@@ -238,10 +228,6 @@ composer.addEventListener('submit', (event) => {
 })
 submitOnEnter(textarea, () => void submit())
 textarea.addEventListener('input', placeComposer)
-sendOnAdd.addEventListener('change', () => {
-  updateHint()
-  void sendOp({ type: 'set-send-on-add', value: sendOnAdd.checked })
-})
 keepKeys(composer)
 
 onPick(({ element, offset }) => {

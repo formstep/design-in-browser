@@ -1,6 +1,6 @@
 ---
 name: live
-description: Connect this session to Design in Browser, so the user can pick elements on their local app, stack comments and send them here; you change the source and reply in the browser. Use when the user runs /design-in-browser:live or asks to take UI comments from the browser.
+description: Connect this session to Design in Browser, so the user can pick elements on their local app and send comments here as they make them; you change the source and reply in the browser. Use when the user runs /design-in-browser:live or asks to take UI comments from the browser.
 ---
 
 # Design in Browser: live comments
@@ -42,7 +42,7 @@ A Monitor event reads `design-in-browser: batch 003 ready, 2 comments. Call live
    - `skipped`: you are not changing it; say why.
 5. Report in chat in one line per batch. Do not repeat the comments back.
 
-New comments the user sends while you work queue as the next batch; the Monitor rings for each.
+Each comment arrives as its own batch the moment the user presses Enter, and the user is watching the page for your reply: keep it quick. Make the change and reply; don't commit, run test suites or load long design playbooks for one comment unless it asks for that. Comments sent while you work queue as the next batches; the Monitor rings for each. An answer to your question arrives the same way, with `inReplyTo`.
 
 ## Answers to your questions
 

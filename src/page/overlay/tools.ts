@@ -2,10 +2,9 @@
 // which adds a note about the whole page.
 import { capturePage } from '../capture.ts'
 import { newComment } from '../comments.ts'
-import { addComment, agentName, readState } from '../store.ts'
+import { agentName, sendComment } from '../store.ts'
 import { query } from '../ui/dom.ts'
 import { keepKeys } from '../ui/events.ts'
-import { plural } from '../ui/format.ts'
 import { startDrawing } from './drawing.ts'
 import { getMode, onModeChange, setMode, type DrawTool } from './mode.ts'
 import { root } from './root.ts'
@@ -14,7 +13,6 @@ const toolbar = query<HTMLDivElement>(root, '.toolbar')
 const askbar = query<HTMLFormElement>(root, '.askbar')
 const askInput = query<HTMLInputElement>(root, '.askbar input')
 const askButton = query<HTMLButtonElement>(root, '.tool.ask')
-const count = query<HTMLSpanElement>(root, '.tools-count')
 
 export const isAskbarOpen = () => !askbar.hidden
 
@@ -47,9 +45,6 @@ export function renderTools(): void {
     button.classList.toggle('active', button.dataset.tool === active)
     button.setAttribute('aria-pressed', String(button.dataset.tool === active))
   }
-  const draft = readState().draft.length
-  const counted = draft === 0 ? '' : plural(draft, 'comment', 'comments')
-  if (count.textContent !== counted) count.textContent = counted
   const ask = `Ask ${agentName()}`
   if (askButton.textContent !== ask) askButton.textContent = ask
 }
@@ -72,12 +67,17 @@ askbar.addEventListener('submit', async (event) => {
   if (text === '') return
   closeAskbar()
   try {
-    await addComment(newComment({ text, page: capturePage(), element: null }), false)
-  } catch {
+    await sendComment(newComment({ text, page: capturePage(), element: null }))
+  } catch (error) {
+    // The bar comes back with the text, and says why it wasn't sent.
     openAskbar()
     askInput.value = text
+    askInput.setCustomValidity(error instanceof Error ? error.message : String(error))
+    askInput.reportValidity()
   }
 })
+// A reason the last send failed goes once the text changes.
+askInput.addEventListener('input', () => askInput.setCustomValidity(''))
 keepKeys(askbar)
 
 onModeChange((mode) => {

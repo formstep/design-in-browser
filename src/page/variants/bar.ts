@@ -17,6 +17,8 @@ type BarModel = {
   tweaksOpen: boolean
   /** A pick the agent has not applied yet: the bar freezes on it. */
   pick: { label: string } | null
+  /** Why the last pick didn't reach the agent: shown beside the controls, which stay, so the user can pick again. */
+  pickError: string | null
   agent: string
 }
 
@@ -98,5 +100,6 @@ export function bar(model: BarModel): HTMLElement {
   })
   steadyText(use, index === 0 ? 'Keep before' : keepAfter, ['Keep before', keepAfter])
   element.append(use)
+  if (model.pickError) element.append(el('span', { className: 'variant-error', textContent: model.pickError, attrs: { role: 'alert' } }))
   return element
 }

@@ -41,44 +41,46 @@ test('pick, comment, send, and see the reply on the page', async () => {
   await expect(page.locator('#clicks')).toHaveText('0')
   await page.keyboard.press('Escape')
 
+  // Each comment goes to the agent on Enter, as its own batch.
   await comment('h1', 'Make the headline bolder and larger')
   await comment('[data-testid="starter-cta"]', 'Use the accent color for the free plan button')
   await page.keyboard.press('Escape')
   await expect(page.locator('dib-overlay .tools')).toBeHidden()
   const pins = page.locator('dib-overlay .pins .pin-wrap:not([hidden])')
-  await expect(pins.locator('.pin')).toHaveText(['1', '2'])
+  await expect
+    .poll(() => pins.evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).dataset.status)))
+    .toEqual(['pending', 'pending'])
   await page.locator('[data-testid="starter-cta"]').click()
   await expect(page.locator('#clicks')).toHaveText('1')
+  await expect.poll(() => doorbells.at(-1)).toBe('design-in-browser: batch 002 ready, 1 comment. Call live_get_batch.')
 
-  await expect(dock().getByTestId('draft-item')).toHaveCount(2)
-  await dock().getByTestId('send').click()
-  await expect(dock().getByTestId('draft-item')).toHaveCount(0)
-  await expect.poll(() => doorbells.at(-1)).toBe('design-in-browser: batch 001 ready, 2 comments. Call live_get_batch.')
-
-  const batch = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
-  expect(batch.comments.map((c) => [c.element?.selector, c.text])).toEqual([
+  const headline = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
+  const button = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
+  expect([...headline.comments, ...button.comments].map((c) => [c.element?.selector, c.text])).toEqual([
     ['h1', 'Make the headline bolder and larger'],
     ['button[data-testid="starter-cta"]', 'Use the accent color for the free plan button'],
   ])
-  expect(batch.comments[1]!.element!.ancestors).toEqual(['article.plan', 'div.plans', 'main', 'div#root'])
+  expect(button.comments[0]!.element!.ancestors).toEqual(['article.plan', 'div.plans', 'main', 'div#root'])
   // The plugin stamps where each element's JSX is written. The fixture's source sits outside this test's project
   // folder, so its path is absolute.
-  expect(batch.comments[1]!.element!.sources).toEqual([expect.stringMatching(/\/test\/e2e\/app\/src\/main\.tsx:16:\d+$/)])
-  expect(batch.comments[1]!.element!.html).not.toContain('data-dib-src')
+  expect(button.comments[0]!.element!.sources).toEqual([expect.stringMatching(/\/test\/e2e\/app\/src\/main\.tsx:16:\d+$/)])
+  expect(button.comments[0]!.element!.html).not.toContain('data-dib-src')
   await expect(dock().getByTestId('sent')).toContainText('Working on it')
   await callTool(shim, 'live_reply', {
-    batchId: batch.id,
-    replies: [
-      { commentId: batch.comments[0]!.id, status: 'done', message: 'Headline is now 40px, weight 800.' },
-      { commentId: batch.comments[1]!.id, status: 'question', message: 'Accent purple or the green from the logo?' },
-    ],
+    batchId: headline.id,
+    replies: [{ commentId: headline.comments[0]!.id, status: 'done', message: 'Headline is now 40px, weight 800.' }],
+  })
+  await callTool(shim, 'live_reply', {
+    batchId: button.id,
+    replies: [{ commentId: button.comments[0]!.id, status: 'question', message: 'Accent purple or the green from the logo?' }],
   })
   await expect(dock().getByTestId('sent')).toContainText('Headline is now 40px, weight 800.')
   // A done comment drops its pin; the question keeps one, to answer from the page.
   await expect.poll(() => pins.evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).dataset.status))).toEqual(['question'])
 })
 
-test('answer a question from the dock and from a pin', async () => {
+test('answer a question from the dock and from a pin: one pin carries the thread', async () => {
+  const pins = page.locator('dib-overlay .pins .pin-wrap:not([hidden])')
   const field = dock().getByTestId('answer-field')
   await field.fill('Accent')
   await dock().getByTestId('message').fill('A note in progress')
@@ -86,21 +88,30 @@ test('answer a question from the dock and from a pin', async () => {
   await expect(field).toHaveValue('Accent')
   await expect(dock().getByTestId('message')).toHaveValue('A note in progress')
   await dock().getByTestId('message').fill('')
+  // The answer goes to the agent on Enter.
   await field.fill('Accent purple')
   await field.press('Enter')
-  await expect(dock().getByTestId('draft-item')).toContainText('Claude asked: Accent purple or the green from the logo?')
-  await dock().getByTestId('send').click()
-  await expect.poll(() => doorbells.at(-1)).toBe('design-in-browser: batch 002 ready, 1 comment. Call live_get_batch.')
-  const second = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
-  expect(second.comments[0]!.inReplyTo?.batchId).toBe('001')
+  await expect.poll(() => doorbells.at(-1)).toBe('design-in-browser: batch 003 ready, 1 comment. Call live_get_batch.')
+  const answer = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
+  expect(answer.comments[0]!.inReplyTo?.batchId).toBe('002')
+  await expect(dock().getByTestId('sent')).toContainText('You answered at')
+  // The answer joins the question's pin: still one pin, now waiting on the agent.
+  await expect.poll(() => pins.evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).dataset.status))).toEqual(['pending'])
 
   await callTool(shim, 'live_reply', {
-    batchId: '002',
-    replies: [{ commentId: second.comments[0]!.id, status: 'question', message: 'Which shade, 500 or 600?' }],
+    batchId: answer.id,
+    replies: [{ commentId: answer.comments[0]!.id, status: 'question', message: 'Which shade, 500 or 600?' }],
   })
   const asking = page.locator('dib-overlay .pin-wrap[data-status="question"]')
+  await expect(asking).toHaveCount(1)
   await asking.locator('.pin').click()
-  await expect(asking.locator('.thread')).toContainText('Which shade, 500 or 600?')
+  // The whole exchange, in order, in the one pin.
+  await expect(asking.locator('.thread .entry-text')).toHaveText([
+    'Use the accent color for the free plan button',
+    'Accent purple or the green from the logo?',
+    'Accent purple',
+    'Which shade, 500 or 600?',
+  ])
   // On a short window the card still opens fully on screen.
   await page.setViewportSize({ width: 1100, height: 420 })
   await page.waitForTimeout(1000)
@@ -111,85 +122,83 @@ test('answer a question from the dock and from a pin', async () => {
   await page.waitForTimeout(1000)
   await asking.getByRole('textbox', { name: 'Answer Claude' }).fill('600')
   await asking.getByRole('textbox', { name: 'Answer Claude' }).press('Enter')
-  await expect(dock().getByTestId('draft-item')).toContainText('Claude asked: Which shade, 500 or 600?')
-  await dock().getByTestId('draft-item').getByRole('button', { name: 'Remove comment 1' }).click()
-  await expect(dock().getByTestId('draft-item')).toHaveCount(0)
+  await expect.poll(() => doorbells.at(-1)).toBe('design-in-browser: batch 004 ready, 1 comment. Call live_get_batch.')
+  const shade = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
+  expect(shade.comments[0]!.inReplyTo?.commentId).toBe(answer.comments[0]!.id)
 
-  // The agent closes the first question once it acts on the answer: the pin and the dock follow.
-  const first = (JSON.parse(await callTool(shim, 'live_get_batch', { batchId: '001' })) as Batch).comments[1]!
-  await expect(page.locator('dib-overlay .pin-wrap[data-status="answered"]')).toHaveCount(1)
+  // The agent acts on the answers and closes the thread: the pin leaves the page, the dock keeps the replies.
   await callTool(shim, 'live_reply', {
-    batchId: '001',
-    replies: [{ commentId: first.id, status: 'done', message: 'The free plan button is accent purple now.' }],
+    batchId: shade.id,
+    replies: [{ commentId: shade.comments[0]!.id, status: 'done', message: 'The free plan button is accent purple 600 now.' }],
   })
-  await expect(page.locator('dib-overlay .pin-wrap[data-status="answered"]')).toHaveCount(0)
-  await expect(dock().getByTestId('sent')).toContainText('The free plan button is accent purple now.')
+  await expect(pins).toHaveCount(0)
+  await expect(dock().getByTestId('sent')).toContainText('The free plan button is accent purple 600 now.')
 })
 
-test('the Ask bar, Send to the agent, and a dock message all reach the agent', async () => {
-  // "Ask Claude" in the tool pill adds a note about the whole page to the stack.
+test('the Ask bar, a comment and a dock message each reach the agent on their own', async () => {
+  // "Ask Claude" in the tool pill sends a note about the whole page.
+  const before = doorbells.length
   await page.keyboard.press('Alt+Shift+C')
   await page.locator('dib-overlay .tool.ask').click()
   await page.locator('dib-overlay .askbar input').fill('Less crowded overall')
   await page.locator('dib-overlay .askbar input').press('Enter')
   await expect(page.locator('dib-overlay .askbar')).toBeHidden()
+  await expect.poll(() => doorbells.length).toBe(before + 1)
+  const asked = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
+  expect(asked.comments.map((c) => [c.element, c.text])).toEqual([[null, 'Less crowded overall']])
 
-  // Ticking "Send right away" sends the whole stack with the new comment.
-  const before = doorbells.length
+  // A comment on an element: no box to tick, Enter sends it.
   await page.locator('.lede').click()
   const composer = page.locator('dib-overlay .composer')
-  await expect(composer.locator('.check')).toHaveText('Send right away')
-  await composer.locator('.send-on-add').check()
+  await expect(composer.locator('.hint')).toHaveText('Enter to send')
   await composer.locator('textarea').fill('Shorter subtitle')
   await composer.locator('textarea').press('Enter')
   await page.keyboard.press('Escape')
-  await expect.poll(() => doorbells.length).toBe(before + 1)
-  expect(doorbells.at(-1)).toMatch(/ready, 2 comments/)
-  const stacked = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
-  expect(stacked.comments.map((c) => [c.element?.tag ?? null, c.text])).toEqual([
-    [null, 'Less crowded overall'],
-    ['p', 'Shorter subtitle'],
-  ])
-  // The tick box stays as left; untick it for the tests after this one.
-  await page.keyboard.press('Alt+Shift+C')
-  await page.locator('.lede').click()
-  await expect(composer.locator('.send-on-add')).toBeChecked()
-  await composer.locator('.send-on-add').uncheck()
-  await page.keyboard.press('Escape')
-  await page.keyboard.press('Escape')
+  await expect.poll(() => doorbells.length).toBe(before + 2)
+  const commented = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
+  expect(commented.comments.map((c) => [c.element?.tag ?? null, c.text])).toEqual([['p', 'Shorter subtitle']])
 
-  // A message typed in the dock with nothing stacked goes alone, as a page note, on Enter.
-  await expect(dock().getByTestId('draft-item')).toHaveCount(0)
+  // A message typed in the dock goes as a page note on Enter, and the field empties once it's sent.
   await dock().getByTestId('message').fill('Just a note')
   await dock().getByTestId('message').press('Enter')
-  await expect.poll(() => doorbells.length).toBe(before + 2)
+  await expect.poll(() => doorbells.length).toBe(before + 3)
   const note = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
   expect(note.comments.map((c) => [c.element, c.text])).toEqual([[null, 'Just a note']])
   await expect(dock().getByTestId('message')).toHaveValue('')
+  for (const batch of [asked, commented, note])
+    await callTool(shim, 'live_reply', {
+      batchId: batch.id,
+      replies: [{ commentId: batch.comments[0]!.id, status: 'done', message: 'Done.' }],
+    })
 })
 
-test('the stack survives a reload and a dev-server restart, and every tab shares it', async () => {
+test('a thread survives a reload and a dev-server restart, and every tab shows it', async () => {
   await page.keyboard.press('Alt+Shift+C')
-  await comment('.lede', 'Shorter subtitle')
+  await comment('.lede', 'Tighter subtitle')
   await page.keyboard.press('Escape')
-  await expect(dock().getByTestId('draft-item')).toHaveCount(1)
+  const pin = page.locator('dib-overlay .pins .pin-wrap[data-status="pending"]:not([hidden])')
+  await expect(pin).toHaveCount(1)
 
   const other = await context.newPage()
   await other.goto(appUrl)
-  await expect(dock(other).getByTestId('draft-item')).toHaveCount(1)
+  await expect(other.locator('dib-overlay .pins .pin-wrap[data-status="pending"]:not([hidden])')).toHaveCount(1)
 
   await page.reload()
-  await expect(dock().getByTestId('draft-item')).toHaveCount(1)
+  await expect(pin).toHaveCount(1)
 
   // Vite reloads open pages when its server comes back.
   await stopAppServer()
   await startAppServer()
   await page.waitForTimeout(1500)
   await page.goto(appUrl)
-  await expect(dock().getByTestId('draft-item').locator('textarea')).toHaveValue('Shorter subtitle')
-  await expect(page.locator('dib-overlay .pins .pin-wrap[data-status="draft"]:not([hidden]) .pin')).toHaveText('1')
-  await dock().getByTestId('draft-item').getByRole('button', { name: 'Remove comment 1' }).click()
-  await expect(dock(other).getByTestId('draft-item')).toHaveCount(0)
+  await expect(pin).toHaveCount(1)
+  await expect(dock().getByTestId('sent')).toContainText('Tighter subtitle')
+  const batch = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
+  await callTool(shim, 'live_reply', {
+    batchId: batch.id,
+    replies: [{ commentId: batch.comments[0]!.id, status: 'done', message: 'Tighter.' }],
+  })
+  await expect(pin).toHaveCount(0)
   await other.close()
 })
 
@@ -250,8 +259,6 @@ test('the agent leaves notes on the page, and a note that asks takes an answer f
   await asking.locator('.pin').click()
   await asking.getByRole('textbox', { name: 'Answer Claude' }).fill('Yes, cut it to five words')
   await asking.getByRole('textbox', { name: 'Answer Claude' }).press('Enter')
-  await expect(dock().getByTestId('draft-item')).toContainText('Claude asked: Should the subtitle be shorter?')
-  await dock().getByTestId('send').click()
   await expect.poll(() => doorbells.at(-1)).toMatch(/ready, 1 comment/)
   const answer = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
   expect(answer.comments[0]!.inReplyTo?.question).toBe('Should the subtitle be shorter?')

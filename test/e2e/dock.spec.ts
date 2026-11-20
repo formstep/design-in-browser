@@ -49,24 +49,31 @@ test('a long element name and a long reply stay inside the dock', async () => {
     long.textContent = 'No folders or forms yet. Start with a template, or begin with a new form. Translations follow later.'
     document.querySelector('main')!.append(long)
   })
+  const rung = doorbells.length
   await page.keyboard.press('Alt+Shift+C')
   await comment('.long-copy', 'Make this friendlier')
   await comment('h1', 'Bolder')
   await page.keyboard.press('Escape')
   await page.locator('dib-dock .launcher').click()
-  await dock().getByTestId('send').click()
-  await expect.poll(() => doorbells.at(-1)).toMatch(/ready, 2 comments\./)
-  const batch = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
+  // Each comment went on Enter, as its own batch.
+  await expect.poll(() => doorbells.length).toBe(rung + 2)
+  const first = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
+  const second = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
   await callTool(shim, 'live_reply', {
-    batchId: batch.id,
+    batchId: first.id,
     replies: [
       {
-        commentId: batch.comments[0]!.id,
+        commentId: first.comments[0]!.id,
         status: 'done',
         message: 'The empty state now points at templates first, since most people start from one, then at a blank form.',
       },
+    ],
+  })
+  await callTool(shim, 'live_reply', {
+    batchId: second.id,
+    replies: [
       {
-        commentId: batch.comments[1]!.id,
+        commentId: second.comments[0]!.id,
         status: 'question',
         message: 'Bolder as in a heavier weight, or larger as well, matching the size of the section headings below?',
       },
@@ -166,7 +173,7 @@ test('a pin follows its element to another page when that element is shared ther
   await page.keyboard.press('Alt+Shift+C')
   await comment('h1', 'Bigger on every page')
   await page.keyboard.press('Escape')
-  const pin = page.locator('dib-overlay .pins .pin-wrap[data-status="draft"]:not([hidden])')
+  const pin = page.locator('dib-overlay .pins .pin-wrap[data-status="pending"]:not([hidden])')
   await expect(pin).toHaveCount(1)
 
   // Client-side routing to another page that renders the same heading: the pin stays on it.

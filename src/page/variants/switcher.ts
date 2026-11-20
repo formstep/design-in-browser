@@ -6,7 +6,7 @@ import type { ChosenTweak, ShownVersion, TweakSpec, TweakValue } from '../../sha
 import { bridge, notify, shownIndex, subscribe, valuesFor } from '../../shared/variants-bridge.ts'
 import { captureElement, capturePage } from '../capture.ts'
 import { isPick, newComment } from '../comments.ts'
-import { addComment, agentName, readState, sendOp, type PageState } from '../store.ts'
+import { agentName, readState, sendComment, sendOp, type PageState } from '../store.ts'
 import { el, query } from '../ui/dom.ts'
 import { keepKeys } from '../ui/events.ts'
 import { addStyles } from '../ui/shadow-host.ts'
@@ -24,6 +24,8 @@ const unsaved = new Map<string, TweakValue>()
 const saveTimers = new Map<string, ReturnType<typeof setTimeout>>()
 /** Groups whose tweaks card is open. */
 const open = new Set<string>()
+/** Groups whose last pick didn't reach the agent, with why. */
+const pickErrors = new Map<string, string>()
 /** The alternative last looked at per group, so leaving "Before" returns to it. */
 const lastAlternative = new Map<string, number>()
 /**
@@ -91,10 +93,10 @@ function describe(tweak: ChosenTweak, spec: TweakSpec | undefined): string {
 
 const wrapperOf = (group: string) => document.querySelector(`dib-variants[data-group="${CSS.escape(group)}"]`)
 
-/** A pick the agent has not applied yet: in the stack, or sent and still pending. */
+/** A pick the agent has not applied yet: sent and still pending. */
 function pendingPick(state: PageState, group: string): { label: string } | null {
   const sent = state.batches.flatMap((batch) => batch.comments).filter((comment) => comment.status === 'pending')
-  const pick = [...state.draft, ...sent].filter(isPick).find((comment) => comment.intent.group === group)
+  const pick = sent.filter(isPick).find((comment) => comment.intent.group === group)
   return pick ? { label: pick.intent.label } : null
 }
 
@@ -145,6 +147,7 @@ export function renderVariants(): void {
       reserveTweaks: meta.tweaks.some((versionSpecs) => Object.keys(versionSpecs).length > 0),
       tweaksOpen: open.has(group),
       pick: pendingPick(state, group),
+      pickError: pickErrors.get(group) ?? null,
       agent: agentName(state),
     }
     node.classList.toggle('open', model.tweaksOpen)
@@ -219,8 +222,13 @@ async function use(group: string): Promise<void> {
     intent: { kind: 'choose-variant', group, index, label, tweaks },
   })
   open.delete(group)
-  // A pick is a decision: it goes to the agent right away when a session is there, else waits in the stack.
-  await addComment(comment, true)
+  pickErrors.delete(group)
+  try {
+    await sendComment(comment)
+  } catch (error) {
+    pickErrors.set(group, `Not sent: ${error instanceof Error ? error.message : String(error)}`)
+    renderVariants()
+  }
 }
 
 function onClick(event: Event): void {

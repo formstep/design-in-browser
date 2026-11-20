@@ -1,12 +1,14 @@
 // The plugin inside different dev servers: a strict CSP, a server open to the network, two apps in one
 // project, HMR off, a production build, and a dev server that goes down mid-save.
-import fs from 'node:fs'
 import type { AddressInfo } from 'node:net'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
 import { createServer } from 'vite'
 import designInBrowser from '../../dist/vite.mjs'
+import type { Batch } from '../../src/shared/protocol.ts'
 import {
+  callTool,
+  shim,
   repo,
   appRoot,
   tmp,
@@ -40,11 +42,16 @@ test('the overlay works on a page whose CSP forbids inline styles', async () => 
   await strict.locator('dib-overlay .composer textarea').fill('Under a strict CSP')
   await strict.locator('dib-overlay .composer textarea').press('Enter')
   await strict.keyboard.press('Escape')
-  const pin = strict.locator('dib-overlay .pins .pin-wrap[data-status="draft"]:not([hidden])')
+  const pin = strict.locator('dib-overlay .pins .pin-wrap[data-status="pending"]:not([hidden])')
   await expect(pin.locator('.pin')).toHaveCSS('border-bottom-left-radius', '0px')
   await pin.locator('.pin').click()
   await expect(pin.locator('.thread')).toBeVisible()
-  await pin.getByRole('button', { name: 'Remove comment' }).click()
+  // The agent finishes it: the pin leaves the page.
+  const batch = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
+  await callTool(shim, 'live_reply', {
+    batchId: batch.id,
+    replies: [{ commentId: batch.comments[0]!.id, status: 'done', message: 'Works under the strict CSP.' }],
+  })
   await expect(pin).toHaveCount(0)
   expect(errors.filter((text) => /design-in-browser|dib-/.test(text))).toEqual([])
   await strict.close()
@@ -65,7 +72,7 @@ test('a dev server that listens beyond localhost leaves the page alone', async (
   }
 })
 
-test('two apps in one project keep their own stacks', async () => {
+test('two apps in one project keep their own threads', async () => {
   const twoPort = await freePort()
   const two = await createServer({
     root: path.join(repo, 'test/e2e/app-two'),
@@ -84,9 +91,12 @@ test('two apps in one project keep their own stacks', async () => {
     await other.locator('.note').click()
     await other.locator('dib-overlay .composer textarea').fill('Only in the second app')
     await other.locator('dib-overlay .composer textarea').press('Enter')
-    await expect(dock(other).getByTestId('draft-item')).toHaveCount(1)
-    await expect(dock().getByTestId('draft-item')).toHaveCount(0)
-    expect(fs.readdirSync(path.join(project, '.design-in-browser')).filter((name) => name.startsWith('page-state.')).length).toBe(2)
+    await expect(dock(other).getByTestId('sent')).toContainText('Only in the second app')
+    await callTool(shim, 'live_get_batch')
+    await page.goto(appUrl)
+    if (await page.locator('dib-dock .launcher').isVisible()) await page.locator('dib-dock .launcher').click()
+    await expect(dock().getByTestId('status')).toContainText('Claude is listening')
+    await expect(dock().getByTestId('sent')).not.toContainText('Only in the second app')
     await other.close()
   } finally {
     await two.close()
@@ -119,7 +129,7 @@ test('with HMR off the page is left alone', async () => {
   }
 })
 
-test('a comment survives a save that fails while the dev server is down', async () => {
+test('a comment survives a send that fails while the dev server is down', async () => {
   await page.goto(appUrl)
   await page.keyboard.press('Alt+Shift+C')
   await page.locator('.lede').click()
@@ -129,7 +139,7 @@ test('a comment survives a save that fails while the dev server is down', async 
   await composer.locator('textarea').press('Enter')
   await expect(composer).toBeVisible({ timeout: 8000 })
   await expect(composer.locator('textarea')).toHaveValue('Text I typed before noticing')
-  await expect(composer.locator('.composer-error')).toContainText('Couldn’t save')
+  await expect(composer.locator('.composer-error')).toContainText('The dev server isn’t running')
   await startAppServer()
 })
 

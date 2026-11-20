@@ -48,7 +48,6 @@ test('an Astro page gets the overlay, and its island is located in the server HT
   await comment('.counter button', 'Say "Order a coffee"')
   await page.keyboard.press('Escape')
   if (await page.locator('dib-dock .launcher').isVisible()) await page.locator('dib-dock .launcher').click()
-  await dock().getByTestId('send').click()
   await expect.poll(() => doorbells.at(-1)).toMatch(/ready, 1 comment\./)
   const batch = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
   const [sent] = batch.comments
@@ -80,7 +79,6 @@ test('alternatives in an Astro island keep their switcher on Before, though Astr
   await comment('h1', 'Try a louder tagline')
   await page.keyboard.press('Escape')
   if (await page.locator('dib-dock .launcher').isVisible()) await page.locator('dib-dock .launcher').click()
-  await dock().getByTestId('send').click()
   await expect.poll(() => doorbells.at(-1)).toMatch(/ready, 1 comment\./)
   const batch = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
   await callTool(shim, 'live_reply', {

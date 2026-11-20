@@ -1,20 +1,20 @@
-// The plugin's state: the comment stack and the user's choices (saved in the project's journal folder,
-// so they survive reloads and dev-server restarts), plus sessions and batches from the daemon.
+// The plugin's state: the user's choices (saved in the project's journal folder, so they survive reloads and
+// dev-server restarts), plus sessions and batches from the daemon. Comments go to the agent as they are made.
 // Batches belong to the project, but each app's thread shows only those made on its own dev server, so two apps
 // in one repo don't share a chat. It never starts the daemon: an agent session does that when it connects.
 import fs from 'node:fs'
 import path from 'node:path'
 import WebSocket from 'ws'
-import type { Batch, DaemonToPlugin, PluginToDaemon } from '../shared/protocol.ts'
+import type { Batch, DaemonToPlugin, DraftComment, PluginToDaemon } from '../shared/protocol.ts'
 import { START_COMMAND } from '../shared/protocol.ts'
-import { PAGE_BUILD, sameProject, sendable, versionKey, type PageOp, type PageState } from '../shared/page-protocol.ts'
+import { PAGE_BUILD, sameProject, versionKey, type PageOp, type PageState } from '../shared/page-protocol.ts'
 import { config, tokenPath } from '../node/config.ts'
 import { ensureJournal } from '../node/journal.ts'
 
 const RETRY_MS = 2000
 const KEEPALIVE_MS = 20_000
 
-type Saved = Pick<PageState, 'draft' | 'pickedSessionId' | 'sendOnAdd' | 'variantChoices' | 'tweakValues' | 'dismissed' | 'cleared'>
+type Saved = Pick<PageState, 'pickedSessionId' | 'variantChoices' | 'tweakValues' | 'dismissed' | 'cleared'>
 
 /** The port a page URL is served on; pages of one dev server share it, whatever the loopback name. */
 function portOf(url: string): string {
@@ -28,8 +28,8 @@ export class Hub {
   private retry: ReturnType<typeof setTimeout> | null = null
   private keepalive: ReturnType<typeof setInterval> | null = null
   private stopped = false
-  /** clientBatchId -> ids of the draft comments in that send */
-  private readonly inFlight = new Map<string, string[]>()
+  /** Sends the daemon hasn't answered yet: clientBatchId -> how to settle the page's operation (null when taken). */
+  private readonly inFlight = new Map<string, (error: string | null) => void>()
   private readonly savedFile: string
   private readonly broadcast: (state: PageState) => void
   /** This project's batches from the daemon, newest first, before this app's view of them. */
@@ -50,11 +50,9 @@ export class Hub {
       projectRoot,
       sessions: [],
       batches: [],
-      draft: saved.draft,
       sending: false,
       lastError: null,
       pickedSessionId: saved.pickedSessionId,
-      sendOnAdd: saved.sendOnAdd,
       variantChoices: saved.variantChoices,
       tweakValues: saved.tweakValues,
       dismissed: saved.dismissed,
@@ -77,23 +75,13 @@ export class Hub {
 
   // --- operations from pages -----------------------------------------------------------
 
-  /** Applies one operation; returns an error message for the page, or null. */
-  apply(op: PageOp): string | null {
+  /** Applies one operation; resolves to an error message for the page, or null. */
+  async apply(op: PageOp): Promise<string | null> {
     switch (op.type) {
-      case 'add-comment':
-        this.update({ draft: [...this.state.draft, op.comment], lastError: null }, true)
-        return null
-      case 'update-comment':
-        this.update({ draft: this.state.draft.map((comment) => (comment.id === op.id ? { ...comment, text: op.text } : comment)) }, true)
-        return null
-      case 'remove-comment':
-        this.update({ draft: this.state.draft.filter((comment) => comment.id !== op.id) }, true)
-        return null
+      case 'send-comment':
+        return this.sendComment(op.sessionId, op.comment)
       case 'pick-session':
         this.update({ pickedSessionId: op.sessionId }, true)
-        return null
-      case 'set-send-on-add':
-        this.update({ sendOnAdd: op.value }, true)
         return null
       case 'dismiss':
         if (!this.state.dismissed.includes(op.commentId)) this.update({ dismissed: [...this.state.dismissed, op.commentId] }, true)
@@ -102,7 +90,7 @@ export class Hub {
         // What the agent is still working on stays in view until it answers; the rest of the thread goes.
         const keep = this.state.batches.filter((batch) => batch.status !== 'done').map((batch) => batch.id)
         const cleared = { at: new Date().toISOString(), keep }
-        this.update({ cleared, draft: [], dismissed: [], batches: this.visible(cleared) }, true)
+        this.update({ cleared, dismissed: [], batches: this.visible(cleared) }, true)
         return null
       }
       case 'show-variant':
@@ -113,27 +101,26 @@ export class Hub {
         this.update({ tweakValues: { ...this.state.tweakValues, [key]: { ...this.state.tweakValues[key], [op.id]: op.value } } }, true)
         return null
       }
-      case 'send':
-        return this.send(op.sessionId)
     }
   }
 
-  private send(sessionId: string): string | null {
-    const comments = sendable(this.state.draft)
-    if (comments.length === 0) return null
+  /** Sends one comment, and settles once the daemon has taken it or refused it: until then the page keeps its text. */
+  private sendComment(sessionId: string, comment: DraftComment): Promise<string | null> {
     if (this.socket?.readyState !== WebSocket.OPEN) {
-      const message = `Not connected to a coding agent. Connect a session (in Claude Code: ${START_COMMAND}), then send again.`
-      this.update({ lastError: message })
-      return message
+      return Promise.resolve(`Not connected to a coding agent. Connect a session (in Claude Code: ${START_COMMAND}), then send again.`)
     }
     const clientBatchId = crypto.randomUUID()
-    this.inFlight.set(
-      clientBatchId,
-      comments.map((comment) => comment.id)
-    )
-    this.post({ type: 'send-batch', clientBatchId, sessionId, comments })
-    this.update({ sending: true, lastError: null })
-    return null
+    return new Promise((settle) => {
+      this.inFlight.set(clientBatchId, settle)
+      this.post({ type: 'send-batch', clientBatchId, sessionId, comments: [comment] })
+      this.update({ sending: true, lastError: null })
+    })
+  }
+
+  /** Answers one send, with null when the daemon took it, or why not. */
+  private settle(clientBatchId: string, error: string | null): void {
+    this.inFlight.get(clientBatchId)?.(error)
+    this.inFlight.delete(clientBatchId)
   }
 
   // --- daemon ----------------------------------------------------------------------------
@@ -161,7 +148,8 @@ export class Hub {
       if (this.socket !== ws) return
       this.socket = null
       if (this.keepalive) clearInterval(this.keepalive)
-      this.inFlight.clear()
+      for (const clientBatchId of this.inFlight.keys())
+        this.settle(clientBatchId, 'Lost the connection to the coding agent before it got this. Send it again.')
       this.update({ connection: 'offline', sessions: [], sending: false })
       this.scheduleRetry()
     })
@@ -208,25 +196,17 @@ export class Hub {
       case 'sessions':
         this.update({ sessions: message.sessions })
         return
-      case 'batch-accepted': {
-        const sent = new Set(this.inFlight.get(message.clientBatchId) ?? [])
-        this.inFlight.delete(message.clientBatchId)
-        this.update(
-          {
-            draft: this.state.draft.filter((comment) => !sent.has(comment.id)),
-            batches: this.upsert(message.batch),
-            sending: this.inFlight.size > 0,
-          },
-          true
-        )
+      case 'batch-accepted':
+        this.settle(message.clientBatchId, null)
+        this.update({ batches: this.upsert(message.batch), sending: this.inFlight.size > 0 })
         return
-      }
       case 'batch-updated':
         this.update({ batches: this.upsert(message.batch) })
         return
       case 'error':
-        if (message.clientBatchId) this.inFlight.delete(message.clientBatchId)
-        this.update({ lastError: message.message, sending: this.inFlight.size > 0 })
+        // An error for a send goes back to where it was made, which keeps its text; any other shows in the dock.
+        if (message.clientBatchId) this.settle(message.clientBatchId, message.message)
+        this.update({ lastError: message.clientBatchId ? null : message.message, sending: this.inFlight.size > 0 })
         return
       case 'pong':
         return
@@ -244,9 +224,7 @@ export class Hub {
   /** The saved stack and choices. Fields missing from an older file start empty; an unreadable file is reported. */
   private load(): Saved {
     const empty: Saved = {
-      draft: [],
       pickedSessionId: null,
-      sendOnAdd: false,
       variantChoices: {},
       tweakValues: {},
       dismissed: [],
@@ -266,11 +244,11 @@ export class Hub {
 
   private save(): void {
     ensureJournal(this.state.projectRoot)
-    const { draft, pickedSessionId, sendOnAdd, variantChoices, tweakValues, dismissed, cleared } = this.state
+    const { pickedSessionId, variantChoices, tweakValues, dismissed, cleared } = this.state
     const tmp = `${this.savedFile}.tmp`
     fs.writeFileSync(
       tmp,
-      JSON.stringify({ draft, pickedSessionId, sendOnAdd, variantChoices, tweakValues, dismissed, cleared } satisfies Saved, null, 2) + '\n'
+      JSON.stringify({ pickedSessionId, variantChoices, tweakValues, dismissed, cleared } satisfies Saved, null, 2) + '\n'
     )
     fs.renameSync(tmp, this.savedFile)
   }

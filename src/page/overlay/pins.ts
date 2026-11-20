@@ -1,13 +1,14 @@
-// Pins: one per comment on this page, at the point that was clicked, and one per note the agent left on an
-// element. A pin's disc shows the draft number or the agent's answer (done, question, skipped, alternatives,
-// note), and opening it shows the thread, with a field to answer the agent's question from right there.
+// Pins: one per thread on this page, at the point its first comment was made (or the element an agent's note is
+// on). A question's answer joins the thread of the comment that asked, so one pin carries the whole exchange. The
+// disc shows where the thread stands (waiting, question, alternatives, note), and opening it shows the thread, with a
+// field to answer the agent's question from right there. A settled thread leaves the page; the dock keeps it.
 import { SOURCE_ATTRIBUTE } from '../../shared/page-protocol.ts'
 import type { Batch, BatchComment, CommentStatus, DraftComment, ElementRef, InReplyTo, NoteAnchor, PageRef } from '../../shared/protocol.ts'
 import { captureElement, samePage } from '../capture.ts'
 import { answeredIds, answering, isPick, newComment, settled } from '../comments.ts'
 import { dismissButton } from '../dismiss.ts'
 import { icon } from '../icons.ts'
-import { agentName, defaultSession, readState, sendOp, type PageState } from '../store.ts'
+import { defaultSession, readState, sendComment, type PageState } from '../store.ts'
 import { el, findBySelector, query } from '../ui/dom.ts'
 import { keepKeys } from '../ui/events.ts'
 import { when } from '../ui/format.ts'
@@ -17,53 +18,45 @@ import { markersHidden } from '../ui/markers.ts'
 import { getMode, onModeChange } from './mode.ts'
 import { CARD_WIDTH, PIN, root } from './root.ts'
 
-type PinStatus = 'draft' | CommentStatus | 'answered'
-
 /** What an answer typed into a pin carries over from the comment it answers. */
 type Answering = { inReplyTo: InReplyTo; element: ElementRef | null; page: PageRef }
 
+/** One turn of a thread: what the user wrote (none for an agent's note) and the agent's reply, if any yet. */
+type Entry = { you: string | null; agent: string | null; at: string }
+
 type PinModel = {
+  /** The thread's first comment. */
   key: string
-  /** Who replies: the batch's agent, or the page's agent for a draft. */
   agent: string
   /** Finds the element the pin sits on, as the page is now. */
   find: () => Element | null
   /** Where on the element: the clicked point, or its top-left corner for a note. */
   offset: Point | undefined
-  /** An agent's note has the agent's words alone, with no "You" entry. */
-  fromAgent: boolean
-  status: PinStatus
-  /** The draft's place in the stack; null once sent, when the disc shows the status instead. */
-  number: number | null
-  text: string
-  createdAt: string
-  reply: string | null
-  /** Set when the pin can take an answer from here. */
+  /** Where the thread stands: its newest comment's status. */
+  status: CommentStatus
+  entries: Entry[]
+  /** Set when the newest comment is a question this page can answer. */
   answer: Answering | null
-  draftId: string | null
-  /** An open question or a note: the user can dismiss it instead of answering. */
-  dismissable: boolean
+  /** The newest comment, when it can be dismissed instead of answered: an open question, or a note. */
+  dismiss: { id: string; name: string } | null
 }
 
-const statusLabel: Record<PinStatus, string> = {
-  draft: 'Not sent',
+const statusLabel: Record<CommentStatus, string> = {
   pending: 'Waiting for a reply',
   done: 'Done',
   question: 'Needs your answer',
   skipped: 'Skipped',
   variants: 'Alternatives on the page',
   note: 'Note',
-  answered: 'Answered',
 }
 
-const statusGlyph: Record<Exclude<PinStatus, 'draft'>, string> = {
+const statusGlyph: Record<CommentStatus, string> = {
   pending: icon('clock'),
   done: icon('check'),
   question: icon('question'),
   skipped: icon('minus'),
   variants: icon('layers'),
   note: icon('comment'),
-  answered: icon('clock'),
 }
 
 const pins = query<HTMLDivElement>(root, '.pins')
@@ -82,32 +75,31 @@ function placeOf(comment: DraftComment & { anchor?: NoteAnchor }): Pick<PinModel
   return null
 }
 
-function sentPin(
-  batch: Batch,
-  comment: BatchComment,
-  place: Pick<PinModel, 'find' | 'offset'>,
-  answered: Set<string>,
-  ownProject: string | null
-): PinModel {
-  const isOpenQuestion = comment.status === 'question' && !answered.has(comment.id)
-  return {
-    key: comment.id,
-    agent: batch.agent,
-    ...place,
-    fromAgent: batch.from === 'agent',
-    status: comment.status === 'question' && answered.has(comment.id) ? 'answered' : comment.status,
-    number: null,
-    text: comment.text,
-    createdAt: comment.createdAt,
-    reply: comment.reply,
-    // Only the project that asked can take the answer: it goes to that project's session.
-    answer:
-      isOpenQuestion && batch.projectRoot === ownProject
-        ? { inReplyTo: answering(batch, comment), element: comment.element, page: comment.page }
-        : null,
-    draftId: null,
-    dismissable: isOpenQuestion || comment.status === 'note',
+type Sent = { batch: Batch; comment: BatchComment }
+
+/**
+ * The batches' comments as threads: an answer (`inReplyTo`) joins the thread of the comment it answers. Each thread
+ * starts at its earliest comment still in view (starting over, or the 30 newest batches, can leave out the first).
+ */
+function threads(batches: Batch[]): Sent[][] {
+  const all = batches.flatMap((batch) => batch.comments.map((comment) => ({ batch, comment })))
+  const byId = new Map(all.map((sent) => [sent.comment.id, sent]))
+  const rootOf = (sent: Sent): string => {
+    const seen = new Set<string>()
+    let at = sent
+    for (
+      let up = byId.get(at.comment.inReplyTo?.commentId ?? '');
+      up && !seen.has(up.comment.id);
+      up = byId.get(up.comment.inReplyTo?.commentId ?? '')
+    ) {
+      seen.add(up.comment.id)
+      at = up
+    }
+    return at.comment.id
   }
+  const grouped = new Map<string, Sent[]>()
+  for (const sent of all) grouped.set(rootOf(sent), [...(grouped.get(rootOf(sent)) ?? []), sent])
+  return [...grouped.values()].map((thread) => thread.sort((a, b) => a.comment.createdAt.localeCompare(b.comment.createdAt)))
 }
 
 /** Alternatives the agent put on this page: their switcher stands in for the pin, which would sit on top of them. */
@@ -128,93 +120,84 @@ function sharedHere(comment: DraftComment): boolean {
   return document.querySelectorAll(`[${SOURCE_ATTRIBUTE}="${CSS.escape(own)}"]`).length === 1
 }
 
-/** Pins for comments on this page, or on a part of it other pages share; a pick needs none (its switcher shows it). */
+/** Pins for threads on this page, or on a part of it other pages share; a pick needs none (its switcher shows it). */
 function pinsForThisPage(state: PageState): PinModel[] {
-  const answered = answeredIds(state.draft, state.batches)
+  const answered = answeredIds(state.batches)
   const ownProject = defaultSession(state)?.projectRoot ?? null
-  const onThisPage = (comment: DraftComment) => (samePage(comment.page.url) || sharedHere(comment)) && !isPick(comment)
-  const drafts = state.draft.flatMap((comment, index): PinModel[] => {
-    const place = placeOf(comment)
-    return place && onThisPage(comment)
-      ? [
-          {
-            key: comment.id,
-            agent: agentName(state),
-            ...place,
-            fromAgent: false,
-            status: 'draft',
-            number: index + 1,
-            text: comment.text,
-            createdAt: comment.createdAt,
-            reply: null,
-            answer: null,
-            draftId: comment.id,
-            dismissable: false,
-          },
-        ]
-      : []
+  return threads(state.batches).flatMap((thread): PinModel[] => {
+    const first = thread[0]
+    const last = thread.at(-1)
+    if (!first || !last || isPick(first.comment) || !(samePage(first.comment.page.url) || sharedHere(first.comment))) return []
+    const place = placeOf(first.comment)
+    // A settled thread (done, skipped, dismissed, picked) leaves the page; its replies stay in the dock.
+    if (!place || settled(last.comment, state) || switcherShows(last.comment)) return []
+    const open = last.comment.status === 'question' && !answered.has(last.comment.id)
+    return [
+      {
+        key: first.comment.id,
+        agent: last.batch.agent,
+        ...place,
+        status: last.comment.status,
+        entries: thread.map(({ batch, comment }) => ({
+          you: batch.from === 'agent' ? null : comment.text,
+          agent: comment.reply,
+          at: comment.createdAt,
+        })),
+        // Only the project that asked can take the answer: it goes to that project's session.
+        answer:
+          open && last.batch.projectRoot === ownProject
+            ? { inReplyTo: answering(last.batch, last.comment), element: last.comment.element, page: last.comment.page }
+            : null,
+        dismiss: open || last.comment.status === 'note' ? { id: last.comment.id, name: open ? 'Dismiss question' : 'Dismiss note' } : null,
+      },
+    ]
   })
-  const sent = state.batches.flatMap((batch) =>
-    batch.comments.flatMap((comment) => {
-      const place = placeOf(comment)
-      // Settled comments (done, skipped, dismissed, picked) leave the page; their replies stay in the dock.
-      return place && onThisPage(comment) && !settled(comment, state) && !switcherShows(comment)
-        ? [sentPin(batch, comment, place, answered, ownProject)]
-        : []
-    })
-  )
-  return [...drafts, ...sent]
 }
 
+/** The thread, oldest first: each of the user's comments, then the agent's reply to it. The first line says where the
+ * thread stands. */
 function buildThread(pin: PinModel, thread: HTMLElement): void {
-  if (pin.fromAgent) {
-    // The agent's note: its words, under its name and the note's time and status.
-    const head = el('p', { className: 'entry-head' }, [
-      el('span', { textContent: pin.agent }),
-      el('span', { className: 'when', textContent: when(pin.createdAt) }),
-      el('span', { className: 'status', textContent: statusLabel[pin.status] }),
+  const head = (who: string, at: string, first: boolean) =>
+    el('p', { className: 'entry-head' }, [
+      el('span', { textContent: who }),
+      el('span', { className: 'when', textContent: when(at) }),
+      ...(first ? [el('span', { className: 'status', textContent: statusLabel[pin.status] })] : []),
     ])
-    thread.replaceChildren(
-      el('div', { className: 'entry agent' }, [head, el('p', { className: 'entry-text', textContent: pin.reply ?? '' })]),
-      ...answerField(pin),
-      ...dismissIfOpen(pin)
-    )
-    return
-  }
-  const head = el('p', { className: 'entry-head' }, [
-    el('span', { textContent: 'You' }),
-    el('span', { className: 'when', textContent: when(pin.createdAt) }),
-    el('span', { className: 'status', textContent: statusLabel[pin.status] }),
+  const parts = pin.entries.flatMap((entry, index) => [
+    ...(entry.you === null
+      ? []
+      : [
+          el('div', { className: 'entry' }, [
+            head('You', entry.at, index === 0),
+            el('p', { className: 'entry-text', textContent: entry.you }),
+          ]),
+        ]),
+    ...(entry.agent === null
+      ? []
+      : [
+          el('div', { className: 'entry agent' }, [
+            entry.you === null
+              ? head(pin.agent, entry.at, index === 0)
+              : el('p', { className: 'entry-head' }, [el('span', { textContent: pin.agent })]),
+            el('p', { className: 'entry-text', textContent: entry.agent }),
+          ]),
+        ]),
   ])
-  if (pin.draftId) {
-    const remove = el('button', {
-      className: 'remove',
-      html: icon('trash', 15),
-      attrs: { type: 'button', 'aria-label': 'Remove comment', 'data-action': 'remove', 'data-key': pin.key },
-    })
-    head.append(remove)
-  }
-  const parts: HTMLElement[] = [el('div', { className: 'entry' }, [head, el('p', { className: 'entry-text', textContent: pin.text })])]
-  if (pin.reply) {
-    parts.push(
-      el('div', { className: 'entry agent' }, [
-        el('p', { className: 'entry-head' }, [el('span', { textContent: pin.agent })]),
-        el('p', { className: 'entry-text', textContent: pin.reply }),
-      ])
-    )
-  }
   thread.replaceChildren(...parts, ...answerField(pin), ...dismissIfOpen(pin))
 }
 
 /** Closes an open question or a note without answering it. */
-const dismissIfOpen = (pin: PinModel): HTMLElement[] =>
-  pin.dismissable ? [dismissButton(pin.key, pin.status === 'question' ? 'Dismiss question' : 'Dismiss note')] : []
+const dismissIfOpen = (pin: PinModel): HTMLElement[] => (pin.dismiss ? [dismissButton(pin.dismiss.id, pin.dismiss.name)] : [])
 
 /** The field under an open question, when this page can take the answer. */
 function answerField(pin: PinModel): HTMLElement[] {
   if (!pin.answer) return []
   const field = el('textarea', { attrs: { rows: '1', placeholder: `Answer ${pin.agent}`, 'aria-label': `Answer ${pin.agent}` } })
-  const send = el('button', { className: 'send', html: icon('arrowUp', 15), attrs: { type: 'submit', 'aria-label': 'Add answer' } })
+  const send = el('button', {
+    className: 'send',
+    html: icon('arrowUp', 15),
+    attrs: { type: 'submit', 'aria-label': `Send answer to ${pin.agent}` },
+  })
   return [el('form', { className: 'reply-field', attrs: { 'data-key': pin.key } }, [field, send])]
 }
 
@@ -240,14 +223,13 @@ export function renderPins(): void {
     const thread = query<HTMLElement>(wrap, '.thread')
     // A thread being typed into is left alone until it is done.
     const typing = wrap.contains(root.activeElement) && root.activeElement instanceof HTMLTextAreaElement
-    const signature = JSON.stringify([pin.status, pin.number, pin.text, pin.reply, pin.answer !== null, pin.agent, pin.dismissable])
+    const signature = JSON.stringify([pin.status, pin.entries, pin.answer !== null, pin.agent, pin.dismiss])
     if (wrap.dataset.signature !== signature && !typing) {
       wrap.dataset.signature = signature
       wrap.dataset.status = pin.status
-      const disc = query<HTMLElement>(wrap, '.disc')
-      if (pin.status === 'draft') disc.textContent = String(pin.number)
-      else disc.innerHTML = statusGlyph[pin.status]
-      query(wrap, '.pin').setAttribute('aria-label', `${statusLabel[pin.status]}: ${pin.text}`)
+      query<HTMLElement>(wrap, '.disc').innerHTML = statusGlyph[pin.status]
+      const [opening] = pin.entries
+      query(wrap, '.pin').setAttribute('aria-label', `${statusLabel[pin.status]}: ${opening?.you ?? opening?.agent ?? ''}`)
       buildThread(pin, thread)
     }
 
@@ -297,12 +279,17 @@ async function submitAnswer(form: HTMLFormElement): Promise<void> {
     element: element ? { ...captureElement(element), clickOffset: pin.offset } : pin.answer.element,
     inReplyTo: pin.answer.inReplyTo,
   })
-  field.blur()
-  form.closest('.pin-wrap')?.classList.remove('open')
+  // The answer goes to the agent at once; the card closes once the daemon has it, or keeps the text and says why.
+  if (form.nextElementSibling?.classList.contains('reply-error')) form.nextElementSibling.remove()
   try {
-    await sendOp({ type: 'add-comment', comment })
-  } catch {
-    field.value = text
+    await sendComment(comment)
+    field.value = ''
+    field.blur()
+    form.closest('.pin-wrap')?.classList.remove('open')
+  } catch (error) {
+    form.after(
+      el('p', { className: 'reply-error', textContent: error instanceof Error ? error.message : String(error), attrs: { role: 'alert' } })
+    )
   }
 }
 
@@ -312,11 +299,7 @@ pins.addEventListener('click', (event) => {
   if (pinButton?.parentElement) {
     closeThreads(pinButton.parentElement)
     pinButton.parentElement.classList.toggle('open')
-    return
   }
-  const remove = clicked.closest<HTMLButtonElement>('[data-action="remove"]')
-  const pin = remove ? models.get(remove.dataset.key ?? '') : undefined
-  if (pin?.draftId) void sendOp({ type: 'remove-comment', id: pin.draftId })
 })
 pins.addEventListener('submit', (event) => {
   event.preventDefault()

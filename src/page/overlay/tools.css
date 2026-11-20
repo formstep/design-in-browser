@@ -70,18 +70,6 @@
   background: var(--line);
 }
 
-.tools-count {
-  padding: 0 8px;
-  color: var(--ink-3);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.tools-count:empty {
-  display: none;
-}
-
 /* "Ask <agent>": a note about the whole page, typed in a bar above the pill. */
 .askbar {
   display: flex;
@@ -125,7 +113,6 @@
     bottom: 72px;
   }
 
-  .tools-count,
   .done-tool kbd {
     display: none;
   }

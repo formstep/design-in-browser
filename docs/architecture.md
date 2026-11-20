@@ -6,7 +6,7 @@ Four pieces run on your machine:
  your app's page                    Vite dev server                daemon (one per machine)          agent session
 ┌──────────────────┐  HMR socket  ┌──────────────────┐   ws    ┌───────────────────────┐  ws   ┌──────────────────┐
 │ overlay + dock   │ ───────────▶ │ Vite plugin      │ ──────▶ │ 127.0.0.1:47821       │ ◀──── │ MCP server       │
-│ (shadow DOM)     │ ◀─────────── │ (keeps the stack)│ ◀────── │ sessions and batches  │       │ (one per session)│
+│ (shadow DOM)     │ ◀─────────── │ (relays, choices)│ ◀────── │ sessions and batches  │       │ (one per session)│
 └──────────────────┘              └──────────────────┘         └───────────┬───────────┘       └──────────────────┘
                                                                            │ one text frame per batch
                                                                            ▼
@@ -16,7 +16,7 @@ Four pieces run on your machine:
 ```
 
 - **Overlay and dock** (`src/page/`): the element picker, comment card, pins, toolbar and version switchers, plus the chat dock. They render in shadow roots, so your app's CSS can't reach them and theirs can't reach your app. The Vite plugin serves them as a virtual module.
-- **Vite plugin** (`src/vite/`): runs in your app's dev server only. It talks to pages over Vite's own HMR socket, keeps the comment stack and your choices in `.design-in-browser/page-state.<app>.json` (so they survive reloads and restarts, and every tab shares them), and relays to the daemon.
+- **Vite plugin** (`src/vite/`): runs in your app's dev server only. It talks to pages over Vite's own HMR socket, keeps your choices (versions shown, tweak values, dismissed questions, where you started over) in `.design-in-browser/page-state.<app>.json` (so they survive reloads and restarts, and every tab shares them), and relays each comment to the daemon as it's made.
 - **Daemon** (`src/daemon/`): one per machine, started by the first agent session that connects. It routes each sent batch to the session working on the same project, writes it to that project's journal, and rings the session's Monitor. It stops after 30 minutes with no session.
 - **MCP server** (`src/mcp/`): one per agent session, started by the Claude Code plugin in `plugin/`. It does nothing until the agent calls `live_connect`, then gives it six tools: `live_connect`, `live_get_batch`, `live_wait`, `live_reply`, `live_note` and `live_status`. `live_note` leaves notes on elements, which show as pins and as the agent's own turn in the dock; a note that asks something takes an answer like any question. Agents without a Monitor call `live_wait`, which returns the next batch and keeps the session marked as listening ([agents.md](agents.md)). The same server ships in the npm package as `design-in-browser-mcp`, and the package's OpenCode plugin (`src/opencode/`) registers it in OpenCode, listens on the session's doorbell like a Monitor, and sends each doorbell into the session as a message. The `live` skill in `plugin/skills/live/` tells the agent how to listen and what a comment allows.
 
@@ -25,8 +25,8 @@ Four pieces run on your machine:
 ## A comment's trip
 
 1. You pick an element. The overlay records a selector, its text, a slice of its HTML, a few computed styles, its ancestors, where you clicked, and where its JSX is written (`src/page/capture.ts`).
-2. The comment goes to the Vite plugin, which adds it to the stack and sends the new state to every tab.
-3. On Send, the plugin passes the stack to the daemon, which writes `batches/<id>.json` and rings the session's Monitor with one line: `design-in-browser: batch 003 ready, 2 comments. Call live_get_batch.`
+2. On Enter, the comment goes to the Vite plugin, which passes it to the daemon as a batch of its own; the page keeps the text until the daemon has it, and gets it back with the reason if not (no session, the dev server down).
+3. The daemon writes `batches/<id>.json` and rings the session's Monitor with one line: `design-in-browser: batch 003 ready, 1 comment. Call live_get_batch.`
 4. The agent fetches the batch, edits the source, and calls `live_reply` per comment. Each reply goes back through the daemon and the plugin to the page, where the pin and the dock update.
 
 A session's Monitor lasts 30 minutes at most, and the skill re-arms it. Anything sent while no Monitor is armed waits in the journal and rings as soon as one is.
@@ -65,7 +65,7 @@ In dev, React's JSX transform already passes each element's file, line and colum
   .gitignore              "*", so the folder never shows in git
   batches/001.json        one file per batch, rewritten on every change
   journal.jsonl           append-only log of what happened
-  page-state.<app>.json   the comment stack and your choices, per app
+  page-state.<app>.json   your choices, per app
 ```
 
 ## Security

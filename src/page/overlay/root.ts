@@ -48,14 +48,13 @@ root.innerHTML = `
   <label class="shot-check" hidden><input type="checkbox" class="attach-shot" /> <span>Attach a screenshot</span></label>
   <p class="composer-error" role="alert" hidden></p>
   <div class="composer-foot">
-    <label class="check"><input type="checkbox" class="send-on-add" /> <span class="check-text"></span></label>
-    <span class="hint"><kbd>Enter</kbd> to add</span>
+    <span class="hint"><kbd>Enter</kbd> to send</span>
   </div>
 </form>
 <div class="toolbar" hidden>
   <form class="askbar" hidden>
     <input type="text" placeholder="Describe a change to this page" aria-label="Note about this page" />
-    <button type="submit" class="send" aria-label="Add note"><span data-icon="arrowUp" data-size="15"></span></button>
+    <button type="submit" class="send" aria-label="Send note"><span data-icon="arrowUp" data-size="15"></span></button>
   </form>
   <div class="tools" role="toolbar" aria-label="Design in Browser">
     <button type="button" class="tool pick-tool" title="Comment on an element" aria-label="Comment on an element"><span data-icon="comment" data-size="18"></span></button>
@@ -63,7 +62,6 @@ root.innerHTML = `
     <button type="button" class="tool draw-tool" data-tool="arrow" title="Draw an arrow" aria-label="Draw an arrow"><span data-icon="arrowUpRight" data-size="17"></span></button>
     <button type="button" class="tool draw-tool" data-tool="pen" title="Draw freehand" aria-label="Draw freehand"><span data-icon="pen" data-size="17"></span></button>
     <span class="tools-divider"></span>
-    <span class="tools-count"></span>
     <button type="button" class="tool ask" aria-pressed="false"></button>
     <span class="tools-divider"></span>
     <button type="button" class="tool done-tool"><kbd>Esc</kbd>Done</button>

@@ -224,3 +224,11 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* Why an answer didn't go: under the field, which keeps the text. */
+.reply-error {
+  margin: 6px 0 0;
+  color: var(--danger-ink);
+  font-size: 12px;
+  line-height: 17px;
+}

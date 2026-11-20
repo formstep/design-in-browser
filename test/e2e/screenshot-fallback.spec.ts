@@ -29,12 +29,9 @@ async function drawBox(x: number, y: number): Promise<void> {
 /** The card closed because its comment was added. While the tab is captured it's only made invisible. */
 const added = () => expect(composer()).toHaveAttribute('hidden', '', { timeout: 20_000 })
 
-/** Sends the stack and returns the batch with whether the agent got an image. */
-async function send(count = 1): Promise<{ batch: Batch; image: boolean }> {
-  await page.keyboard.press('Escape')
-  await page.keyboard.press('Alt+Shift+D')
-  await dock().getByTestId('send').click()
-  await expect.poll(() => doorbells.at(-1)).toMatch(count === 1 ? /ready, 1 comment\./ : `ready, ${count} comments.`)
+/** The oldest batch the agent hasn't fetched, as it fetches it, with whether it got an image. */
+async function fetchSent(): Promise<{ batch: Batch; image: boolean }> {
+  await expect.poll(() => doorbells.at(-1)).toMatch(/ready, 1 comment\./)
   const result = (await shim.callTool({ name: 'live_get_batch', arguments: {} })) as {
     content: Array<{ type: string; text?: string }>
   }
@@ -54,13 +51,15 @@ test('a drawing that never finishes falls back to the share prompt, and the card
   // The card takes the next comment as usual.
   await drawBox(80, 320)
   await composer().locator('textarea').fill('And this one')
-  await expect(composer().locator('.hint')).toHaveText('Enter to add')
+  await expect(composer().locator('.hint')).toHaveText('Enter to send')
   await composer().locator('textarea').press('Enter')
   await added()
-  const { batch, image } = await send(2)
-  expect(batch.comments[0]!.screenshotFile).toMatch(/^screenshots\/.+\.jpg$/)
-  expect(batch.comments[1]!.text).toBe('And this one')
-  expect(image).toBe(true)
+  // Each comment went on its own, the first with its screenshot.
+  const first = await fetchSent()
+  expect(first.batch.comments[0]!.screenshotFile).toMatch(/^screenshots\/.+\.jpg$/)
+  expect(first.image).toBe(true)
+  const second = await fetchSent()
+  expect(second.batch.comments[0]!.text).toBe('And this one')
 })
 
 test('when the page can’t be drawn, the tab-share prompt takes the screenshot', async () => {
@@ -73,12 +72,12 @@ test('when the page can’t be drawn, the tab-share prompt takes the screenshot'
   await boxWithComment('Too tight')
   await composer().locator('textarea').press('Enter')
   await added()
-  const { batch, image } = await send()
+  const { batch, image } = await fetchSent()
   expect(batch.comments[0]!.screenshotFile).toMatch(/^screenshots\/.+\.jpg$/)
   expect(image).toBe(true)
 })
 
-test('declining to share the tab keeps the comment and says how to add it without a screenshot', async () => {
+test('declining to share the tab keeps the comment and says how to send it without a screenshot', async () => {
   await page.goto(appUrl)
   await page.evaluate(() => {
     XMLSerializer.prototype.serializeToString = () => {
@@ -89,7 +88,7 @@ test('declining to share the tab keeps the comment and says how to add it withou
   await boxWithComment('Bigger gap')
   await composer().locator('textarea').press('Enter')
   await expect(composer().locator('.composer-error')).toHaveText(
-    'The tab wasn’t shared, so there’s no screenshot. Untick "Attach a screenshot" to add the comment without one.'
+    'The tab wasn’t shared, so there’s no screenshot. Untick "Attach a screenshot" to send the comment without one.'
   )
   await expect(composer().locator('textarea')).toHaveValue('Bigger gap')
   await expect(composer().locator('.hint')).not.toHaveText('Taking a screenshot…')
@@ -97,7 +96,7 @@ test('declining to share the tab keeps the comment and says how to add it withou
   await composer().locator('.attach-shot').uncheck()
   await composer().locator('textarea').press('Enter')
   await added()
-  const { batch, image } = await send()
+  const { batch, image } = await fetchSent()
   expect(batch.comments[0]!.text).toBe('Bigger gap')
   expect(batch.comments[0]!.screenshotFile).toBeUndefined()
   expect(image).toBe(false)

@@ -1,8 +1,9 @@
 // Drawing on the page: boxes, arrows and pen strokes on a layer over the window. The first mark opens a comment
-// card beside it; more marks join the same comment until it is added. Marks of comments still in the stack stay
-// drawn on their page.
+// card beside it; more marks join the same comment until it is sent. A sent comment's marks stay drawn on their page
+// until the agent settles it.
 import type { DraftComment, Mark, PagePoint } from '../../shared/protocol.ts'
 import { samePage } from '../capture.ts'
+import { settled } from '../comments.ts'
 import { readState } from '../store.ts'
 import { findBySelector, query } from '../ui/dom.ts'
 import { isUiHost } from '../ui/layout.ts'
@@ -74,7 +75,7 @@ function addMark(mark: Mark): void {
 }
 
 /**
- * How far a stacked comment's marks have to move to sit on their element again. Marks are kept in page coordinates,
+ * How far a sent comment's marks have to move to sit on their element again. Marks are kept in page coordinates,
  * so when the page reflows (the dock opening, a resize) the element moves away from them; the comment's click offset
  * is where the marks' top-right corner was on the element.
  */
@@ -88,7 +89,7 @@ function driftOf(comment: DraftComment): { x: number; y: number } {
   return { x: box.left + offset.x - corner.x, y: box.top + offset.y - corner.y }
 }
 
-/** A stacked comment's marks, moved with their element. */
+/** A sent comment's marks, moved with their element. */
 function savedMarks(comment: DraftComment): SVGElement {
   const { x, y } = driftOf(comment)
   const group = document.createElementNS('http://www.w3.org/2000/svg', 'g')
@@ -97,11 +98,19 @@ function savedMarks(comment: DraftComment): SVGElement {
   return group
 }
 
-/** Draws the marks of the comment being written, the one being drawn, and those of comments in the stack. */
+/**
+ * Draws the marks of the comment being written, the one being drawn, and those of sent comments the agent hasn't
+ * settled yet (on this page), so a drawing stays where it was made until its comment is done.
+ */
 export function renderMarks(): void {
   ink.classList.toggle('active', acceptsMarks())
   const mode = getMode()
-  const drafts = markersHidden() ? [] : readState().draft.filter((comment) => comment.marks && samePage(comment.page.url))
+  const state = readState()
+  const drafts = markersHidden()
+    ? []
+    : state.batches
+        .flatMap((batch) => batch.comments)
+        .filter((comment) => comment.marks?.length && samePage(comment.page.url) && !settled(comment, state))
   const current = mode.kind === 'commenting' ? mode.marks : []
   const drawing = stroke ? markOf(stroke) : null
   ink.replaceChildren(

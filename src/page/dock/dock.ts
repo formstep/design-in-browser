@@ -4,20 +4,19 @@
 // Lists are rebuilt only when their data changes, so the periodic render never wipes text being typed.
 import { START_COMMAND, type SessionInfo } from '../../shared/protocol.ts'
 import { capturePage } from '../capture.ts'
-import { isPick, newComment } from '../comments.ts'
+import { newComment, openQuestions } from '../comments.ts'
 import { fillIcons } from '../icons.ts'
 import { isPicking, onModeChange, togglePicker } from '../overlay/mode.ts'
-import { agentName, defaultSession, onStateChange, pluginOutdated, readState, sendable, sendOp, type PageState } from '../store.ts'
+import { agentName, defaultSession, onStateChange, pluginOutdated, readState, sendComment, sendOp, type PageState } from '../store.ts'
 import { el, iconNode, query } from '../ui/dom.ts'
 import { frameScheduler, keepKeys, submitOnEnter } from '../ui/events.ts'
-import { plural } from '../ui/format.ts'
 import { registerUiHost, setReservedRight } from '../ui/layout.ts'
 import { markersHidden, onMarkersHiddenChange, setMarkersHidden } from '../ui/markers.ts'
 import { createShadowHost } from '../ui/shadow-host.ts'
 import dockCss from './dock.css'
 import { pushPage } from './push.ts'
 import { startOverControls } from './start-over.ts'
-import { answerPlaces, turns, where } from './thread.ts'
+import { answerPlaces, turns } from './thread.ts'
 
 const DOCK_WIDTH = 380
 /** Below this window width the dock is the whole window, as in dock.css. */
@@ -76,13 +75,11 @@ root.innerHTML = `
     <p class="notice" hidden></p>
     <p class="error" data-testid="error" role="alert" hidden><span data-icon="alert" data-size="15"></span><span class="error-text"></span></p>
     <form class="compose">
-      <ol class="drafts" data-testid="draft"></ol>
       <textarea class="message" data-testid="message" rows="1" placeholder="Describe a change" aria-label="Message about this page"></textarea>
       <div class="compose-bar">
         <button type="button" class="tool pick" data-testid="pick" aria-pressed="false" title="Comment on an element">
           <span data-icon="comment" data-size="16"></span><span>Comment</span><kbd class="shortcut"></kbd>
         </button>
-        <span class="count"></span>
         <button type="submit" class="send" data-testid="send" aria-label="Send" disabled><span data-icon="arrowUp" data-size="16"></span></button>
       </div>
     </form>
@@ -112,10 +109,8 @@ const notice = $<HTMLElement>('.notice')
 const errorLine = $<HTMLElement>('.error')
 const errorText = $<HTMLElement>('.error-text')
 const compose = $<HTMLFormElement>('.compose')
-const draftList = $<HTMLOListElement>('.drafts')
 const message = $<HTMLTextAreaElement>('.message')
 const pickButton = $<HTMLButtonElement>('.pick')
-const count = $<HTMLElement>('.count')
 const sendButton = $<HTMLButtonElement>('.send')
 
 $<HTMLElement>('.shortcut').textContent = PICK_SHORTCUT
@@ -255,79 +250,31 @@ commandButton.addEventListener('click', async () => {
 
 // --- composer -----------------------------------------------------------------------
 
-let renderedDraft = ''
+/** Why the last message didn't go, shown until the next send; the message stays in the field. */
+let sendError: string | null = null
 
-/** The agent that asked a question: the one that owns its batch. Batch ids repeat per project, so match the project too. */
-function askedBy(state: PageState, session: SessionInfo | null, batchId: string): string {
-  return state.batches.find((batch) => batch.id === batchId && batch.projectRoot === session?.projectRoot)?.agent ?? agentName(state)
-}
-
-function renderComposer(state: PageState, session: SessionInfo | null, canSend: boolean): void {
-  const ready = sendable(state.draft).length
-  const typed = message.value.trim() !== ''
-  sendButton.disabled = !canSend || state.sending || (ready === 0 && !typed)
+function renderComposer(state: PageState, canSend: boolean): void {
+  sendButton.disabled = !canSend || message.value.trim() === ''
   sendButton.title = canSend ? '' : 'Connect an agent session to send'
   sendButton.setAttribute('aria-label', `Send to ${agentName(state)}`)
-  count.textContent = ready ? plural(ready, 'comment', 'comments') : ''
-  errorLine.hidden = !state.lastError
-  errorText.textContent = state.lastError ?? ''
-
-  const signature = JSON.stringify(state.draft.map((comment) => [comment.id, comment.text, comment.page.url]))
-  if (signature === renderedDraft) return
-  renderedDraft = signature
-  const focused = root.activeElement instanceof HTMLTextAreaElement ? root.activeElement.dataset.id : undefined
-
-  draftList.replaceChildren(
-    ...state.draft.map((comment, index) => {
-      const field = el('textarea', {
-        attrs: {
-          rows: '1',
-          placeholder: comment.inReplyTo ? 'Your answer' : 'What should change?',
-          'aria-label': `Comment ${index + 1}`,
-          'data-id': comment.id,
-        },
-      })
-      field.value = comment.text
-      field.addEventListener('change', () => void sendOp({ type: 'update-comment', id: comment.id, text: field.value }))
-      const remove = el(
-        'button',
-        { className: 'icon-button', title: 'Remove comment', attrs: { type: 'button', 'aria-label': `Remove comment ${index + 1}` } },
-        [iconNode('close', 14)]
-      )
-      remove.addEventListener('click', () => void sendOp({ type: 'remove-comment', id: comment.id }))
-      const context = comment.inReplyTo
-        ? [
-            el('p', { className: 'draft-context' }, [
-              el('b', { textContent: `${askedBy(state, session, comment.inReplyTo.batchId)} asked: ` }),
-              comment.inReplyTo.question,
-            ]),
-          ]
-        : []
-      return el('li', { className: 'draft', attrs: { 'data-testid': 'draft-item' } }, [
-        el('div', { className: 'draft-head' }, [
-          el('span', { className: 'num', textContent: String(index + 1) }),
-          el('span', { className: 'draft-where', textContent: where(comment), title: comment.element?.selector ?? comment.page.url }),
-          remove,
-        ]),
-        ...context,
-        field,
-      ])
-    })
-  )
-  if (focused) draftList.querySelector<HTMLTextAreaElement>(`textarea[data-id="${CSS.escape(focused)}"]`)?.focus()
+  const error = sendError ?? state.lastError
+  errorLine.hidden = error === null
+  errorText.textContent = error ?? ''
 }
 
+/** Sends the message, about the page as a whole, to the agent now. It stays in the field until the daemon has it. */
 async function send(): Promise<void> {
-  const state = readState()
-  const session = defaultSession(state)
   const text = message.value.trim()
-  if (!session || state.connection !== 'connected' || state.sending || (sendable(state.draft).length === 0 && text === '')) return
-  if (text !== '') {
-    await sendOp({ type: 'add-comment', comment: newComment({ text, page: capturePage(), element: null }) })
-    message.value = ''
+  if (text === '') return
+  sendError = null
+  try {
+    await sendComment(newComment({ text, page: capturePage(), element: null }))
+    if (message.value.trim() === text) message.value = ''
+    scrollToEnd = true
+  } catch (error) {
+    sendError = error instanceof Error ? error.message : String(error)
   }
-  await sendOp({ type: 'send', sessionId: session.id })
-  scrollToEnd = true
+  scheduleRender()
 }
 
 compose.addEventListener('submit', (event) => {
@@ -346,9 +293,7 @@ let atEnd = true
 
 function renderTurns(state: PageState): void {
   const answered = answerPlaces(state)
-  // Picks in the stack settle alternatives, so the draft's picks count too.
-  const picks = state.draft.filter(isPick).map((comment) => comment.id)
-  const signature = JSON.stringify([state.batches, [...answered], state.dismissed, picks])
+  const signature = JSON.stringify([state.batches, [...answered], state.dismissed])
   if (signature === renderedTurns) return
   renderedTurns = signature
   const focused = root.activeElement instanceof HTMLTextAreaElement ? root.activeElement.dataset.answer : undefined
@@ -383,8 +328,9 @@ function notListening(agent: string): string {
 function render(): void {
   const state = readState()
   const session = defaultSession(state)
-  const ready = sendable(state.draft).length
-  launcherCount.textContent = ready ? String(ready) : ''
+  // The launcher counts the agent's questions waiting for an answer, so they're seen with the dock closed.
+  const waiting = openQuestions(state)
+  launcherCount.textContent = waiting ? String(waiting) : ''
   pickButton.setAttribute('aria-pressed', String(isPicking()))
   if (dock.hidden) return
   renderHeader(state, session)
@@ -400,7 +346,7 @@ function render(): void {
       ? 'No agent session is working on this project. Choose one above to send to it.'
       : notListening(agentName(state))
 
-  renderComposer(state, session, connected)
+  renderComposer(state, connected)
   renderIntro(state, session)
   renderTurns(state)
 }

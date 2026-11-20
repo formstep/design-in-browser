@@ -2,9 +2,9 @@
 // Operations go to the plugin and resolve on its ack. Vite drops a send while its socket is down without
 // telling the caller, so every operation has its own timeout: a failed save must surface, not vanish.
 import { defaultSession, PAGE_BUILD, PAGE_EVENT, type OpAck, type OpRequest, type PageOp, type PageState } from '../shared/page-protocol.ts'
-import { FALLBACK_AGENT, type DraftComment, type SessionInfo } from '../shared/protocol.ts'
+import { FALLBACK_AGENT, START_COMMAND, type DraftComment, type SessionInfo } from '../shared/protocol.ts'
 
-export { defaultSession, sendable } from '../shared/page-protocol.ts'
+export { defaultSession } from '../shared/page-protocol.ts'
 export type { PageState } from '../shared/page-protocol.ts'
 
 const OP_TIMEOUT_MS = 4000
@@ -20,11 +20,9 @@ const initial: PageState = {
   projectRoot: '',
   sessions: [],
   batches: [],
-  draft: [],
   sending: false,
   lastError: null,
   pickedSessionId: null,
-  sendOnAdd: false,
   variantChoices: {},
   tweakValues: {},
   dismissed: [],
@@ -57,6 +55,23 @@ hot.on(PAGE_EVENT.ack, (ack: OpAck) => {
 
 hot.send(PAGE_EVENT.hello, {})
 
+const DEV_SERVER_DOWN = 'The dev server isn’t running. Start it again, then send.'
+
+/**
+ * False while Vite's socket to the dev server is down: a send then fails at once instead of waiting it out, and so
+ * does every operation already waiting for an answer that can no longer come.
+ */
+let devServerUp = true
+hot.on('vite:ws:disconnect', () => {
+  devServerUp = false
+  for (const [id, entry] of waiting) {
+    clearTimeout(entry.timer)
+    waiting.delete(id)
+    entry.reject(new Error(DEV_SERVER_DOWN))
+  }
+})
+hot.on('vite:ws:connect', () => (devServerUp = true))
+
 export function readState(): PageState {
   return current
 }
@@ -66,13 +81,13 @@ export function onStateChange(listener: () => void): void {
 }
 
 /** Sends one operation to the plugin. Rejects on the plugin's error or when no ack comes back in time. */
-export function sendOp(op: PageOp): Promise<void> {
+export function sendOp(op: PageOp, timeoutMs = OP_TIMEOUT_MS): Promise<void> {
   const id = crypto.randomUUID()
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       waiting.delete(id)
       reject(new Error('The dev server did not answer.'))
-    }, OP_TIMEOUT_MS)
+    }, timeoutMs)
     waiting.set(id, { resolve, reject, timer })
     try {
       hot.send(PAGE_EVENT.op, { id, op } satisfies OpRequest)
@@ -94,9 +109,19 @@ export function connectedSession(state: PageState = current): SessionInfo | null
   return state.connection === 'connected' ? defaultSession(state) : null
 }
 
-/** Adds a comment to the stack and, with `send`, sends the stack when a session is connected. */
-export async function addComment(comment: DraftComment, send: boolean): Promise<void> {
-  await sendOp({ type: 'add-comment', comment })
+/** A send waits for the daemon to take the comment, and a screenshot can make it large: longer than other ops. */
+const SEND_TIMEOUT_MS = 15_000
+
+/**
+ * Sends one comment to the agent session now, as its own batch. Resolves once the daemon has it; rejects with what
+ * to do otherwise (no session, an older dev server, a lost connection), so the caller keeps the text and says why.
+ */
+export async function sendComment(comment: DraftComment): Promise<void> {
+  if (!devServerUp) throw new Error(DEV_SERVER_DOWN)
+  if (pluginOutdated()) throw new Error('This dev server still runs an older design-in-browser. Restart it, then send again.')
   const session = connectedSession()
-  if (send && session) await sendOp({ type: 'send', sessionId: session.id })
+  if (!session) {
+    throw new Error(`No agent session is connected to send to. Connect one (in Claude Code: ${START_COMMAND}), then send again.`)
+  }
+  await sendOp({ type: 'send-comment', sessionId: session.id, comment }, SEND_TIMEOUT_MS)
 }

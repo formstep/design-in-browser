@@ -270,3 +270,14 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+/* A pick that didn't reach the agent: why, beside the controls, which stay so the user can pick again. */
+.variant-error {
+  max-width: 280px;
+  padding: 0 8px;
+  overflow: hidden;
+  color: var(--danger-ink);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

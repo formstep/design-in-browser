@@ -62,7 +62,7 @@ It works with React apps on a Vite dev server and with Astro sites, and with [Cl
 
 ## Comment on your app
 
-Click **Comment** in the dock (or press **Alt+Shift+C**), click anything on the page, type what should change, and press Enter. A pin stays where you clicked. Add as many comments as you like, on any page, then press **Send** in the dock.
+Click **Comment** in the dock (or press **Alt+Shift+C**), click anything on the page, type what should change, and press Enter. It goes to the agent right away, and a pin stays where you clicked.
 
 The agent replies to each comment: done, a question, or skipped with a reason. Answer a question right under it, in the dock or in the pin, or dismiss it. Pins go away once a comment is done; the eye button in the dock's header hides the rest while you look at the page.
 
@@ -104,7 +104,7 @@ Alternatives use a `<Variants>` wrapper from `design-in-browser/react` while you
 
 ## How it works
 
-The Vite plugin adds the overlay and the dock to your pages and keeps your comment stack. A small daemon on `127.0.0.1` passes sent comments to the agent session working on the same project, and wakes it. The agent reads them through an MCP server and replies the same way. Every batch is also saved in `.design-in-browser/` in your project, which git ignores.
+The Vite plugin adds the overlay and the dock to your pages and keeps your choices. A small daemon on `127.0.0.1` passes sent comments to the agent session working on the same project, and wakes it. The agent reads them through an MCP server and replies the same way. Every batch is also saved in `.design-in-browser/` in your project, which git ignores.
 
 Your comments only travel on your machine. The plugin turns itself off when the dev server is reachable from the network (`vite --host`). [docs/architecture.md](https://github.com/formstep/design-in-browser/blob/main/docs/architecture.md) has the details, including the security model and settings.
 
