@@ -26,6 +26,8 @@ claude --plugin-dir /path/to/design-in-browser/plugin
 
 For OpenCode, list the checkout's folder in the app's `opencode.json`, as `"plugins": ["/path/to/design-in-browser"]`. OpenCode takes a folder there, not a file such as `dist/opencode.mjs`.
 
+After `pnpm build`, restart the app's dev server for good (stop it and start it again). Vite restarting itself, as on a config change, isn't enough: Node keeps the plugin it already loaded, while the page client is read fresh from disk, and the dock then asks for a restart.
+
 ## Commands
 
 | Command | Does |
@@ -69,10 +71,10 @@ Run one browser spec with `pnpm exec playwright test --config test/e2e/playwrigh
 
 ## Releasing
 
-1. Set the new version in `package.json` and `plugin/.claude-plugin/plugin.json`, run `pnpm build`, and commit with `plugin/dist`.
-2. Push `main`, then a tag for the version: `git tag v0.4.0 && git push origin v0.4.0`.
+1. Set the new version in `package.json` and `plugin/.claude-plugin/plugin.json`, run `pnpm build`, and commit with `plugin/dist`. Push `main`.
+2. Publish from your machine: `npm publish --access public --auth-type=legacy`. It runs `pnpm check` and `pnpm test` first, then asks for a one-time code from your authenticator app. Run `pnpm test:e2e` yourself before, since publishing doesn't.
 
-The `release` workflow checks that the tag matches the version, runs every test, and publishes to npm with trusted publishing, so no npm token is stored anywhere. Claude Code users get the plugin from `main`.
+The `release` workflow (a `v*` tag publishes with trusted publishing) needs a trusted publisher set up on npmjs.com, which this package doesn't have yet, so don't push version tags until it does. Claude Code users get the plugin from `main`.
 
 ## Pull requests
 
