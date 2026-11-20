@@ -30,6 +30,8 @@ export const doorbells: string[] = []
 let daemonPort = 0
 let appPort = 0
 let listener: WebSocket
+/** The agent's listen URL, which stays the same for the session, also across a daemon restart. */
+export let listenUrl = ''
 let browser: Browser
 
 export function freePort(): Promise<number> {
@@ -97,6 +99,30 @@ export async function comment(selector: string, text: string): Promise<void> {
   await expect(composer).toBeHidden()
 }
 
+/** Arms the stand-in Monitor on the session's listen URL, as the skill does after a close. */
+export async function armListener(): Promise<void> {
+  listener = new WebSocket(listenUrl)
+  listener.on('message', (data) => doorbells.push(data.toString()))
+  await new Promise((resolve, reject) => {
+    listener.once('open', resolve)
+    listener.once('error', reject)
+  })
+}
+
+/** Kills the daemon the hard way, as a crash would, and waits until it no longer answers. */
+export async function killDaemon(): Promise<void> {
+  const health = (await (await fetch(`http://127.0.0.1:${daemonPort}/health`)).json()) as { pid: number }
+  process.kill(health.pid, 'SIGKILL')
+  for (let i = 0; i < 50; i++) {
+    const up = await fetch(`http://127.0.0.1:${daemonPort}/health`).then(
+      () => true,
+      () => false
+    )
+    if (!up) return
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+}
+
 export function useHarness(): void {
   // The tests in a file build on each other, so a failure skips the rest instead of running them without that state.
   test.describe.configure({ mode: 'serial' })
@@ -123,10 +149,8 @@ export function useHarness(): void {
       })
     )
     const connected = await callTool(shim, 'live_connect', { projectRoot: project })
-    const listenUrl = /ws:\/\/\S+\/listen\/\S+/.exec(connected)![0].replace(/,$/, '')
-    listener = new WebSocket(listenUrl)
-    listener.on('message', (data) => doorbells.push(data.toString()))
-    await new Promise((resolve) => listener.once('open', resolve))
+    listenUrl = /ws:\/\/\S+\/listen\/\S+/.exec(connected)![0].replace(/,$/, '')
+    await armListener()
 
     vite = await startVite()
     browser = await chromium.launch()

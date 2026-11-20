@@ -18,6 +18,8 @@ import {
   dock,
   comment,
   useHarness,
+  armListener,
+  killDaemon,
 } from './harness.ts'
 
 useHarness()
@@ -277,4 +279,33 @@ test('on a phone-width window the dock covers it, the overlay steps back, and th
   } finally {
     await page.setViewportSize({ width: 1100, height: 720 })
   }
+})
+
+test('when the daemon crashes, the dock says so, and comes back with the session on its own', async () => {
+  await page.goto(appUrl)
+  if (await page.locator('dib-dock .launcher').isVisible()) await page.locator('dib-dock .launcher').click()
+  await expect(dock().getByTestId('status')).toHaveText('Claude is listening')
+  await killDaemon()
+  await expect(dock().getByTestId('status')).not.toHaveText('Claude is listening')
+  // The MCP server starts a daemon and registers again by itself; the page's plugin reconnects to it.
+  await expect(dock().getByTestId('status')).toHaveText('Not listening', { timeout: 15_000 })
+  // The Monitor re-arms on the same URL, as the skill says after a close.
+  await expect
+    .poll(
+      () =>
+        armListener().then(
+          () => true,
+          () => false
+        ),
+      { timeout: 10_000 }
+    )
+    .toBe(true)
+  await expect(dock().getByTestId('status')).toHaveText('Claude is listening')
+  const rung = doorbells.length
+  await dock().getByTestId('message').fill('Still here after a crash')
+  await dock().getByTestId('message').press('Enter')
+  await expect.poll(() => doorbells.length).toBeGreaterThan(rung)
+  expect(doorbells.at(-1)).toMatch(/ready, 1 comment/)
+  const batch = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
+  expect(batch.comments[0]!.text).toBe('Still here after a crash')
 })
