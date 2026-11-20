@@ -74,6 +74,21 @@ await build({
   logLevel: 'warning',
 })
 
+// The setup CLI (npx design-in-browser setup <agent>), with the listening instructions it writes inlined.
+await build({
+  entryPoints: { cli: 'src/setup/cli.ts' },
+  outdir: 'dist',
+  outExtension: { '.js': '.mjs' },
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  target: 'node22',
+  loader: { '.md': 'text' },
+  define: { __PACKAGE_VERSION__: JSON.stringify(JSON.parse(fs.readFileSync('package.json', 'utf8')).version) },
+  logLevel: 'warning',
+})
+fs.chmodSync('dist/cli.mjs', 0o755)
+
 // design-in-browser/react: the dev implementation (served by the plugin, `react` left to the app) and the
 // package entry a build would load, which refuses, because alternatives must be resolved before shipping.
 await build({

@@ -6,7 +6,7 @@ Click an element, say what should change, and send. The agent goes straight to t
 
 ![A comment card on a heading, with the chat dock open on the right](https://raw.githubusercontent.com/formstep/design-in-browser/main/docs/images/comment.png)
 
-It works with React apps on a Vite dev server. [Claude Code](https://claude.com/claude-code) gets a plugin; other agents, such as OpenCode, connect to the same MCP server with [a few lines of setup](https://github.com/formstep/design-in-browser/blob/main/docs/agents.md).
+It works with React apps on a Vite dev server, and with [Claude Code](https://claude.com/claude-code), OpenCode or Codex as the agent ([setup for the others](https://github.com/formstep/design-in-browser/blob/main/docs/agents.md)).
 
 ## Quick start
 
@@ -45,6 +45,8 @@ It works with React apps on a Vite dev server. [Claude Code](https://claude.com/
    ```
 
    Claude connects and says it is listening.
+
+   With OpenCode or Codex instead, run `npx design-in-browser setup opencode` (or `codex`) in your project for steps 3 and 4, then the `design-in-browser` command it adds.
 
 5. Start your dev server, open the app, and press **Alt+Shift+D** to open the dock.
 
@@ -99,12 +101,11 @@ Your comments only travel on your machine. The plugin turns itself off when the 
 ## Limits
 
 - React and Vite only. Other frameworks, and pages Vite doesn't serve (such as Astro's), aren't supported yet.
-- Agents other than Claude Code need [their own setup](https://github.com/formstep/design-in-browser/blob/main/docs/agents.md), and no plugin does it for them yet.
+- OpenCode and Codex take one setup command per project ([docs/agents.md](https://github.com/formstep/design-in-browser/blob/main/docs/agents.md)); other agents need their MCP settings edited by hand.
 - The dev server must run on localhost with hot reload on.
 
 ## Roadmap
 
-- Plugins for OpenCode and other agents, like Claude Code's.
 - Screenshots without the browser's share prompt, where a browser allows it.
 
 ## Contributing

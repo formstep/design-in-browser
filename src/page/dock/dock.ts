@@ -49,7 +49,7 @@ root.innerHTML = `
         <span data-icon="copy" data-size="14"></span>
         <span class="copied" hidden>Copied</span>
       </button>
-      <p class="intro-text intro-other" hidden>Another agent? Add the design-in-browser-mcp server, then ask it to call live_connect and live_wait.</p>
+      <p class="intro-text intro-other" hidden>OpenCode or Codex? Run npx design-in-browser setup opencode (or codex) in your project, then its design-in-browser command.</p>
     </div>
     <div class="turns"></div>
   </main>

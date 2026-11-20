@@ -23,6 +23,7 @@
     "url": "git+https://github.com/formstep/design-in-browser.git"
   },
   "bin": {
+    "design-in-browser": "dist/cli.mjs",
     "design-in-browser-mcp": "plugin/dist/mcp.mjs"
   },
   "files": [
