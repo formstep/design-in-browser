@@ -206,6 +206,8 @@ test('an answer is refused by a session whose project never asked the question',
 test('agents are named from their MCP client name', () => {
   assert.equal(agentLabel('claude-code'), 'Claude')
   assert.equal(agentLabel('OpenCode'), 'OpenCode')
+  // The name Codex's MCP client sends (codex-rs/codex-mcp/src/rmcp_client.rs).
+  assert.equal(agentLabel('codex-mcp-client'), 'Codex')
   assert.equal(agentLabel('something-else'), 'Agent')
   assert.equal(agentLabel(undefined), 'Agent')
 })
