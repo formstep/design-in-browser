@@ -1,6 +1,6 @@
 {
   "name": "design-in-browser",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Lets this session take comments from your running React + Vite app in the browser, reply on the page, and show alternatives with live tweaks.",
   "keywords": ["design", "browser", "vite", "react", "ui", "review"],
   "author": {
