@@ -225,6 +225,7 @@ test('the dock routes to the session on its project, or to none', () => {
     connectedAt,
   })
   const state: PageState = {
+    build: 'dev',
     connection: 'connected',
     projectRoot: '/repo/apps/web',
     sessions: [session('old', '/repo', '2026-01-01'), session('new', '/repo', '2026-01-02'), session('other', '/elsewhere', '2026-01-03')],

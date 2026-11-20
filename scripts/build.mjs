@@ -27,6 +27,22 @@ function buildId() {
 }
 const id = buildId()
 
+// The page build ID: a hash of what the page client and the Vite plugin are built from. Both carry it, so a page
+// can tell when its dev server still runs an older plugin (src/shared/page-protocol.ts, PAGE_BUILD).
+const PAGE_SOURCES = ['src/page', 'src/vite', 'src/astro', 'src/shared']
+function pageBuildId() {
+  const hash = crypto.createHash('sha256')
+  const sources = PAGE_SOURCES.flatMap((dir) => fs.readdirSync(dir, { recursive: true }).map((name) => path.join(dir, name)))
+  for (const file of sources.sort()) {
+    if (!fs.statSync(file).isFile()) continue
+    hash.update(file)
+    hash.update(fs.readFileSync(file))
+  }
+  const { version } = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+  return `${version}-${hash.digest('hex').slice(0, 12)}`
+}
+const pageBuild = JSON.stringify(pageBuildId())
+
 await build({
   entryPoints: { daemon: 'src/daemon/daemon.ts', mcp: 'src/mcp/server.ts' },
   outdir: 'plugin/dist',
@@ -59,6 +75,7 @@ await build({
   target: 'node22',
   external: ['vite', 'bufferutil', 'utf-8-validate'],
   banner: { js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);" },
+  define: { __PAGE_BUILD__: pageBuild },
   logLevel: 'warning',
 })
 fs.copyFileSync('src/vite/types.d.mts', 'dist/vite.d.mts')
@@ -74,6 +91,7 @@ await build({
   target: 'node22',
   external: ['vite', 'astro', 'bufferutil', 'utf-8-validate'],
   banner: { js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);" },
+  define: { __PAGE_BUILD__: pageBuild },
   logLevel: 'warning',
 })
 // Its types import the Vite plugin's options from the published vite.d.mts.
@@ -87,6 +105,7 @@ await build({
   target: 'chrome120',
   // Styles go into shadow roots as strings; import.meta.hot stays for Vite to fill in.
   loader: { '.css': 'text' },
+  define: { __PAGE_BUILD__: pageBuild },
   logLevel: 'warning',
 })
 

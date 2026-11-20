@@ -1,7 +1,7 @@
 // The page's view of the plugin's state, kept current over Vite's HMR socket.
 // Operations go to the plugin and resolve on its ack. Vite drops a send while its socket is down without
 // telling the caller, so every operation has its own timeout: a failed save must surface, not vanish.
-import { defaultSession, PAGE_EVENT, type OpAck, type OpRequest, type PageOp, type PageState } from '../shared/page-protocol.ts'
+import { defaultSession, PAGE_BUILD, PAGE_EVENT, type OpAck, type OpRequest, type PageOp, type PageState } from '../shared/page-protocol.ts'
 import { FALLBACK_AGENT, type DraftComment, type SessionInfo } from '../shared/protocol.ts'
 
 export { defaultSession, sendable } from '../shared/page-protocol.ts'
@@ -15,6 +15,7 @@ function noHmr(): never {
 const hot = import.meta.hot ?? noHmr()
 
 const initial: PageState = {
+  build: PAGE_BUILD,
   connection: 'offline',
   projectRoot: '',
   sessions: [],
@@ -33,10 +34,16 @@ let current: PageState = initial
 const listeners = new Set<() => void>()
 const waiting = new Map<string, { resolve: () => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>()
 
-hot.on(PAGE_EVENT.state, (state: PageState) => {
-  current = state
+/** What a plugin from an older build leaves out, so this page still renders while it asks for a restart. */
+const olderPlugin: Pick<PageState, 'build' | 'dismissed'> = { build: 'older', dismissed: [] }
+
+hot.on(PAGE_EVENT.state, (state: Partial<PageState>) => {
+  current = { ...initial, ...olderPlugin, ...state }
   for (const listener of listeners) listener()
 })
+
+/** True when the dev server runs another build of the plugin than this page's: it needs a restart. */
+export const pluginOutdated = () => current.build !== PAGE_BUILD
 
 hot.on(PAGE_EVENT.ack, (ack: OpAck) => {
   const entry = waiting.get(ack.id)

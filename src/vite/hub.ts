@@ -6,7 +6,7 @@ import path from 'node:path'
 import WebSocket from 'ws'
 import type { Batch, DaemonToPlugin, PluginToDaemon } from '../shared/protocol.ts'
 import { START_COMMAND } from '../shared/protocol.ts'
-import { sameProject, sendable, versionKey, type PageOp, type PageState } from '../shared/page-protocol.ts'
+import { PAGE_BUILD, sameProject, sendable, versionKey, type PageOp, type PageState } from '../shared/page-protocol.ts'
 import { config, tokenPath } from '../node/config.ts'
 import { ensureJournal } from '../node/journal.ts'
 
@@ -33,6 +33,7 @@ export class Hub {
     this.savedFile = path.join(projectRoot, '.design-in-browser', `page-state.${app}.json`)
     const saved = this.load()
     this.state = {
+      build: PAGE_BUILD,
       connection: 'offline',
       projectRoot,
       sessions: [],

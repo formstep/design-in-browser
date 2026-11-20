@@ -20,7 +20,18 @@ export const SOURCE_ATTRIBUTE = 'data-dib-src'
 /** The client module's id, as pages import it. The plugin resolves it to a virtual module. */
 export const CLIENT_MODULE = 'design-in-browser:client'
 
+declare const __PAGE_BUILD__: string
+
+/**
+ * The build of the page client and the Vite plugin, which ship together. A dev server that kept an older plugin in
+ * memory (the package was updated, or relinked, while it ran) serves the newer client from disk: the two then differ,
+ * and the page asks for a restart. Run from source, as the tests do, there is no build to tell apart.
+ */
+export const PAGE_BUILD = typeof __PAGE_BUILD__ === 'string' ? __PAGE_BUILD__ : 'dev'
+
 export type PageState = {
+  /** The plugin's PAGE_BUILD. A plugin from before 0.7 sends none. */
+  build: string
   /** Whether the plugin reaches the daemon. */
   connection: 'connected' | 'offline'
   /** The project this dev server belongs to; sessions and batches are matched against it. */

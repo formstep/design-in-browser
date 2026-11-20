@@ -7,7 +7,7 @@ import { capturePage } from '../capture.ts'
 import { isPick, newComment } from '../comments.ts'
 import { fillIcons } from '../icons.ts'
 import { isPicking, onModeChange, togglePicker } from '../overlay/mode.ts'
-import { agentName, defaultSession, onStateChange, readState, sendable, sendOp, type PageState } from '../store.ts'
+import { agentName, defaultSession, onStateChange, pluginOutdated, readState, sendable, sendOp, type PageState } from '../store.ts'
 import { el, iconNode, query } from '../ui/dom.ts'
 import { frameScheduler, keepKeys, submitOnEnter } from '../ui/events.ts'
 import { plural } from '../ui/format.ts'
@@ -376,10 +376,13 @@ function render(): void {
 
   const connected = state.connection === 'connected' && session !== null
   const unmatched = state.connection === 'connected' && state.sessions.length > 0 && session === null
-  notice.hidden = !unmatched && (!connected || session.listening)
-  notice.textContent = unmatched
-    ? 'No agent session is working on this project. Choose one above to send to it.'
-    : notListening(agentName(state))
+  const outdated = pluginOutdated()
+  notice.hidden = !outdated && !unmatched && (!connected || session.listening)
+  notice.textContent = outdated
+    ? 'This dev server still runs an older design-in-browser. Restart it to finish the update.'
+    : unmatched
+      ? 'No agent session is working on this project. Choose one above to send to it.'
+      : notListening(agentName(state))
 
   renderComposer(state, session, connected)
   renderIntro(state, session)
