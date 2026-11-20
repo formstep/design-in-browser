@@ -122,9 +122,17 @@ async function screenshotOf(marks: Mark[]): Promise<string> {
   const area = shotArea(marks)
   try {
     return await renderArea(area, marks)
-  } catch {
+  } catch (error) {
+    console.warn('[design-in-browser] Couldn’t draw the screenshot from the page, so asking to share the tab.', error)
     return await captureArea(area, [composer, composingPin, query<HTMLElement>(root, '.toolbar')])
   }
+}
+
+/** Why there's no screenshot, from the share prompt's error, and the way out. */
+function noScreenshot(error: unknown): string {
+  const declined = error instanceof DOMException && error.name === 'NotAllowedError'
+  const why = declined ? 'The tab wasn’t shared, so there’s no screenshot.' : 'Couldn’t take a screenshot of this area.'
+  return `${why} Untick "Attach a screenshot" to add the comment without one.`
 }
 
 /** Names the agent on the card, fits the textarea's indent to the "@<agent>" chip, and follows the element. */
@@ -143,9 +151,12 @@ export function renderComposer(): void {
   placeComposer()
 }
 
+/** True while a screenshot is taken, so a second Enter doesn't add the comment twice. */
+let capturing = false
+
 async function submit(): Promise<void> {
   const mode = getMode()
-  if (mode.kind !== 'commenting') return
+  if (mode.kind !== 'commenting' || capturing) return
   const typed = textarea.value.trim()
   const asking = request === 'alternatives'
   if (typed === '' && !asking) {
@@ -162,12 +173,21 @@ async function submit(): Promise<void> {
   const { element, offset, marks, after } = mode
   let screenshot: string | undefined
   if (marks.length > 0 && attachShot.checked) {
+    capturing = true
+    composer.setAttribute('aria-busy', 'true')
+    hint.textContent = 'Taking a screenshot…'
     try {
       screenshot = await screenshotOf(marks)
-    } catch {
-      showError('No screenshot: the browser did not share the tab. Untick "Attach a screenshot" to add the comment without one.')
+    } catch (error) {
+      showError(noScreenshot(error))
       return
+    } finally {
+      capturing = false
+      composer.removeAttribute('aria-busy')
+      updateHint()
     }
+    // Esc, or another mark, while the screenshot was taken: the card is left as the user has it now.
+    if (getMode() !== mode) return
   }
   const comment = newComment({
     text: typed || (alternativeCount === 1 ? 'An alternative for this' : `${alternativeCount} alternatives for this`),

@@ -1,6 +1,7 @@
 // A screenshot of the marked part of the window. First the page draws that area from its own DOM, which needs
-// no permission: close to what the user sees, though cross-origin images and some effects can come out blank.
-// When that fails, the browser's tab capture takes a real screenshot, after its share prompt.
+// no permission: close to what the user sees, though some effects can come out blank, and an image the page
+// may not read (cross-origin without CORS) or that takes too long shows as a grey box.
+// When drawing fails, the browser's tab capture takes a real screenshot, after its share prompt.
 import { toCanvas } from 'html-to-image'
 import type { Mark } from '../../shared/protocol.ts'
 import { isUiHost } from '../ui/layout.ts'
@@ -18,6 +19,23 @@ function holderOf(area: Area): HTMLElement {
     if (contains(node.getBoundingClientRect(), area)) return node
   }
   return document.body
+}
+
+/** Stands in for an image the page may not read, or that didn't arrive in time: a grey box its size. */
+const IMAGE_PLACEHOLDER =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3Crect width='1' height='1' fill='%23e4e4e7'/%3E%3C/svg%3E"
+/** How long one image may take to fetch before it's drawn as the placeholder. */
+const IMAGE_TIMEOUT_MS = 3000
+
+const isTransparent = (color: string) => color === 'transparent' || /[,/]\s*0\)$/.test(color)
+
+/** The color the page shows behind `node`: its own background or its nearest ancestor's, else the window's white. */
+function backgroundBehind(node: Element): string {
+  for (let at: Element | null = node; at; at = at.parentElement) {
+    const color = getComputedStyle(at).backgroundColor
+    if (!isTransparent(color)) return color
+  }
+  return '#fff'
 }
 
 /** Paints the marks onto a screenshot of `area`, as the overlay shows them: the page drawing doesn't include it. */
@@ -59,14 +77,22 @@ export async function renderArea(area: Area, marks: Mark[]): Promise<string> {
   const holder = holderOf(area)
   const box = holder.getBoundingClientRect()
   const scale = devicePixelRatio
-  const drawn = await toCanvas(holder, { pixelRatio: scale, filter: (node) => !isUiHost(node) })
+  const drawn = await toCanvas(holder, {
+    pixelRatio: scale,
+    filter: (node) => !isUiHost(node),
+    imagePlaceholder: IMAGE_PLACEHOLDER,
+    fetchRequestInit: { signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS) },
+  })
   const canvas = document.createElement('canvas')
   canvas.width = Math.round(area.width * scale)
   canvas.height = Math.round(area.height * scale)
   const context = canvas.getContext('2d')
   if (!context) throw new Error('This browser cannot draw the screenshot.')
-  // The page's background shows where the holder is transparent, as on screen.
-  context.fillStyle = getComputedStyle(document.body).backgroundColor || '#fff'
+  // The page's background shows where the holder is transparent, as on screen. A JPEG has no transparency, so
+  // anything left unpainted would come out black. White first, under a background that is partly transparent.
+  context.fillStyle = '#fff'
+  context.fillRect(0, 0, canvas.width, canvas.height)
+  context.fillStyle = backgroundBehind(holder)
   context.fillRect(0, 0, canvas.width, canvas.height)
   context.drawImage(
     drawn,
