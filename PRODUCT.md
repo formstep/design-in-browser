@@ -33,7 +33,7 @@ Comments are anchored to real elements of the developer's own running app and go
 - UI copy names the connected agent and falls back to "Agent"; nothing in the UI hard-codes Claude.
 - Alternatives (React + Vite): the user asks for 1 to 4 alternatives of a part of the page; the agent builds them in source behind a dev-only `<Variants>` wrapper, the original kept as the first version. The user cycles through them on the page and picks one; the agent then writes the pick into the code and removes the rest. One alternative shows as a Before/After toggle; with more, Before stays one click away beside the pages through the alternatives.
 - Tweaks belong to alternatives: each alternative carries knobs the agent chose (a feature on or off, a spacing or size, a choice between options). The user adjusts them live, and the pick carries their final values into the code. Tweaks are not a general property editor.
-- Pages not served by Vite (Astro's own pages need an integration) are not covered yet.
+- Astro sites get an integration (`design-in-browser/astro`) that puts the overlay into Astro's pages. Only React islands carry source locations; `.astro` markup is found by its text.
 
 ## Product Principles
 

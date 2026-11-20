@@ -63,6 +63,22 @@ await build({
 })
 fs.copyFileSync('src/vite/types.d.mts', 'dist/vite.d.mts')
 
+// The Astro integration: the same plugin, plus the client in Astro's pages.
+await build({
+  entryPoints: { astro: 'src/astro/integration.ts' },
+  outdir: 'dist',
+  outExtension: { '.js': '.mjs' },
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  target: 'node22',
+  external: ['vite', 'astro', 'bufferutil', 'utf-8-validate'],
+  banner: { js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);" },
+  logLevel: 'warning',
+})
+// Its types import the Vite plugin's options from the published vite.d.mts.
+fs.writeFileSync('dist/astro.d.mts', fs.readFileSync('src/astro/types.d.mts', 'utf8').replace("'../vite/types.d.mts'", "'./vite.d.mts'"))
+
 await build({
   entryPoints: { client: 'src/page/client.ts' },
   outdir: 'dist',

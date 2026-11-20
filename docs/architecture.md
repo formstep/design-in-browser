@@ -52,7 +52,11 @@ In dev, the plugin serves `design-in-browser/react` itself, so it uses your app'
 
 ## Source locations
 
-In dev, React's JSX transform already passes each element's file, line and column to `jsxDEV`. The plugin serves a wrapped `react/jsx-dev-runtime` to the app's modules that puts them on each host element as `data-dib-src="src/App.tsx:12:5"`, relative to the project root. A comment then carries `element.sources`: the element's own location, then the nearest locations around it in other files (the component's caller), so the agent can open the right file without searching. Turn it off with `designInBrowser({ sourceLocations: false })`.
+In dev, React's JSX transform already passes each element's file, line and column to `jsxDEV`. The plugin serves a wrapped `react/jsx-dev-runtime` to the app's modules that puts them on each host element as `data-dib-src="src/App.tsx:12:5"`, relative to the project root. A comment then carries `element.sources`: the element's own location, then the nearest locations around it in other files (the component's caller), so the agent can open the right file without searching. On the server, as when Astro renders a React island, Vite leaves `react/jsx-dev-runtime` to Node, so the plugin wraps `jsxDEV` inside each compiled module instead; the server's HTML then carries the same attributes and hydration matches. Turn it off with `designInBrowser({ sourceLocations: false })`.
+
+## Astro
+
+`design-in-browser/astro` is an integration: it adds the same Vite plugin to Astro's dev server and puts the page client into every page Astro renders, since Astro doesn't serve an `index.html` for the plugin to add it to. The client is an empty module while the plugin is off (`astro dev --host`). Markup written in `.astro` files carries no source location.
 
 ## The journal
 

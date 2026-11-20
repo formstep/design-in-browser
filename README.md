@@ -6,7 +6,7 @@ Click an element, say what should change, and send. The agent goes straight to t
 
 ![A comment card on a heading, with the chat dock open on the right](https://raw.githubusercontent.com/formstep/design-in-browser/main/docs/images/comment.png)
 
-It works with React apps on a Vite dev server, and with [Claude Code](https://claude.com/claude-code) or OpenCode as the agent ([setup for the others](https://github.com/formstep/design-in-browser/blob/main/docs/agents.md)).
+It works with React apps on a Vite dev server and with Astro sites, and with [Claude Code](https://claude.com/claude-code) or OpenCode as the agent ([setup for the others](https://github.com/formstep/design-in-browser/blob/main/docs/agents.md)).
 
 ## Quick start
 
@@ -27,6 +27,16 @@ It works with React apps on a Vite dev server, and with [Claude Code](https://cl
    ```
 
    It runs only in the dev server and adds nothing to your build.
+
+   On an Astro site, add the integration to `astro.config.mjs` instead:
+
+   ```js
+   import designInBrowser from 'design-in-browser/astro'
+
+   export default defineConfig({
+     integrations: [designInBrowser(), react()],
+   })
+   ```
 
 3. Add the Claude Code plugin, once per machine:
 
@@ -100,7 +110,7 @@ Your comments only travel on your machine. The plugin turns itself off when the 
 
 ## Limits
 
-- React and Vite only. Other frameworks, and pages Vite doesn't serve (such as Astro's), aren't supported yet.
+- React with Vite, and Astro. On an Astro site, only React islands carry their source location; for markup written in `.astro` files, the agent finds the file by its text. Other frameworks aren't supported yet.
 - Claude Code and OpenCode get plugins; other agents need their MCP settings edited by hand ([docs/agents.md](https://github.com/formstep/design-in-browser/blob/main/docs/agents.md)).
 - The dev server must run on localhost with hot reload on.
 

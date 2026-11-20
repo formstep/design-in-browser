@@ -4,3 +4,6 @@ playwright-report/
 .design-in-browser/
 .impeccable/review/
 /dist/
+
+# Astro writes its generated types into the fixture site.
+test/e2e/astro-app/.astro/

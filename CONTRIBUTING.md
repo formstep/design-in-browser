@@ -34,7 +34,7 @@ For OpenCode, list the checkout's folder in the app's `opencode.json`, as `"plug
 | `pnpm check` | Lint (oxlint), format check (oxfmt) and typecheck (after a build, since the test app imports the built package) |
 | `pnpm format` | Formats the code |
 | `pnpm test` | Builds, then runs the bridge tests: MCP over stdio, the daemon, and a stand-in Vite plugin |
-| `pnpm test:e2e` | Builds, then runs Playwright against the React fixture app in `test/e2e/app` |
+| `pnpm test:e2e` | Builds, then runs Playwright against the React fixture app in `test/e2e/app` and the Astro fixture site in `test/e2e/astro-app` |
 | `pnpm capture [dir]` | Screenshots every state of the overlay, dock and switcher, for design review |
 
 Run one browser spec with `pnpm exec playwright test --config test/e2e/playwright.config.ts test/e2e/alternatives.spec.ts`. The first time, install Chromium with `pnpm exec playwright install chromium`.
@@ -49,6 +49,7 @@ Run one browser spec with `pnpm exec playwright test --config test/e2e/playwrigh
 | --- | --- | --- |
 | `src/page/` | the browser | `overlay/` (picker, comment card, pins, toolbar), `dock/`, `variants/` (the switcher), `ui/` (shared DOM helpers), `store.ts` (the page's link to the plugin) |
 | `src/vite/` | the dev server | the Vite plugin and `hub.ts`, which keeps the comment stack |
+| `src/astro/` | Astro's dev server | the Astro integration, which adds the Vite plugin and puts the client into Astro's pages |
 | `src/daemon/` | its own process | `state.ts` (sessions and batches) and `daemon.ts` (sockets) |
 | `src/mcp/` | one process per agent session | the MCP server and its daemon client |
 | `src/node/` | all three Node processes | config and the journal |
