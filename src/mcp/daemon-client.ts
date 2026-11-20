@@ -84,8 +84,13 @@ export async function ensureDaemon({ replace }: { replace: boolean }): Promise<v
     if (!stopped) throw new Error(`The daemon from build ${health.buildId} did not stop (pid ${health.pid}).`)
   }
   spawnDaemon()
-  // Another MCP server may have started one first; any daemon answering will do then.
-  const started = await waitFor(async () => (await readHealth()) !== null, 5000)
+  // Another MCP server may have started one first; any daemon answering will do then, except the one just stopped:
+  // it can still answer on a connection kept alive from before while it no longer takes new ones.
+  const stoppedPid = health?.pid ?? null
+  const started = await waitFor(async () => {
+    const next = await readHealth()
+    return next !== null && next.pid !== stoppedPid
+  }, 5000)
   if (!started) throw new Error(`The daemon did not start. See ${daemonLogPath()}.`)
 }
 
