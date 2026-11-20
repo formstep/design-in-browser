@@ -12,9 +12,6 @@ export const FALLBACK_AGENT = 'Agent'
 const KNOWN_AGENTS: Record<string, string> = {
   'claude-code': 'Claude',
   opencode: 'OpenCode',
-  // Codex's MCP client calls itself codex-mcp-client.
-  'codex-mcp-client': 'Codex',
-  codex: 'Codex',
 }
 
 /** The UI name for the agent behind an MCP client, from the client name it sent when it connected. */

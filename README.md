@@ -6,7 +6,7 @@ Click an element, say what should change, and send. The agent goes straight to t
 
 ![A comment card on a heading, with the chat dock open on the right](https://raw.githubusercontent.com/formstep/design-in-browser/main/docs/images/comment.png)
 
-It works with React apps on a Vite dev server, and with [Claude Code](https://claude.com/claude-code), OpenCode or Codex as the agent ([setup for the others](https://github.com/formstep/design-in-browser/blob/main/docs/agents.md)).
+It works with React apps on a Vite dev server, and with [Claude Code](https://claude.com/claude-code) or OpenCode as the agent ([setup for the others](https://github.com/formstep/design-in-browser/blob/main/docs/agents.md)).
 
 ## Quick start
 
@@ -46,7 +46,7 @@ It works with React apps on a Vite dev server, and with [Claude Code](https://cl
 
    Claude connects and says it is listening.
 
-   With OpenCode instead, run `opencode plugin add design-in-browser`, then `/design-in-browser` in OpenCode. With Codex, run `npx design-in-browser setup codex` in your project, then `$design-in-browser`.
+   With OpenCode instead, run `opencode plugin add design-in-browser`, then `/design-in-browser` in OpenCode.
 
 5. Start your dev server, open the app, and press **Alt+Shift+D** to open the dock.
 
@@ -101,12 +101,12 @@ Your comments only travel on your machine. The plugin turns itself off when the 
 ## Limits
 
 - React and Vite only. Other frameworks, and pages Vite doesn't serve (such as Astro's), aren't supported yet.
-- OpenCode gets a plugin and Codex one setup command ([docs/agents.md](https://github.com/formstep/design-in-browser/blob/main/docs/agents.md)); other agents need their MCP settings edited by hand.
+- Claude Code and OpenCode get plugins; other agents need their MCP settings edited by hand ([docs/agents.md](https://github.com/formstep/design-in-browser/blob/main/docs/agents.md)).
 - The dev server must run on localhost with hot reload on.
 
 ## Roadmap
 
-Everything on the first roadmap has shipped: source locations, drawing with screenshots, notes from the agent, and OpenCode and Codex. Ideas and requests are welcome as [issues](https://github.com/formstep/design-in-browser/issues).
+Everything on the first roadmap has shipped: source locations, drawing with screenshots, notes from the agent, and OpenCode. Ideas and requests are welcome as [issues](https://github.com/formstep/design-in-browser/issues).
 
 ## Contributing
 

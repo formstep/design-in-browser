@@ -1,22 +1,14 @@
 #!/usr/bin/env node
-// `npx design-in-browser setup <agent>`: does for OpenCode or Codex what the Claude Code plugin does, in this
-// project. OpenCode gets this package's OpenCode plugin in its plugins list; Codex gets the MCP server in its config
-// and a skill it runs to listen for comments.
+// `npx design-in-browser setup opencode`: does for OpenCode what the Claude Code plugin does, in this project, by
+// putting this package's OpenCode plugin in the project's plugins list.
 import fs from 'node:fs'
 import path from 'node:path'
-import listen from './listen.md'
 
 declare const __PACKAGE_VERSION__: string
 
-const SERVER = 'design-in-browser'
-/** Pinned to this release, so the config keeps working until setup is run again. */
-const MCP_COMMAND = ['npx', '-y', '-p', `design-in-browser@${__PACKAGE_VERSION__}`, 'design-in-browser-mcp']
-/** live_wait waits 300 s by default; a tool timeout shorter than that ends every wait early. */
-const TOOL_TIMEOUT_SEC = 330
+const USAGE = `Usage: npx design-in-browser setup opencode [--project <dir>]
 
-const USAGE = `Usage: npx design-in-browser setup <opencode|codex> [--project <dir>]
-
-Sets up design-in-browser for an agent other than Claude Code, in the project folder (default: this one).
+Sets up design-in-browser for OpenCode, in the project folder (default: this one).
 Claude Code needs no setup: install its plugin instead (see the README).`
 
 type Written = { file: string; change: 'created' | 'updated' | 'unchanged' }
@@ -50,44 +42,17 @@ function setupOpenCode(project: string): Written[] {
   return [write(configFile, `${JSON.stringify(config, null, 2)}\n`)]
 }
 
-/** The `[mcp_servers.design-in-browser]` table, replacing an earlier one from setup. */
-function withCodexServer(toml: string): string {
-  const table = [
-    `[mcp_servers.${SERVER}]`,
-    `command = ${JSON.stringify(MCP_COMMAND[0])}`,
-    `args = ${JSON.stringify(MCP_COMMAND.slice(1))}`,
-    `tool_timeout_sec = ${TOOL_TIMEOUT_SEC}`,
-  ].join('\n')
-  // The earlier table runs to the next table header or the end of the file.
-  const earlier = new RegExp(`^\\[mcp_servers\\.${SERVER}\\]\\n(?:(?!\\[).*\\n?)*`, 'm')
-  if (earlier.test(toml)) return toml.replace(earlier, `${table}\n`)
-  return `${toml}${toml === '' || toml.endsWith('\n\n') ? '' : toml.endsWith('\n') ? '\n' : '\n\n'}${table}\n`
-}
-
-function setupCodex(project: string): Written[] {
-  const configFile = path.join(project, '.codex/config.toml')
-  const toml = fs.existsSync(configFile) ? fs.readFileSync(configFile, 'utf8') : ''
-  const skill = `---\nname: design-in-browser\ndescription: Listen for comments the user makes on the running app in the browser (design-in-browser) and act on them. Use when the user asks to listen for browser comments.\n---\n\n${listen}`
-  return [write(configFile, withCodexServer(toml)), write(path.join(project, '.agents/skills/design-in-browser/SKILL.md'), skill)]
-}
-
-const NEXT: Record<string, string> = {
-  opencode: 'Restart OpenCode in this project, then run /design-in-browser.',
-  codex: 'Trust this project in Codex (it reads .codex/config.toml only then), restart it, then run $design-in-browser.',
-}
-
 function main(args: string[]): number {
   const [command, agent] = args
   const projectFlag = args.indexOf('--project')
   const project = path.resolve(projectFlag >= 0 ? (args[projectFlag + 1] ?? '.') : '.')
-  if (command !== 'setup' || (agent !== 'opencode' && agent !== 'codex')) {
+  if (command !== 'setup' || agent !== 'opencode') {
     console.error(USAGE)
     return 2
   }
   try {
-    const written = agent === 'opencode' ? setupOpenCode(project) : setupCodex(project)
-    for (const { file, change } of written) console.log(`${change.padEnd(9)} ${path.relative(project, file)}`)
-    console.log(NEXT[agent])
+    for (const { file, change } of setupOpenCode(project)) console.log(`${change.padEnd(9)} ${path.relative(project, file)}`)
+    console.log('Restart OpenCode in this project, then run /design-in-browser.')
     return 0
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error))

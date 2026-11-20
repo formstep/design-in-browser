@@ -52,7 +52,7 @@ root.innerHTML = `
         <span data-icon="copy" data-size="14"></span>
         <span class="copied" hidden>Copied</span>
       </button>
-      <p class="intro-text intro-other" hidden>With OpenCode or Codex, run in your project:<code>opencode plugin add design-in-browser</code><code>npx design-in-browser setup codex</code></p>
+      <p class="intro-text intro-other" hidden>With OpenCode, run:<code>opencode plugin add design-in-browser</code></p>
     </div>
     <div class="turns"></div>
   </main>

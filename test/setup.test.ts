@@ -43,27 +43,8 @@ test('setup opencode leaves opencode.jsonc alone and prints what to add', () => 
   assert.equal(read(project, 'opencode.jsonc'), '// mine\n{}\n')
 })
 
-test('setup codex adds its server table once, with a tool timeout longer than a wait, and a skill', () => {
-  const project = scratch({
-    '.codex/config.toml': 'model = "o3"\n\n[mcp_servers.design-in-browser]\ncommand = "old"\n\n[mcp_servers.other]\ncommand = "x"\n',
-  })
-  assert.equal(run('setup', 'codex', '--project', project).status, 0)
-  assert.equal(run('setup', 'codex', '--project', project).status, 0)
-  const toml = read(project, '.codex/config.toml')
-  assert.equal(toml.match(/\[mcp_servers\.design-in-browser\]/g)?.length, 1)
-  assert.match(toml, /\[mcp_servers\.other\]\ncommand = "x"/)
-  assert.match(toml, /model = "o3"/)
-  assert.match(
-    toml,
-    new RegExp(
-      `args = \\["-y","-p","design-in-browser@${version.replaceAll('.', '\\.')}","design-in-browser-mcp"\\]\\ntool_timeout_sec = 330`
-    )
-  )
-  assert.match(read(project, '.agents/skills/design-in-browser/SKILL.md'), /^---\nname: design-in-browser\ndescription: .+\n---\n/)
-})
-
 test('setup with no agent explains itself and fails', () => {
   const result = run('setup')
   assert.equal(result.status, 2)
-  assert.match(result.stderr, /Usage: npx design-in-browser setup <opencode\|codex>/)
+  assert.match(result.stderr, /Usage: npx design-in-browser setup opencode/)
 })
