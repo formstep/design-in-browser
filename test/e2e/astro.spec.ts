@@ -37,7 +37,8 @@ test('an Astro page gets the overlay, and its island is located in the server HT
   })
   await page.goto(siteUrl)
   await expect(page.locator('dib-overlay')).toBeAttached()
-  // The island hydrated: it counts.
+  // The island hydrated (Astro drops its ssr attribute then): it counts.
+  await expect(page.locator('astro-island')).not.toHaveAttribute('ssr')
   await page.locator('.counter button').click()
   await expect(page.locator('.counter p')).toHaveText('Cups ordered: 1')
   await expect(page.locator('.counter button')).toHaveAttribute('data-dib-src', /Counter\.tsx:\d+:\d+$/)
