@@ -13,7 +13,7 @@ import { boundsOf, cornerOf, toWindow } from './marks.ts'
 import { getMode, onModeChange, setMode, type Mode } from './mode.ts'
 import { onPick, showHighlight } from './picker.ts'
 import { CARD_WIDTH, PIN, root } from './root.ts'
-import { captureArea, type Area } from './screenshot.ts'
+import { captureArea, renderArea, type Area } from './screenshot.ts'
 
 type Commenting = Extract<Mode, { kind: 'commenting' }>
 type Request = 'comment' | 'alternatives'
@@ -117,6 +117,16 @@ function shotArea(marks: Mark[]): Area {
   return { left, top, width: clamp(bottomRight.x, 0, innerWidth) - left, height: clamp(bottomRight.y, 0, innerHeight) - top }
 }
 
+/** A screenshot of the marked area: drawn from the page without asking, else through the browser's share prompt. */
+async function screenshotOf(marks: Mark[]): Promise<string> {
+  const area = shotArea(marks)
+  try {
+    return await renderArea(area, marks)
+  } catch {
+    return await captureArea(area, [composer, composingPin, query<HTMLElement>(root, '.toolbar')])
+  }
+}
+
 /** Names the agent on the card, fits the textarea's indent to the "@<agent>" chip, and follows the element. */
 export function renderComposer(): void {
   const mode = getMode()
@@ -153,7 +163,7 @@ async function submit(): Promise<void> {
   let screenshot: string | undefined
   if (marks.length > 0 && attachShot.checked) {
     try {
-      screenshot = await captureArea(shotArea(marks), [composer, composingPin, query<HTMLElement>(root, '.toolbar')])
+      screenshot = await screenshotOf(marks)
     } catch {
       showError('No screenshot: the browser did not share the tab. Untick "Attach a screenshot" to add the comment without one.')
       return

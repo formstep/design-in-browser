@@ -3,9 +3,8 @@ import { expect, test } from '@playwright/test'
 import type { Batch } from '../../src/shared/protocol.ts'
 import { appUrl, callTool, doorbells, dock, page, shim, useHarness } from './harness.ts'
 
-// Chromium answers the capture prompt itself, so the screenshot path runs end to end. Headless, the stream is a
-// stand-in for the tab, so the test checks that a JPEG of the area arrives, not what it shows.
-useHarness({ browserArgs: ['--use-fake-ui-for-media-stream'] })
+// No capture switches: the screenshot is drawn from the page itself, so it needs no prompt to answer.
+useHarness()
 
 async function drag(from: { x: number; y: number }, to: { x: number; y: number }, steps = 8): Promise<void> {
   await page.mouse.move(from.x, from.y)
@@ -48,7 +47,7 @@ test('draw a box and an arrow, then send them with a comment', async () => {
   expect(batch.comments[0]!.element).not.toBeNull()
 })
 
-test('a pen stroke with a screenshot of the marked area', async () => {
+test('a pen stroke with a screenshot of the marked area, without any prompt', async () => {
   await page.keyboard.press('Alt+Shift+C')
   await page.locator('dib-overlay .tools').getByRole('button', { name: 'Draw freehand' }).click()
   await page.mouse.move(80, 300)

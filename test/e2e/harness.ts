@@ -97,8 +97,7 @@ export async function comment(selector: string, text: string): Promise<void> {
   await expect(composer).toBeHidden()
 }
 
-/** `browserArgs`: extra Chromium switches, such as one that accepts tab capture without its prompt. */
-export function useHarness({ browserArgs = [] }: { browserArgs?: string[] } = {}): void {
+export function useHarness(): void {
   // The tests in a file build on each other, so a failure skips the rest instead of running them without that state.
   test.describe.configure({ mode: 'serial' })
 
@@ -130,7 +129,7 @@ export function useHarness({ browserArgs = [] }: { browserArgs?: string[] } = {}
     await new Promise((resolve) => listener.once('open', resolve))
 
     vite = await startVite()
-    browser = await chromium.launch({ args: browserArgs })
+    browser = await chromium.launch()
     context = await browser.newContext({ viewport: { width: 1100, height: 720 } })
     page = await context.newPage()
   })

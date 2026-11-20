@@ -33,7 +33,7 @@ A session's Monitor lasts 30 minutes at most, and the skill re-arms it. Anything
 
 ## Drawings and screenshots
 
-The toolbar's box, arrow and pen draw on a layer over the window. Marks are kept in page coordinates, so they stay on what they mark as the page scrolls, and a comment carries them as `marks`, with `element` set to the element under them. With **Attach a screenshot**, the page asks the browser to share the tab (`getDisplayMedia`, current tab preselected), grabs one frame with the comment card hidden, crops it to the marks plus a margin, and sends it as a JPEG. A page can't capture itself without that prompt. The daemon writes the image to `screenshots/<comment id>.jpg` in the journal, the batch keeps only the path, and `live_get_batch` hands the image to the agent after the batch's JSON.
+The toolbar's box, arrow and pen draw on a layer over the window. Marks are kept in page coordinates, so they stay on what they mark as the page scrolls, and a comment carries them as `marks`, with `element` set to the element under them. With **Attach a screenshot**, the page draws the marks' area plus a margin from its own DOM (with `html-to-image`, bundled into the dev client), paints the marks on top and sends it as a JPEG: no permission prompt. Cross-origin images and a few effects can come out blank in such a drawing. If drawing fails, the page asks the browser to share the tab instead (`getDisplayMedia`, current tab preselected) and crops one real frame, with the comment card hidden. The daemon writes the image to `screenshots/<comment id>.jpg` in the journal, the batch keeps only the path, and `live_get_batch` hands the image to the agent after the batch's JSON.
 
 ## Alternatives
 

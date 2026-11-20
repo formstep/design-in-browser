@@ -64,7 +64,7 @@ The agent can leave notes on the page too, such as where a change landed or a qu
 
 ## Draw on the page
 
-When words aren't enough, pick the box, arrow or pen in the toolbar and draw. The first mark opens a comment card beside it, and further marks join the same comment until you add it. Tick **Attach a screenshot** to send a picture of the marked area too: your browser asks to share the tab, and the screenshot is cropped to the marks.
+When words aren't enough, pick the box, arrow or pen in the toolbar and draw. The first mark opens a comment card beside it, and further marks join the same comment until you add it. Tick **Attach a screenshot** to send a picture of the marked area too, with your marks on it. The page draws it itself, so nothing asks for permission; if a page can't be drawn that way, the browser asks to share the tab instead.
 
 ![A box and an arrow on a pricing card, with the comment card beside them](https://raw.githubusercontent.com/formstep/design-in-browser/main/docs/images/drawing.png)
 
@@ -106,7 +106,7 @@ Your comments only travel on your machine. The plugin turns itself off when the 
 
 ## Roadmap
 
-- Screenshots without the browser's share prompt, where a browser allows it.
+Everything on the first roadmap has shipped: source locations, drawing with screenshots, notes from the agent, and OpenCode and Codex. Ideas and requests are welcome as [issues](https://github.com/formstep/design-in-browser/issues).
 
 ## Contributing
 
