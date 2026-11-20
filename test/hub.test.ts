@@ -7,7 +7,7 @@ import { test } from 'node:test'
 import type { Batch } from '../src/shared/protocol.ts'
 import { Hub } from '../src/vite/hub.ts'
 
-test('a page-state file from an older release loads, and a dismissal is kept in it', () => {
+test('a page-state file from an older release loads, and a dismissal is kept in it', async () => {
   const project = fs.mkdtempSync(path.join(os.tmpdir(), 'dib-hub-'))
   const saved = path.join(project, '.design-in-browser', 'page-state.root.json')
   fs.mkdirSync(path.dirname(saved), { recursive: true })
@@ -19,17 +19,17 @@ test('a page-state file from an older release loads, and a dismissal is kept in 
 
   const hub = new Hub(project, project, 3000, () => {})
   assert.deepEqual(hub.state.dismissed, [])
-  assert.equal(hub.state.sendOnAdd, true)
+  assert.equal('draft' in hub.state, false)
   assert.deepEqual(hub.state.variantChoices, { hero: 1 })
 
-  assert.equal(hub.apply({ type: 'dismiss', commentId: 'c-1' }), null)
-  assert.equal(hub.apply({ type: 'dismiss', commentId: 'c-1' }), null)
+  assert.equal(await hub.apply({ type: 'dismiss', commentId: 'c-1' }), null)
+  assert.equal(await hub.apply({ type: 'dismiss', commentId: 'c-1' }), null)
   assert.deepEqual(hub.state.dismissed, ['c-1'])
   assert.deepEqual(JSON.parse(fs.readFileSync(saved, 'utf8')).dismissed, ['c-1'])
   assert.deepEqual(new Hub(project, project, 3000, () => {}).state.dismissed, ['c-1'])
 })
 
-test('each app sees the batches made on its own dev server, and starting over clears all but those in progress', () => {
+test('each app sees the batches made on its own dev server, and starting over clears all but those in progress', async () => {
   const project = fs.mkdtempSync(path.join(os.tmpdir(), 'dib-hub-'))
   const hub = new Hub(project, project, 3000, () => {})
   // Read through a function: an assertion on the field would narrow it to null for the rest of the test.
@@ -71,7 +71,7 @@ test('each app sees the batches made on its own dev server, and starting over cl
     ['003', '001']
   )
 
-  assert.equal(hub.apply({ type: 'start-over' }), null)
+  assert.equal(await hub.apply({ type: 'start-over' }), null)
   assert.deepEqual(
     hub.state.batches.map((entry) => entry.id),
     ['003']
