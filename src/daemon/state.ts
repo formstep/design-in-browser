@@ -18,7 +18,7 @@ import {
   type StatusResult,
 } from '../shared/protocol.ts'
 import { config } from '../node/config.ts'
-import { appendEvent, ensureJournal, nextBatchId, readBatches, writeBatch } from '../node/journal.ts'
+import { appendEvent, ensureJournal, nextBatchId, readBatches, writeBatch, writeScreenshot } from '../node/journal.ts'
 
 export type Session = {
   id: string
@@ -108,7 +108,13 @@ export function queueBatch(sessionId: string, comments: DraftComment[]): Batch {
     createdAt: new Date().toISOString(),
     status: 'queued',
     summary: null,
-    comments: comments.map((comment) => ({ ...comment, status: 'pending', reply: null })),
+    // A screenshot goes to its own file; the batch keeps its path, so batches stay small to send and rewrite.
+    comments: comments.map(({ screenshot, ...comment }) => ({
+      ...comment,
+      ...(screenshot ? { screenshotFile: writeScreenshot(session.projectRoot, comment.id, screenshot) } : {}),
+      status: 'pending',
+      reply: null,
+    })),
   }
   saveBatch(batch, { type: 'created', session: session.id, comments: batch.comments.length })
   ringDoorbell(session, batch)

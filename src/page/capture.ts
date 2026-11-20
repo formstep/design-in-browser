@@ -67,6 +67,9 @@ export function label(element: Element): string {
 
 const collapse = (value: string) => value.replace(/\s+/g, ' ').trim()
 
+/** The element's text as the user reads it: innerText keeps the breaks between blocks that textContent drops. */
+export const visibleText = (element: Element) => collapse(element instanceof HTMLElement ? element.innerText : (element.textContent ?? ''))
+
 export function captureElement(element: Element): ElementRef {
   const box = element.getBoundingClientRect()
   const computed = getComputedStyle(element)
@@ -86,7 +89,7 @@ export function captureElement(element: Element): ElementRef {
     tag: element.localName,
     id: element.id || null,
     classes: [...element.classList],
-    text: collapse(element.textContent ?? '').slice(0, 120),
+    text: visibleText(element).slice(0, 120),
     html: html.length > HTML_LIMIT ? `${html.slice(0, HTML_LIMIT)}<!-- cut, ${html.length} chars in all -->` : html,
     rect: { x: box.x + scrollX, y: box.y + scrollY, width: box.width, height: box.height },
     styles,

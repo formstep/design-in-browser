@@ -6,7 +6,8 @@ import { addComment, agentName, readState } from '../store.ts'
 import { query } from '../ui/dom.ts'
 import { keepKeys } from '../ui/events.ts'
 import { plural } from '../ui/format.ts'
-import { getMode, onModeChange, setMode } from './mode.ts'
+import { startDrawing } from './drawing.ts'
+import { getMode, onModeChange, setMode, type DrawTool } from './mode.ts'
 import { root } from './root.ts'
 
 const toolbar = query<HTMLDivElement>(root, '.toolbar')
@@ -30,7 +31,22 @@ export function closeAskbar(): void {
   askButton.setAttribute('aria-pressed', 'false')
 }
 
+/** The tool in use: the comment tool while picking or commenting on an element, a drawing tool while drawing. */
+function activeTool(): 'pick' | DrawTool | null {
+  const mode = getMode()
+  if (mode.kind === 'picking') return 'pick'
+  if (mode.kind === 'drawing') return mode.tool
+  if (mode.kind === 'commenting') return mode.after.kind === 'drawing' ? mode.after.tool : 'pick'
+  return null
+}
+
 export function renderTools(): void {
+  const active = activeTool()
+  query(root, '.pick-tool').classList.toggle('active', active === 'pick')
+  for (const button of root.querySelectorAll<HTMLButtonElement>('.draw-tool')) {
+    button.classList.toggle('active', button.dataset.tool === active)
+    button.setAttribute('aria-pressed', String(button.dataset.tool === active))
+  }
   const draft = readState().draft.length
   const counted = draft === 0 ? '' : plural(draft, 'comment', 'comments')
   if (count.textContent !== counted) count.textContent = counted
@@ -40,7 +56,16 @@ export function renderTools(): void {
 
 askButton.addEventListener('click', () => (askbar.hidden ? openAskbar() : closeAskbar()))
 query<HTMLButtonElement>(root, '.done-tool').addEventListener('click', () => setMode({ kind: 'idle' }))
-query<HTMLButtonElement>(root, '.pick-tool').addEventListener('click', closeAskbar)
+query<HTMLButtonElement>(root, '.pick-tool').addEventListener('click', () => {
+  closeAskbar()
+  setMode({ kind: 'picking' })
+})
+for (const button of root.querySelectorAll<HTMLButtonElement>('.draw-tool')) {
+  button.addEventListener('click', () => {
+    closeAskbar()
+    startDrawing(button.dataset.tool === 'arrow' ? 'arrow' : button.dataset.tool === 'pen' ? 'pen' : 'box')
+  })
+}
 askbar.addEventListener('submit', async (event) => {
   event.preventDefault()
   const text = askInput.value.trim()

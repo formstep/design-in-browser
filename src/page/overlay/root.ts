@@ -6,6 +6,7 @@ import { getReservedRight, onReservedRightChange, registerUiHost } from '../ui/l
 import { createShadowHost } from '../ui/shadow-host.ts'
 import baseCss from './base.css'
 import composerCss from './composer.css'
+import drawingCss from './drawing.css'
 import pickerCss from './picker.css'
 import pinsCss from './pins.css'
 import toolsCss from './tools.css'
@@ -15,7 +16,7 @@ export const PIN = 32
 /** Width of the comment card and of a pin's thread card. */
 export const CARD_WIDTH = 300
 
-export const { host, root } = createShadowHost('dib-overlay', baseCss + pickerCss + toolsCss + composerCss + pinsCss)
+export const { host, root } = createShadowHost('dib-overlay', baseCss + pickerCss + drawingCss + toolsCss + composerCss + pinsCss)
 registerUiHost(host)
 onReservedRightChange(() => host.style.setProperty('--reserved-right', `${getReservedRight()}px`))
 
@@ -23,6 +24,7 @@ root.innerHTML = `
 <div class="highlight" hidden>
   <span class="tag"><span class="tag-label"></span><span class="tag-size"></span></span>
 </div>
+<svg class="ink" aria-hidden="true"></svg>
 <div class="pins"></div>
 <div class="pin-wrap composing" hidden><span class="pin"><span class="disc"></span></span></div>
 <form class="composer" hidden>
@@ -38,6 +40,7 @@ root.innerHTML = `
       <button type="button" class="choice" data-count="1">1</button><button type="button" class="choice" data-count="2">2</button><button type="button" class="choice" data-count="3">3</button><button type="button" class="choice" data-count="4">4</button>
     </span>
   </div>
+  <label class="shot-check" hidden><input type="checkbox" class="attach-shot" /> <span>Attach a screenshot</span></label>
   <p class="composer-error" role="alert" hidden></p>
   <div class="composer-foot">
     <label class="check"><input type="checkbox" class="send-on-add" /> <span class="check-text"></span></label>
@@ -50,7 +53,10 @@ root.innerHTML = `
     <button type="submit" class="send" aria-label="Add note"><span data-icon="arrowUp" data-size="15"></span></button>
   </form>
   <div class="tools" role="toolbar" aria-label="Design in Browser">
-    <button type="button" class="tool active pick-tool" title="Comment on an element" aria-label="Comment on an element"><span data-icon="comment" data-size="18"></span></button>
+    <button type="button" class="tool pick-tool" title="Comment on an element" aria-label="Comment on an element"><span data-icon="comment" data-size="18"></span></button>
+    <button type="button" class="tool draw-tool" data-tool="box" title="Draw a box" aria-label="Draw a box"><span data-icon="square" data-size="17"></span></button>
+    <button type="button" class="tool draw-tool" data-tool="arrow" title="Draw an arrow" aria-label="Draw an arrow"><span data-icon="arrowUpRight" data-size="17"></span></button>
+    <button type="button" class="tool draw-tool" data-tool="pen" title="Draw freehand" aria-label="Draw freehand"><span data-icon="pen" data-size="17"></span></button>
     <span class="tools-divider"></span>
     <span class="tools-count"></span>
     <button type="button" class="tool ask" aria-pressed="false"></button>

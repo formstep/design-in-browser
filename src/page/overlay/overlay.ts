@@ -1,4 +1,4 @@
-// The overlay: picking elements, the comment card, pins with the agent's replies, the tool pill, and the
+// The overlay: picking elements, drawing marks, the comment card, pins with the agent's replies, the tool pill, and the
 // switchers on <Variants> groups. This module wires the parts together: shortcuts, and one render per frame
 // that follows the page as it scrolls, resizes and reloads.
 import { onStateChange, readState } from '../store.ts'
@@ -6,12 +6,14 @@ import { frameScheduler } from '../ui/events.ts'
 import { onReservedRightChange } from '../ui/layout.ts'
 import { mountVariants, onGroupsChange, renderVariants, syncFromState } from '../variants/switcher.ts'
 import { leaveComposer, renderComposer } from './composer.ts'
+import { renderMarks } from './drawing.ts'
 import { getMode, onModeChange, setMode, togglePicker } from './mode.ts'
 import { closeThreads, renderPins } from './pins.ts'
 import { root } from './root.ts'
 import { closeAskbar, isAskbarOpen, renderTools } from './tools.ts'
 
 const scheduleRender = frameScheduler(() => {
+  renderMarks()
   renderPins()
   renderVariants()
   renderTools()

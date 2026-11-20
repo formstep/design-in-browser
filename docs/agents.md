@@ -32,7 +32,7 @@ When I ask you to listen for browser comments:
 
 1. Call `live_connect` with this project's root.
 2. Call `live_wait`. It returns a batch of comments I made on elements of the running app.
-3. For each comment, open the first entry of `element.sources` (path:line:column of the element's JSX). Without sources, search for the element's text, classes and ids. Make the change.
+3. A comment with `marks` has boxes, arrows or strokes I drew; a screenshot of them, when attached, follows the batch as an image. For each comment, open the first entry of `element.sources` (path:line:column of the element's JSX). Without sources, search for the element's text, classes and ids. Make the change.
 4. Call `live_reply` for each comment: `done` with one sentence, `question` when it is unclear, or `skipped` with the reason.
 5. Call `live_wait` again, until I say stop.
 

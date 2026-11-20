@@ -15,6 +15,9 @@ const paths = {
   chevronLeft: '<path d="m15 6-6 6 6 6"/>',
   chevronRight: '<path d="m9 6 6 6-6 6"/>',
   sliders: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
+  square: '<rect x="4" y="5" width="16" height="14" rx="1.5"/>',
+  arrowUpRight: '<path d="M7 17 17 7M9 7h8v8"/>',
+  pen: '<path d="M4 20c3-1 4-4 7-7l6-6a2 2 0 0 1 3 3l-6 6c-3 3-6 4-7 7"/>',
 } as const
 
 export type IconName = keyof typeof paths

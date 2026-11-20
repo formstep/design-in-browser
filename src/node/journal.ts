@@ -3,6 +3,7 @@
 //     .gitignore        "*", so the folder never shows up in git
 //     batches/001.json  one file per batch, rewritten on every change
 //     journal.jsonl     append-only event log
+//     screenshots/      cropped screenshots sent with comments, one JPEG per comment
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Batch } from '../shared/protocol.ts'
@@ -18,6 +19,14 @@ export function ensureJournal(projectRoot: string): string {
   const gitignore = path.join(dir, '.gitignore')
   if (!fs.existsSync(gitignore)) fs.writeFileSync(gitignore, '*\n')
   return dir
+}
+
+/** Writes a comment's screenshot (a JPEG data URL) to the journal, and returns its path inside the journal folder. */
+export function writeScreenshot(projectRoot: string, commentId: string, dataUrl: string): string {
+  const file = `screenshots/${commentId.replace(/[^\w-]/g, '')}.jpg`
+  fs.mkdirSync(path.join(journalDir(projectRoot), 'screenshots'), { recursive: true })
+  fs.writeFileSync(path.join(journalDir(projectRoot), file), Buffer.from(dataUrl.slice(dataUrl.indexOf(',') + 1), 'base64'))
+  return file
 }
 
 export function appendEvent(projectRoot: string, event: Record<string, unknown>): void {

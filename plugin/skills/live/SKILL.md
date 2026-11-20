@@ -30,6 +30,7 @@ A Monitor event reads `design-in-browser: batch 003 ready, 2 comments. Call live
 
 1. Call `live_get_batch` (no arguments takes the oldest unfetched batch).
 2. For each comment, find the source of the element:
+   - A comment with `marks` comes with boxes, arrows or pen strokes the user drew, in page coordinates (CSS pixels, scroll included), and `element` is the element under them. When it has a screenshot, the image of the marked area follows the batch: look at it before changing anything.
    - `element.sources` lists where the element's JSX is written (`path:line:column` from the project root), then the JSX around it in other files, nearest first. Open the first. If the change is for this one use of a shared component, the edit may belong at the next entry, the caller.
    - Without sources, search the project for the element's text, `id`, classes and `data-testid`, narrowed by `page.url` (its route) and `element.ancestors`. `element.html` and `element.styles` show what is rendered now.
    - A comment with `element: null` is about the whole page.

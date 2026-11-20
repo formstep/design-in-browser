@@ -10,6 +10,18 @@ const shownVersion = z.object({
     .max(12),
 })
 
+const point = z.object({ x: z.number(), y: z.number() })
+
+const mark = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('box'), x: z.number(), y: z.number(), width: z.number(), height: z.number() }),
+  z.object({ kind: z.literal('arrow'), from: point, to: point }),
+  z.object({ kind: z.literal('pen'), points: z.array(point).max(2000) }),
+])
+
+/** A cropped screenshot, as a JPEG data URL. 8 MB of base64 is far more than a crop of one window needs. */
+export const SCREENSHOT_PREFIX = 'data:image/jpeg;base64,'
+const screenshot = z.string().startsWith(SCREENSHOT_PREFIX).max(8_000_000)
+
 const rect = z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })
 
 const elementRef = z.object({
@@ -44,6 +56,8 @@ export const draftCommentSchema: z.ZodType<DraftComment> = z.object({
     ])
     .optional(),
   variant: shownVersion.optional(),
+  marks: z.array(mark).max(50).optional(),
+  screenshot: screenshot.optional(),
   inReplyTo: z
     .object({
       batchId: z.string().max(20),

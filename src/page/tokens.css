@@ -29,6 +29,8 @@
   --blue-ink: #6aabf1;
   --blue-tint: rgb(37 125 224 / 0.12);
   --blue-tint-2: rgb(37 125 224 / 0.2);
+  /* The faint fill of a selected element and of a drawn box. */
+  --blue-fill: rgb(37 125 224 / 0.06);
   --focus-glow: 0 0 0 1px #257de0, 0 0 6px 1px rgb(23 87 172 / 0.6);
   /* Fills that carry small white digits: one step darker than the pin colours, for 4.5:1. */
   --blue-badge: #1f6fcb;

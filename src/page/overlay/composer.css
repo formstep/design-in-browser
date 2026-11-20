@@ -87,7 +87,8 @@ textarea::placeholder {
   margin-top: 12px;
 }
 
-.check {
+.check,
+.shot-check {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -96,7 +97,8 @@ textarea::placeholder {
   user-select: none;
 }
 
-.check input {
+.check input,
+.shot-check input {
   appearance: none;
   display: grid;
   place-items: center;
@@ -109,12 +111,14 @@ textarea::placeholder {
   cursor: pointer;
 }
 
-.check input:checked {
+.check input:checked,
+.shot-check input:checked {
   border-color: var(--blue);
   background: var(--blue);
 }
 
-.check input:checked::after {
+.check input:checked::after,
+.shot-check input:checked::after {
   content: '';
   width: 9px;
   height: 5px;
@@ -125,7 +129,8 @@ textarea::placeholder {
   rotate: -45deg;
 }
 
-.check input:focus-visible {
+.check input:focus-visible,
+.shot-check input:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
 }
@@ -185,4 +190,9 @@ textarea::placeholder {
 .count-label {
   color: var(--ink-2);
   font-size: 13px;
+}
+
+/* Under a drawing's text: the screenshot option, a row of its own above the card's foot. */
+.shot-check {
+  margin-top: 10px;
 }

@@ -1,7 +1,7 @@
 // The comment card: opens beside a pin at the clicked point, takes a comment or a request for alternatives,
 // and adds it to the stack (or sends it, with "Send to <agent>" ticked).
-import { START_COMMAND } from '../../shared/protocol.ts'
-import { captureElement, capturePage, label } from '../capture.ts'
+import { START_COMMAND, type Mark } from '../../shared/protocol.ts'
+import { captureElement, capturePage, label, visibleText } from '../capture.ts'
 import { newComment } from '../comments.ts'
 import { addComment, agentName, connectedSession, readState, sendOp } from '../store.ts'
 import { query } from '../ui/dom.ts'
@@ -9,9 +9,11 @@ import { keepKeys, submitOnEnter } from '../ui/events.ts'
 import { clamp, pointOn } from '../ui/geometry.ts'
 import { usableWidth } from '../ui/layout.ts'
 import { shownVersionOf } from '../variants/switcher.ts'
+import { boundsOf, cornerOf, toWindow } from './marks.ts'
 import { getMode, onModeChange, setMode, type Mode } from './mode.ts'
 import { onPick, showHighlight } from './picker.ts'
 import { CARD_WIDTH, PIN, root } from './root.ts'
+import { captureArea, type Area } from './screenshot.ts'
 
 type Commenting = Extract<Mode, { kind: 'commenting' }>
 type Request = 'comment' | 'alternatives'
@@ -26,6 +28,8 @@ const countRow = query<HTMLDivElement>(root, '.count-row')
 const countLabel = query<HTMLSpanElement>(root, '.count-label')
 const errorLine = query<HTMLParagraphElement>(root, '.composer-error')
 const sendOnAdd = query<HTMLInputElement>(root, '.send-on-add')
+const shotRow = query<HTMLLabelElement>(root, '.shot-check')
+const attachShot = query<HTMLInputElement>(root, '.attach-shot')
 const checkText = query<HTMLSpanElement>(root, '.check-text')
 const hint = query<HTMLSpanElement>(root, '.hint')
 
@@ -54,7 +58,7 @@ function updateHint(): void {
 function showTarget(element: Element): void {
   const text = document.createElement('span')
   text.className = 'target-text'
-  const snippet = (element.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60)
+  const snippet = visibleText(element).slice(0, 60)
   text.textContent = snippet ? `${label(element)} · “${snippet}”` : label(element)
   target.replaceChildren(text)
 }
@@ -71,6 +75,7 @@ export function openComposer(next: Omit<Commenting, 'kind'>): void {
   errorLine.hidden = true
   setRequest('comment')
   textarea.value = ''
+  attachShot.checked = false
   sendOnAdd.checked = readState().sendOnAdd
   updateHint()
   composingDisc.textContent = String(readState().draft.length + 1)
@@ -84,14 +89,15 @@ export function openComposer(next: Omit<Commenting, 'kind'>): void {
 export function leaveComposer(): void {
   const mode = getMode()
   if (mode.kind !== 'commenting') return
-  setMode(mode.after === 'idle' ? { kind: 'idle' } : { kind: 'picking' })
+  setMode(mode.after)
 }
 
 /** Puts the pin on the clicked point and the card beside it, on the side with room. */
 export function placeComposer(): void {
   const mode = getMode()
   if (mode.kind !== 'commenting') return
-  const point = pointOn(mode.element, mode.offset)
+  // A drawing's card sits at the top-right of its marks; a comment's at the clicked point.
+  const point = mode.marks.length > 0 ? cornerOf(mode.marks) : pointOn(mode.element, mode.offset)
   if (!point) return
   composingPin.style.transform = `translate(${point.x}px, ${point.y - PIN}px)`
   const height = composer.offsetHeight || 140
@@ -101,11 +107,22 @@ export function placeComposer(): void {
   composer.style.transform = `translate(${left}px, ${top}px)`
 }
 
+/** The marks' bounds with a margin around them, clipped to the window: what a screenshot shows. */
+function shotArea(marks: Mark[]): Area {
+  const bounds = boundsOf(marks)
+  const topLeft = toWindow({ x: bounds.left - 32, y: bounds.top - 32 })
+  const bottomRight = toWindow({ x: bounds.right + 32, y: bounds.bottom + 32 })
+  const left = clamp(topLeft.x, 0, innerWidth)
+  const top = clamp(topLeft.y, 0, innerHeight)
+  return { left, top, width: clamp(bottomRight.x, 0, innerWidth) - left, height: clamp(bottomRight.y, 0, innerHeight) - top }
+}
+
 /** Names the agent on the card, fits the textarea's indent to the "@<agent>" chip, and follows the element. */
 export function renderComposer(): void {
   const mode = getMode()
-  if (mode.kind === 'commenting') showHighlight(mode.element, true)
+  if (mode.kind === 'commenting' && mode.marks.length === 0) showHighlight(mode.element, true)
   const agent = agentName()
+  shotRow.hidden = mode.kind !== 'commenting' || mode.marks.length === 0
   if (agent !== namedAgent) {
     namedAgent = agent
     chip.textContent = `@${agent}`
@@ -132,7 +149,16 @@ async function submit(): Promise<void> {
     )
     return
   }
-  const { element, offset, after } = mode
+  const { element, offset, marks, after } = mode
+  let screenshot: string | undefined
+  if (marks.length > 0 && attachShot.checked) {
+    try {
+      screenshot = await captureArea(shotArea(marks), [composer, composingPin, query<HTMLElement>(root, '.toolbar')])
+    } catch {
+      showError('No screenshot: the browser did not share the tab. Untick "Attach a screenshot" to add the comment without one.')
+      return
+    }
+  }
   const comment = newComment({
     text: typed || (alternativeCount === 1 ? 'An alternative for this' : `${alternativeCount} alternatives for this`),
     page: capturePage(),
@@ -140,6 +166,8 @@ async function submit(): Promise<void> {
     ...(asking ? { intent: { kind: 'alternatives', count: alternativeCount } } : {}),
     // Made on one version of a group: the agent gets which version, and its tweaks as the user left them.
     variant: shownVersionOf(element),
+    ...(marks.length > 0 ? { marks } : {}),
+    ...(screenshot ? { screenshot } : {}),
   })
   // Leave first: an Esc pressed while the save is in flight must find the mode already moved on.
   leaveComposer()
@@ -147,7 +175,7 @@ async function submit(): Promise<void> {
     await addComment(comment, send)
   } catch {
     // Most often the dev server stopped or restarted. Keep the text.
-    openComposer({ element, offset, after })
+    openComposer({ element, offset, marks, after })
     setRequest(asking ? 'alternatives' : 'comment')
     textarea.value = typed
     showError('Couldn’t save this comment. Copy your text, reload the tab, and add it again.')
@@ -184,7 +212,7 @@ keepKeys(composer)
 onPick(({ element, offset }) => {
   // While commenting, a click elsewhere moves an empty card; typed text is never thrown away.
   if (getMode().kind === 'commenting' && textarea.value.trim() !== '') return
-  openComposer({ element, offset, after: 'picking' })
+  openComposer({ element, offset, marks: [], after: { kind: 'picking' } })
 })
 
 onModeChange((mode) => {

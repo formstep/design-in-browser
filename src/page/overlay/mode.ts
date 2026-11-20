@@ -1,12 +1,19 @@
-// What the overlay is doing: nothing, picking an element, or writing a comment on one. Every part of the
-// overlay, and the dock's Comment button, follows this one state.
+// What the overlay is doing: nothing, picking an element, drawing on the page, or writing a comment. Every part
+// of the overlay, and the dock's Comment button, follows this one state.
+import type { Mark } from '../../shared/protocol.ts'
 import type { Point } from '../ui/geometry.ts'
+
+export type DrawTool = 'box' | 'arrow' | 'pen'
+
+/** Where Esc or adding a comment leads from the comment card. */
+type After = { kind: 'idle' } | { kind: 'picking' } | { kind: 'drawing'; tool: DrawTool }
 
 export type Mode =
   | { kind: 'idle' }
   | { kind: 'picking' }
-  /** `after`: where Esc or adding the comment leads, back to picking or out. */
-  | { kind: 'commenting'; element: Element; offset: Point; after: 'picking' | 'idle' }
+  | { kind: 'drawing'; tool: DrawTool }
+  /** `marks`: what the user drew for this comment, empty for a comment on a clicked element. */
+  | { kind: 'commenting'; element: Element; offset: Point; marks: Mark[]; after: After }
 
 let mode: Mode = { kind: 'idle' }
 const listeners = new Set<(mode: Mode) => void>()

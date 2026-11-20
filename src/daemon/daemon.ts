@@ -203,7 +203,8 @@ const server = http.createServer((req, res) => {
   res.writeHead(404).end()
 })
 
-const wss = new WebSocketServer({ noServer: true, maxPayload: 2 * 1024 * 1024 })
+// Room for a batch with a few cropped screenshots in it.
+const wss = new WebSocketServer({ noServer: true, maxPayload: 32 * 1024 * 1024 })
 
 server.on('upgrade', (req, socket, head) => {
   const url = new URL(req.url ?? '/', 'http://x')

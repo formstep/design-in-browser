@@ -72,8 +72,9 @@ window.addEventListener(
 onModeChange((mode) => {
   document.documentElement.style.cursor = mode.kind === 'picking' ? 'crosshair' : ''
   if (mode.kind === 'idle') hovered = null
-  if (mode.kind === 'idle') showHighlight(null)
   // Back from a comment card: outline what the pointer is over again.
-  else if (mode.kind === 'picking') showHighlight(hovered)
-  else showHighlight(mode.element, true)
+  if (mode.kind === 'picking') showHighlight(hovered)
+  // A comment on a clicked element outlines it; a drawing shows its own marks instead.
+  else if (mode.kind === 'commenting' && mode.marks.length === 0) showHighlight(mode.element, true)
+  else showHighlight(null)
 })

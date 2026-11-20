@@ -90,6 +90,15 @@ export type ShownVersion = { group: string; index: number; label: string; tweaks
  */
 export type Intent = { kind: 'alternatives'; count: number } | ({ kind: 'choose-variant' } & ShownVersion)
 
+/** A point in page coordinates: CSS pixels from the top-left of the document, scroll included. */
+export type PagePoint = { x: number; y: number }
+
+/** Something the user drew on the page, in page coordinates. */
+export type Mark =
+  | { kind: 'box'; x: number; y: number; width: number; height: number }
+  | { kind: 'arrow'; from: PagePoint; to: PagePoint }
+  | { kind: 'pen'; points: PagePoint[] }
+
 /** A comment as the page drafts it. `element` is null for a note about the whole page. */
 export type DraftComment = {
   id: string
@@ -102,6 +111,10 @@ export type DraftComment = {
   intent?: Intent
   /** Set when the comment was made inside a `<Variants>` group: the version it was made on. */
   variant?: ShownVersion
+  /** Boxes, arrows and pen strokes the user drew for this comment. `element` is then the one under them. */
+  marks?: Mark[]
+  /** A JPEG data URL of the marked area as the user saw it, when they attached one. */
+  screenshot?: string
   createdAt: string
 }
 
@@ -113,7 +126,10 @@ export type CommentStatus = 'pending' | ReplyStatus | 'note'
 /** Where an agent's note points: an element by CSS selector, or by the source location the plugin stamped on it. */
 export type NoteAnchor = { selector: string } | { source: string }
 
-export type BatchComment = DraftComment & {
+/** Once sent, a comment's screenshot is a file in the journal instead of a data URL. */
+export type BatchComment = Omit<DraftComment, 'screenshot'> & {
+  /** The screenshot's path in the journal folder, such as `screenshots/<comment id>.jpg`. */
+  screenshotFile?: string
   status: CommentStatus
   reply: string | null
   /** The `<Variants>` group the agent put in the page for this comment, with a `variants` reply. */

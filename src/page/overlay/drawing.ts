@@ -1,0 +1,114 @@
+// Drawing on the page: boxes, arrows and pen strokes on a layer over the window. The first mark opens a comment
+// card beside it; more marks join the same comment until it is added. Marks of comments still in the stack stay
+// drawn on their page.
+import type { Mark, PagePoint } from '../../shared/protocol.ts'
+import { samePage } from '../capture.ts'
+import { readState } from '../store.ts'
+import { query } from '../ui/dom.ts'
+import { isUiHost } from '../ui/layout.ts'
+import { openComposer } from './composer.ts'
+import { centerOf, cornerOf, drawMark, toPage } from './marks.ts'
+import { getMode, onModeChange, setMode, type DrawTool } from './mode.ts'
+import { root } from './root.ts'
+
+/** Shorter than this, a drag was a click, not a mark. */
+const MIN_SIZE = 6
+
+const ink = query<SVGSVGElement>(root, '.ink')
+let tool: DrawTool = 'box'
+/** The mark being drawn, from pointer down to pointer up. */
+let stroke: { tool: DrawTool; points: PagePoint[] } | null = null
+
+export const currentTool = () => tool
+
+/** Picks a drawing tool. With a drawing's card open, the next marks join that comment, drawn with the new tool. */
+export function startDrawing(next: DrawTool): void {
+  tool = next
+  const mode = getMode()
+  if (mode.kind === 'commenting' && mode.marks.length > 0) setMode({ ...mode, after: { kind: 'drawing', tool } })
+  else setMode({ kind: 'drawing', tool })
+}
+
+/** The layer takes pointers while drawing, and while a drawing's card is open, so more marks can join it. */
+function acceptsMarks(): boolean {
+  const mode = getMode()
+  return mode.kind === 'drawing' || (mode.kind === 'commenting' && mode.marks.length > 0)
+}
+
+function markOf(drawn: { tool: DrawTool; points: PagePoint[] }): Mark | null {
+  const first = drawn.points[0]
+  const last = drawn.points.at(-1)
+  if (!first || !last) return null
+  const size = Math.max(Math.abs(last.x - first.x), Math.abs(last.y - first.y))
+  if (drawn.tool === 'pen') return drawn.points.length > 2 ? { kind: 'pen', points: drawn.points } : null
+  if (size < MIN_SIZE) return null
+  if (drawn.tool === 'arrow') return { kind: 'arrow', from: first, to: last }
+  return {
+    kind: 'box',
+    x: Math.min(first.x, last.x),
+    y: Math.min(first.y, last.y),
+    width: Math.abs(last.x - first.x),
+    height: Math.abs(last.y - first.y),
+  }
+}
+
+/** The page element under the marks, which the comment is about. */
+function elementUnder(marks: Mark[]): Element {
+  const center = centerOf(marks)
+  const hit = document.elementsFromPoint(center.x, center.y).find((element) => !isUiHost(element) && element !== document.documentElement)
+  return hit ?? document.body
+}
+
+function addMark(mark: Mark): void {
+  const mode = getMode()
+  if (mode.kind === 'commenting') {
+    setMode({ ...mode, marks: [...mode.marks, mark] })
+    return
+  }
+  const marks = [mark]
+  const element = elementUnder(marks)
+  const box = element.getBoundingClientRect()
+  const corner = cornerOf(marks)
+  openComposer({ element, offset: { x: corner.x - box.left, y: corner.y - box.top }, marks, after: { kind: 'drawing', tool } })
+}
+
+/** Draws the marks of the comment being written, the one being drawn, and those of comments in the stack. */
+export function renderMarks(): void {
+  ink.classList.toggle('active', acceptsMarks())
+  const mode = getMode()
+  const drafts = readState().draft.filter((comment) => comment.marks && samePage(comment.page.url))
+  const current = mode.kind === 'commenting' ? mode.marks : []
+  const drawing = stroke ? markOf(stroke) : null
+  ink.replaceChildren(
+    ...drafts.flatMap((comment) => (comment.marks ?? []).map((mark) => drawMark(mark, 'mark saved'))),
+    ...current.map((mark) => drawMark(mark, 'mark')),
+    ...(drawing ? [drawMark(drawing, 'mark')] : [])
+  )
+}
+
+ink.addEventListener('pointerdown', (event) => {
+  if (!acceptsMarks() || event.button !== 0) return
+  event.preventDefault()
+  ink.setPointerCapture(event.pointerId)
+  const mode = getMode()
+  stroke = { tool: mode.kind === 'drawing' ? mode.tool : tool, points: [toPage({ x: event.clientX, y: event.clientY })] }
+})
+ink.addEventListener('pointermove', (event) => {
+  if (!stroke) return
+  const point = toPage({ x: event.clientX, y: event.clientY })
+  // A box and an arrow need only their two ends; a pen stroke keeps its path.
+  stroke.points = stroke.tool === 'pen' ? [...stroke.points, point] : [stroke.points[0] ?? point, point]
+  renderMarks()
+})
+ink.addEventListener('pointerup', () => {
+  const finished = stroke ? markOf(stroke) : null
+  stroke = null
+  if (finished) addMark(finished)
+  renderMarks()
+})
+ink.addEventListener('pointercancel', () => {
+  stroke = null
+  renderMarks()
+})
+
+onModeChange(renderMarks)

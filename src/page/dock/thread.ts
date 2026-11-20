@@ -22,13 +22,15 @@ const answerDrafts = new Map<string, string>()
 /** Where a comment points: the element and its text, or the page, plus the route. */
 export function where(comment: DraftComment): string {
   const path = new URL(comment.page.url).pathname
-  if (!comment.element) return `Page · ${path}`
+  const marks = comment.marks?.length ?? 0
+  const drawn = marks === 0 ? '' : marks === 1 ? 'A mark on ' : `${marks} marks on `
+  if (!comment.element) return `${drawn}Page · ${path}`
   const { tag, id, classes, text } = comment.element
   const name = `${tag}${id ? `#${id}` : ''}${classes
     .slice(0, 1)
     .map((entry) => `.${entry}`)
     .join('')}`
-  return [name, text ? `“${text}”` : '', path].filter(Boolean).join(' · ')
+  return drawn + [name, text ? `“${text}”` : '', path].filter(Boolean).join(' · ')
 }
 
 /** Where each question's answer is: in the composer, or sent in a batch. */

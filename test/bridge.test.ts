@@ -418,6 +418,46 @@ test('the agent leaves notes on a page: they never ring, and a question among th
   await client.close()
 })
 
+test('a drawing comment keeps its marks, and its screenshot reaches the agent as an image', async () => {
+  const drawProject = path.join(tmp, 'drawing')
+  fs.mkdirSync(drawProject)
+  const client = await startShim('claude-code')
+  await callTool(client, 'live_connect', { projectRoot: drawProject })
+  const devServer = await openDevServer()
+  devServer.socket.send(JSON.stringify({ type: 'hello' }))
+  const state = await devServer.inbox.next((m) => m.type === 'state')
+  const session = state.type === 'state' ? state.sessions.find((entry) => entry.projectRoot === drawProject) : undefined
+  assert.ok(session)
+
+  const jpeg = Buffer.from('not really a jpeg').toString('base64')
+  const drawn = {
+    ...comment('Too much space between these'),
+    marks: [
+      { kind: 'box', x: 10, y: 20, width: 200, height: 80 },
+      { kind: 'arrow', from: { x: 5, y: 5 }, to: { x: 40, y: 30 } },
+    ],
+    screenshot: `data:image/jpeg;base64,${jpeg}`,
+  }
+  devServer.socket.send(JSON.stringify({ type: 'send-batch', clientBatchId: 'd1', sessionId: session.id, comments: [drawn] }))
+  const accepted = await devServer.inbox.next((m) => m.type === 'batch-accepted' && m.clientBatchId === 'd1')
+  const sent = accepted.type === 'batch-accepted' ? accepted.batch.comments[0]! : assert.fail()
+  // The batch carries a file path, not the image: batches stay small to send and to rewrite.
+  assert.equal(sent.screenshotFile, `screenshots/${drawn.id}.jpg`)
+  assert.equal('screenshot' in sent, false)
+  assert.equal(fs.readFileSync(path.join(drawProject, '.design-in-browser', sent.screenshotFile!), 'utf8'), 'not really a jpeg')
+
+  const result = (await client.callTool({ name: 'live_get_batch', arguments: {} })) as {
+    content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>
+  }
+  const batch = JSON.parse(result.content[0]!.text!) as Batch
+  assert.deepEqual(batch.comments[0]!.marks, drawn.marks)
+  const image = result.content.find((part) => part.type === 'image')
+  assert.equal(image?.mimeType, 'image/jpeg')
+  assert.equal(image?.data, jpeg)
+  devServer.socket.close()
+  await client.close()
+})
+
 test('an agent without a Monitor waits with live_wait, and reads as listening meanwhile', async () => {
   const waitProject = path.join(tmp, 'waiting')
   fs.mkdirSync(waitProject)

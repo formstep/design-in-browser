@@ -60,6 +60,12 @@ To send a note about the whole page, use **Ask Claude** in the toolbar or the do
 
 The agent can leave notes on the page too, such as where a change landed or a question about one element. They show as pins, and you answer a question right in its pin.
 
+## Draw on the page
+
+When words aren't enough, pick the box, arrow or pen in the toolbar and draw. The first mark opens a comment card beside it, and further marks join the same comment until you add it. Tick **Attach a screenshot** to send a picture of the marked area too: your browser asks to share the tab, and the screenshot is cropped to the marks.
+
+![A box and an arrow on a pricing card, with the comment card beside them](https://raw.githubusercontent.com/formstep/design-in-browser/main/docs/images/drawing.png)
+
 ## Try alternatives
 
 Switch the comment card to **Alternatives**, choose how many (1 to 4), and send. The agent builds them in your code, and a switcher appears on that part of the page:
@@ -98,8 +104,8 @@ Your comments only travel on your machine. The plugin turns itself off when the 
 
 ## Roadmap
 
-- Draw on the page: boxes, arrows and freehand marks, sent with a cropped screenshot.
 - Plugins for OpenCode and other agents, like Claude Code's.
+- Screenshots without the browser's share prompt, where a browser allows it.
 
 ## Contributing
 

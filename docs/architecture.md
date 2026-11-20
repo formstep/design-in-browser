@@ -31,6 +31,10 @@ Four pieces run on your machine:
 
 A session's Monitor lasts 30 minutes at most, and the skill re-arms it. Anything sent while no Monitor is armed waits in the journal and rings as soon as one is.
 
+## Drawings and screenshots
+
+The toolbar's box, arrow and pen draw on a layer over the window. Marks are kept in page coordinates, so they stay on what they mark as the page scrolls, and a comment carries them as `marks`, with `element` set to the element under them. With **Attach a screenshot**, the page asks the browser to share the tab (`getDisplayMedia`, current tab preselected), grabs one frame with the comment card hidden, crops it to the marks plus a margin, and sends it as a JPEG. A page can't capture itself without that prompt. The daemon writes the image to `screenshots/<comment id>.jpg` in the journal, the batch keeps only the path, and `live_get_batch` hands the image to the agent after the batch's JSON.
+
 ## Alternatives
 
 When a comment asks for alternatives, the agent wraps that part of the page in `<Variants>` from `design-in-browser/react`. The first `<Variant>` is the code as it was, labelled "Before"; the others are the alternatives, each with optional tweaks (a toggle, a range or a choice):

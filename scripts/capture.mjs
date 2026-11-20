@@ -140,6 +140,24 @@ await shot('dock-9-composer')
 await page.locator('dib-dock .close').click()
 await shot('overlay-5-dock-closed')
 
+// Drawing: a box and an arrow with the comment card open beside them.
+await page.goto(appUrl)
+await page.keyboard.press('Alt+Shift+C')
+await page.locator('dib-overlay .tools').getByRole('button', { name: 'Draw a box' }).click()
+const drag = async (from, to) => {
+  await page.mouse.move(from.x, from.y)
+  await page.mouse.down()
+  await page.mouse.move(to.x, to.y, { steps: 8 })
+  await page.mouse.up()
+}
+await drag({ x: 60, y: 160 }, { x: 330, y: 240 })
+await page.locator('dib-overlay .tools').getByRole('button', { name: 'Draw an arrow' }).click()
+await drag({ x: 520, y: 120 }, { x: 345, y: 190 })
+await page.locator('dib-overlay .composer textarea').fill('Too much space between these')
+await shot('overlay-6-drawing')
+await page.keyboard.press('Escape')
+await page.keyboard.press('Escape')
+
 // Alternatives: the switcher, its tweaks, and a pick waiting for the agent.
 await page.goto(new URL('/variants.html', appUrl).href)
 await page.locator('dib-overlay .variant-bar').first().waitFor()
