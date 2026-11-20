@@ -21,14 +21,15 @@ Tools come from this plugin's MCP server: `live_connect`, `live_get_batch`, `liv
 
 - The Monitor expires after 30 minutes at most. When you get its expiry notice, arm it again with the same URL. Do this every time, unless the user asked you to stop.
 - A close with code 4001 means a newer Monitor replaced this one: do nothing.
-- Any other close, or a failed re-arm (the daemon restarted): call `live_connect` again with the same arguments and arm the URL it returns.
+- Any other close (the daemon restarted): arm the same URL again; it stays valid while this session lives. If that re-arm fails, call `live_connect` again with the same arguments and arm the URL it returns.
+- Use the Monitor or `live_wait`, never both: `live_wait` is for agents without a Monitor.
 - `live_status` shows whether the Monitor is connected and which batches are open.
 
 ## Handle a batch
 
 A Monitor event reads `design-in-browser: batch 003 ready, 2 comments. Call live_get_batch.`
 
-1. Call `live_get_batch` (no arguments takes the oldest unfetched batch).
+1. Call `live_get_batch` (no arguments takes the oldest unfetched batch). A batch an earlier session started can come back to you: leave its comments that already have a status other than `pending`.
 2. For each comment, find the source of the element:
    - A comment with `marks` comes with boxes, arrows or pen strokes the user drew, in page coordinates (CSS pixels, scroll included), and `element` is the element under them. When it has a screenshot, the image of the marked area follows the batch: look at it before changing anything.
    - `element.sources` lists where the element's JSX is written (`path:line:column` from the project root), then the JSX around it in other files, nearest first. Open the first. If the change is for this one use of a shared component, the edit may belong at the next entry, the caller.

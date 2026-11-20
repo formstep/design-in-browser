@@ -6,6 +6,7 @@ import path from 'node:path'
 import { WebSocket } from 'ws'
 import {
   PRODUCT_NAME,
+  SESSION_ENDED_CLOSE_CODE,
   START_COMMAND,
   type Batch,
   type ConnectParams,
@@ -88,8 +89,13 @@ export function ringDoorbell(session: Session, batch: Batch): void {
 export function queueBatch(sessionId: string, comments: DraftComment[]): Batch {
   const session = sessions.get(sessionId)
   if (!session) throw new Error(`That agent session has ended. Connect a session again (in Claude Code: ${START_COMMAND}), then send.`)
-  // An answer must reach the project whose batch asked the question.
   const known = projectBatches(session.projectRoot)
+  // The same comments again (a send whose answer was lost, and was retried) are the batch already made.
+  const already = [...known.values()].find(
+    (batch) => batch.from === 'user' && comments.every((comment) => batch.comments.some((sent) => sent.id === comment.id))
+  )
+  if (already) return already
+  // An answer must reach the project whose batch asked the question.
   const misrouted = comments.some(
     ({ inReplyTo }) => inReplyTo && !known.get(inReplyTo.batchId)?.comments.some((original) => original.id === inReplyTo.commentId)
   )
@@ -158,16 +164,17 @@ export function connect(params: ConnectParams, shim: WebSocket): { session: Sess
     origins: params.origins,
     connectedAt: new Date().toISOString(),
     shim,
-    listenKey: crypto.randomBytes(16).toString('hex'),
+    listenKey: params.listenKey ?? crypto.randomBytes(16).toString('hex'),
     listener: null,
   }
   Object.assign(session, { projectRoot: params.projectRoot, agent: params.agent, origins: params.origins, shim })
   sessions.set(session.id, session)
 
-  // Open batches whose session is gone move to this one, so nothing sent is lost.
+  // Open batches whose session is gone move to this one, so nothing sent is lost. One the old session fetched but
+  // never finished is queued again, so this session is woken for it and gets it without knowing its id.
   for (const batch of projectBatches(session.projectRoot).values()) {
     if (batch.status === 'done' || batch.sessionId === session.id || sessions.has(batch.sessionId)) continue
-    saveBatch({ ...batch, sessionId: session.id, agent: session.agent }, { type: 'adopted', session: session.id })
+    saveBatch({ ...batch, status: 'queued', sessionId: session.id, agent: session.agent }, { type: 'adopted', session: session.id })
   }
   changes.sessionsChanged()
   return {
@@ -185,7 +192,7 @@ export function endSessionsOf(shim: WebSocket): Session[] {
   const ended = [...sessions.values()].filter((session) => session.shim === shim)
   for (const session of ended) {
     sessions.delete(session.id)
-    session.listener?.close(1001, 'session ended')
+    session.listener?.close(SESSION_ENDED_CLOSE_CODE, 'session ended')
   }
   changes.sessionsChanged()
   return ended

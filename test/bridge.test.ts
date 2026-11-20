@@ -3,145 +3,34 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import http from 'node:http'
-import net from 'node:net'
-import os from 'node:os'
 import path from 'node:path'
-import { after, before, test } from 'node:test'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import WebSocket from 'ws'
+import { test } from 'node:test'
 import { defaultSession, sameProject, type PageState } from '../src/shared/page-protocol.ts'
-import { agentLabel, LISTENER_REPLACED_CLOSE_CODE, type Batch, type DaemonToPlugin, type DraftComment } from '../src/shared/protocol.ts'
+import { agentLabel, LISTENER_REPLACED_CLOSE_CODE, type Batch } from '../src/shared/protocol.ts'
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import {
+  callTool,
+  comment,
+  env,
+  listenUrlFrom,
+  open,
+  openDevServer,
+  openListener,
+  port,
+  project,
+  startShim,
+  tmp,
+  useBridge,
+} from './bridge-harness.ts'
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dib-test-'))
-const home = path.join(tmp, 'home')
-const project = path.join(tmp, 'project')
-fs.mkdirSync(project)
-let port = 0
-let env: Record<string, string> = {}
-const shims: Client[] = []
-const sockets: WebSocket[] = []
+useBridge()
 
-function freePort(): Promise<number> {
-  return new Promise((resolve) => {
-    const server = net.createServer().listen(0, '127.0.0.1', () => {
-      const address = server.address() as net.AddressInfo
-      server.close(() => resolve(address.port))
-    })
-  })
-}
-
-async function startShim(name = 'bridge-test'): Promise<Client> {
-  const transport = new StdioClientTransport({ command: process.execPath, args: ['plugin/dist/mcp.mjs'], env, stderr: 'pipe' })
-  const client = new Client({ name, version: '0' })
-  await client.connect(transport)
-  shims.push(client)
-  return client
-}
-
-async function callTool(client: Client, name: string, args: Record<string, unknown> = {}): Promise<string> {
-  const result = (await client.callTool({ name, arguments: args })) as { content: Array<{ text: string }>; isError?: boolean }
-  const text = result.content.map((part) => part.text).join('\n')
-  assert.ok(!result.isError, `${name} failed: ${text}`)
-  return text
-}
-
-type Inbox<T> = { items: T[]; next: (match: (item: T) => boolean, timeoutMs?: number) => Promise<T> }
-
-function inbox<T>(socket: WebSocket, parse: (raw: string) => T): Inbox<T> {
-  const items: T[] = []
-  const waiters: Array<{ match: (item: T) => boolean; resolve: (item: T) => void }> = []
-  let seen = 0
-  socket.on('message', (data) => {
-    const item = parse(data.toString())
-    items.push(item)
-    for (const waiter of waiters.filter((entry) => entry.match(item))) {
-      waiters.splice(waiters.indexOf(waiter), 1)
-      waiter.resolve(item)
-    }
-  })
-  return {
-    items,
-    next(match, timeoutMs = 3000) {
-      // Look at messages that arrived since the last match first.
-      const index = items.findIndex((item, i) => i >= seen && match(item))
-      if (index !== -1) {
-        seen = index + 1
-        return Promise.resolve(items[index]!)
-      }
-      return new Promise((resolve, reject) => {
-        const timer = setTimeout(
-          () => reject(new Error(`timed out waiting for ${match.toString()}; got ${JSON.stringify(items).slice(0, 600)}`)),
-          timeoutMs
-        )
-        waiters.push({ match, resolve: (item) => (clearTimeout(timer), (seen = items.length), resolve(item)) })
-      })
-    },
-  }
-}
-
-/** The inbox is attached before the handshake: a frame can arrive in the same packet as the 101 response. */
-function open<T>(url: string, parse: (raw: string) => T, origin?: string): Promise<{ socket: WebSocket; inbox: Inbox<T> }> {
-  const socket = new WebSocket(url, origin ? { origin } : {})
-  sockets.push(socket)
-  const box = inbox(socket, parse)
-  return new Promise((resolve, reject) => {
-    socket.once('open', () => resolve({ socket, inbox: box }))
-    socket.once('error', reject)
-    socket.once('unexpected-response', (_req, res) => reject(new Error(`HTTP ${res.statusCode}`)))
-  })
-}
-
-const openDevServer = () =>
-  open<DaemonToPlugin>(`ws://127.0.0.1:${port}/page?token=${fs.readFileSync(path.join(home, 'token'), 'utf8').trim()}`, (raw) =>
-    JSON.parse(raw)
-  )
-
-const openListener = (url: string) => open<string>(url, (raw) => raw)
-
-function comment(text: string, selector = 'main > h1'): DraftComment {
-  return {
-    id: crypto.randomUUID(),
-    text,
-    page: { url: 'http://localhost:5173/pricing', title: 'Pricing', viewport: { width: 1280, height: 800 } },
-    element: {
-      selector,
-      tag: 'h1',
-      id: null,
-      classes: ['title'],
-      text: 'Simple pricing',
-      html: '<h1 class="title">Simple pricing</h1>',
-      rect: { x: 0, y: 0, width: 400, height: 40 },
-      styles: { 'font-size': '32px' },
-      ancestors: ['main'],
-      sources: ['src/Pricing.tsx:12:7'],
-    },
-    inReplyTo: null,
-    createdAt: new Date().toISOString(),
-  }
-}
-
-const listenUrlFrom = (text: string) => {
-  const match = /ws:\/\/\S+\/listen\/\S+/.exec(text)
-  assert.ok(match, `no listen url in: ${text}`)
-  return match[0].replace(/,$/, '')
-}
-
-before(async () => {
-  port = await freePort()
-  env = { ...(process.env as Record<string, string>), DIB_PORT: String(port), DIB_HOME: home }
-})
-
-after(async () => {
-  for (const socket of sockets) socket.terminate()
-  for (const client of shims) await client.close().catch(() => {})
-  const token = fs.existsSync(path.join(home, 'token')) ? fs.readFileSync(path.join(home, 'token'), 'utf8').trim() : ''
-  await fetch(`http://127.0.0.1:${port}/shutdown`, { method: 'POST', headers: { authorization: `Bearer ${token}` } }).catch(() => {})
-  fs.rmSync(tmp, { recursive: true, force: true })
-})
+/** The MCP server the first tests share, as one agent session. */
+let firstAgent: Client
 
 test('the shim stays inert until live_connect', async () => {
   const client = await startShim()
+  firstAgent = client
   const tools = await client.listTools()
   assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), [
     'live_connect',
@@ -155,7 +44,7 @@ test('the shim stays inert until live_connect', async () => {
 })
 
 test('a full round trip: send, doorbell, fetch, reply', async () => {
-  const client = shims[0]!
+  const client = firstAgent
   const connected = await callTool(client, 'live_connect', { projectRoot: project, origins: ['http://localhost:5173/'] })
   const listenUrl = listenUrlFrom(connected)
 
@@ -232,7 +121,7 @@ test('a full round trip: send, doorbell, fetch, reply', async () => {
 })
 
 test('a batch rings when a listener connects, and again on re-arm until it is fetched', async () => {
-  const client = shims[0]!
+  const client = firstAgent
   const listenUrl = listenUrlFrom(await callTool(client, 'live_connect', { projectRoot: project }))
   const devServer = await openDevServer()
   devServer.socket.send(JSON.stringify({ type: 'hello' }))
@@ -264,7 +153,7 @@ test('a batch rings when a listener connects, and again on re-arm until it is fe
 })
 
 test('a new session on the same project takes over open batches', async () => {
-  await shims[0]!.close()
+  await firstAgent.close()
   const devServer = await openDevServer()
   devServer.socket.send(JSON.stringify({ type: 'hello' }))
   await devServer.inbox.next((m) => m.type === 'state' && m.sessions.length === 0)
@@ -272,8 +161,9 @@ test('a new session on the same project takes over open batches', async () => {
   const client = await startShim()
   await callTool(client, 'live_connect', { projectRoot: project })
   const status = JSON.parse(await callTool(client, 'live_status')) as { open: unknown[] }
-  assert.deepEqual(status.open, [{ id: '002', status: 'fetched', pending: 1 }])
-  const batch = JSON.parse(await callTool(client, 'live_get_batch', { batchId: '002' })) as Batch
+  // Fetched by the old session but never finished: queued again, so the new session gets it without its id.
+  assert.deepEqual(status.open, [{ id: '002', status: 'queued', pending: 1 }])
+  const batch = JSON.parse(await callTool(client, 'live_get_batch')) as Batch
   assert.equal(batch.comments[0]!.text, 'Tighter spacing')
   devServer.socket.close()
 })

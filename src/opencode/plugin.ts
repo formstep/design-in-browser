@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import type { Plugin as V2 } from '@opencode/plugin'
 import type { PluginModule as V1 } from '@opencode-ai/plugin'
 import WebSocket from 'ws'
-import { LISTENER_REPLACED_CLOSE_CODE } from '../shared/protocol.ts'
+import { LISTENER_REPLACED_CLOSE_CODE, SESSION_ENDED_CLOSE_CODE } from '../shared/protocol.ts'
 import listen from './listen.md'
 
 const SERVER = 'design-in-browser'
@@ -16,6 +16,9 @@ const DESCRIPTION = 'Listen for comments from the browser and act on them (desig
 const MCP_SERVER = fileURLToPath(new URL('../plugin/dist/mcp.mjs', import.meta.url))
 const MCP_COMMAND = ['node', MCP_SERVER]
 const RECONNECT_MS = 2000
+/** About a minute of failed reconnects: the MCP server is gone too, so only a new live_connect brings the session back. */
+const MAX_RECONNECTS = 30
+const LOST = 'design-in-browser: lost the connection to the browser. Call live_connect again to keep listening.'
 
 /** The listen URL in live_connect's answer, as the Claude Code skill reads it to arm its Monitor. */
 export function listenUrlIn(text: string): string | null {
@@ -40,20 +43,27 @@ function doorbells(prompt: (sessionID: string, text: string) => Promise<unknown>
   const sockets = new Map<string, WebSocket>()
   let stopped = false
 
-  function listenFor(sessionID: string, url: string): void {
+  function listenFor(sessionID: string, url: string, attempt = 0): void {
     sockets.get(sessionID)?.close(1000, 'replaced')
     const socket = new WebSocket(url)
     sockets.set(sessionID, socket)
+    socket.on('open', () => (attempt = 0))
     // The same words a Monitor event carries; the command's instructions say what to do with them.
     socket.on('message', (data) => void prompt(sessionID, data.toString()).catch(() => {}))
     socket.on('error', () => {})
     socket.on('close', (code) => {
       if (sockets.get(sessionID) !== socket) return
       sockets.delete(sessionID)
-      // A newer listener took over, or OpenCode is closing: stay closed. Otherwise the daemon restarted: come back.
-      if (stopped || code === LISTENER_REPLACED_CLOSE_CODE) return
+      // A newer listener took over, the session ended, or OpenCode is closing: stay closed.
+      if (stopped || code === LISTENER_REPLACED_CLOSE_CODE || code === SESSION_ENDED_CLOSE_CODE) return
+      // Otherwise the daemon restarted. The MCP server registers again on its own and the URL stays the same, so
+      // come back to it; if it never answers again, ask the agent to connect anew.
+      if (attempt >= MAX_RECONNECTS) {
+        void prompt(sessionID, LOST).catch(() => {})
+        return
+      }
       setTimeout(() => {
-        if (!stopped && !sockets.has(sessionID)) listenFor(sessionID, url)
+        if (!stopped && !sockets.has(sessionID)) listenFor(sessionID, url, attempt + 1)
       }, RECONNECT_MS)
     })
   }

@@ -23,6 +23,8 @@ export function agentLabel(clientName: string | undefined): string {
 
 /** Close code the daemon uses when a newer listener replaces an older one. */
 export const LISTENER_REPLACED_CLOSE_CODE = 4001
+/** Close code a listener gets when its session ends: its MCP server went away, so the URL is dead. */
+export const SESSION_ENDED_CLOSE_CODE = 4002
 
 export type Rect = { x: number; y: number; width: number; height: number }
 
@@ -196,7 +198,17 @@ export type DaemonToPlugin =
 
 // MCP shim <-> daemon, over ws://127.0.0.1:<port>/shim?token=...
 
-export type ConnectParams = { sessionId: string; projectRoot: string; origins: string[]; agent: string }
+export type ConnectParams = {
+  sessionId: string
+  projectRoot: string
+  origins: string[]
+  agent: string
+  /**
+   * The secret in the session's listen URL, chosen by the MCP server so the URL survives a daemon restart: once the
+   * MCP server has registered again, a Monitor re-arms on the same URL. A daemon picks one when it is absent.
+   */
+  listenKey?: string
+}
 export type ConnectResult = { listenUrl: string; journalDir: string; unfetched: string[] }
 export type GetBatchParams = { sessionId: string; batchId?: string }
 export type ReplyParams = {
