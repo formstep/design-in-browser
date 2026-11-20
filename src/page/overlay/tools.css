@@ -118,3 +118,15 @@
 .askbar input::placeholder {
   color: var(--ink-3);
 }
+
+/* A phone-width window: the pill keeps its tools and drops its extras, and sits above the dock's launcher. */
+@media (max-width: 560px) {
+  .toolbar {
+    bottom: 72px;
+  }
+
+  .tools-count,
+  .done-tool kbd {
+    display: none;
+  }
+}

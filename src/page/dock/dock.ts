@@ -17,6 +17,9 @@ import dockCss from './dock.css'
 import { answerPlaces, turns, where } from './thread.ts'
 
 const DOCK_WIDTH = 380
+/** Below this window width the dock is the whole window, as in dock.css. */
+const FULL_WIDTH_BELOW = 560
+const dockWidth = () => (innerWidth <= FULL_WIDTH_BELOW ? innerWidth : DOCK_WIDTH)
 const OPEN_KEY = 'design-in-browser:dock-open'
 const PICK_SHORTCUT = /mac/i.test(navigator.platform) ? '⌥⇧C' : 'Alt+Shift+C'
 
@@ -49,7 +52,7 @@ root.innerHTML = `
         <span data-icon="copy" data-size="14"></span>
         <span class="copied" hidden>Copied</span>
       </button>
-      <p class="intro-text intro-other" hidden>OpenCode? Run opencode plugin add design-in-browser. Codex? Run npx design-in-browser setup codex in your project.</p>
+      <p class="intro-text intro-other" hidden>With OpenCode or Codex, run in your project:<code>opencode plugin add design-in-browser</code><code>npx design-in-browser setup codex</code></p>
     </div>
     <div class="turns"></div>
   </main>
@@ -118,7 +121,7 @@ function readOpen(): boolean {
 function setOpen(open: boolean): void {
   dock.hidden = !open
   launcher.hidden = open
-  setReservedRight(open ? DOCK_WIDTH : 0)
+  setReservedRight(open ? dockWidth() : 0)
   try {
     localStorage.setItem(OPEN_KEY, open ? '1' : '0')
   } catch {
@@ -128,6 +131,10 @@ function setOpen(open: boolean): void {
 }
 
 launcher.addEventListener('click', () => setOpen(true))
+// The dock is never wider than the window; what it covers follows a resize.
+window.addEventListener('resize', () => {
+  if (!dock.hasAttribute('hidden')) setReservedRight(dockWidth())
+})
 $<HTMLButtonElement>('.close').addEventListener('click', () => setOpen(false))
 window.addEventListener(
   'keydown',

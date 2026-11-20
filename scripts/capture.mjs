@@ -140,6 +140,72 @@ await shot('dock-9-composer')
 await page.locator('dib-dock .close').click()
 await shot('overlay-5-dock-closed')
 
+// Notes the agent leaves on the page: a pin per note, and the agent's own turn in the dock.
+await page.locator('dib-dock .launcher').click()
+await call('live_note', {
+  url: appUrl,
+  notes: [
+    { selector: 'h1', note: 'The headline is 40px and weight 800 now, as you asked.' },
+    { selector: '.plan:nth-of-type(2) h2', note: 'Should the team plan get the accent color too, or stay neutral?', question: true },
+  ],
+})
+await page.locator('dib-overlay .pin-wrap[data-status="note"] .pin').waitFor()
+await page.locator('dib-overlay .pin-wrap[data-status="note"] .pin').click()
+await shot('notes-1-pin-and-dock')
+await page.keyboard.press('Escape')
+
+// Long words in both directions: a long comment, a long reply, and a selector with no spaces to break at.
+await page.keyboard.press('Alt+Shift+C')
+await page.locator('.lede').click()
+await page
+  .locator('dib-overlay .composer textarea')
+  .fill(
+    'This subtitle reads like a disclaimer. Make it one confident sentence about what the team plan gives you, keep it under the heading width, and check https://example.com/a-very-long-reference-link-that-has-no-spaces-at-all-and-should-wrap-somewhere for the tone we want.'
+  )
+await page.locator('dib-overlay .composer textarea').press('Enter')
+await page.keyboard.press('Escape')
+await dock.getByTestId('send').click()
+let long = null
+for (let tries = 0; !long && tries < 50; tries++) {
+  const answer = await call('live_get_batch')
+  if (answer.startsWith('{')) long = JSON.parse(answer)
+  else await page.waitForTimeout(100)
+}
+const longComment = long.comments.find((comment) => comment.text.startsWith('This subtitle'))
+await call('live_reply', {
+  batchId: long.id,
+  replies: [
+    {
+      commentId: longComment.id,
+      status: 'done',
+      message:
+        'Rewrote it as "One plan, every feature, for the whole team." It fits the heading width at every breakpoint I could see, and the reference link was too long to show, so I followed its tone instead: short, plain, no exclamation marks.',
+    },
+  ],
+})
+await page.waitForTimeout(400)
+await shot('dock-10-long-text')
+
+// Keyboard: focus on the toolbar's drawing tools.
+await page.keyboard.press('Alt+Shift+C')
+await page.locator('dib-overlay .tools .pick-tool').focus()
+await page.keyboard.press('Tab')
+await shot('overlay-7-keyboard-focus')
+await page.keyboard.press('Escape')
+
+// A phone-width window: the dock and the toolbar have to fit.
+await page.setViewportSize({ width: 390, height: 844 })
+await page.waitForTimeout(300)
+await shot('narrow-1-dock')
+await page.locator('dib-dock .close').click()
+await page.keyboard.press('Alt+Shift+C')
+await page.locator('h1').click()
+await page.locator('dib-overlay .composer textarea').fill('Smaller on phones')
+await shot('narrow-2-comment-card')
+await page.keyboard.press('Escape')
+await page.keyboard.press('Escape')
+await page.setViewportSize({ width: 1100, height: 720 })
+
 // Drawing: a box and an arrow with the comment card open beside them.
 await page.goto(appUrl)
 await page.keyboard.press('Alt+Shift+C')

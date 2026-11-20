@@ -252,3 +252,29 @@ test('the agent leaves notes on the page, and a note that asks takes an answer f
   expect(answer.comments[0]!.inReplyTo?.question).toBe('Should the subtitle be shorter?')
   expect(answer.comments[0]!.element?.text).toBe('One plan for every team.')
 })
+
+test('on a phone-width window the dock covers it, the overlay steps back, and the toolbar fits', async () => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  try {
+    await page.goto(appUrl)
+    if (await page.locator('dib-dock .launcher').isVisible()) await page.locator('dib-dock .launcher').click()
+    await dock().evaluate((node) => Promise.all(node.getAnimations().map((animation) => animation.finished)))
+    const dockBox = (await dock().boundingBox())!
+    expect(dockBox.x).toBe(0)
+    expect(dockBox.width).toBe(390)
+    await expect(page.locator('dib-overlay')).toHaveCSS('visibility', 'hidden')
+
+    await page.locator('dib-dock .close').click()
+    await expect(page.locator('dib-overlay')).toHaveCSS('visibility', 'visible')
+    await page.keyboard.press('Alt+Shift+C')
+    const tools = (await page.locator('dib-overlay .tools').boundingBox())!
+    const launcher = (await page.locator('dib-dock .launcher').boundingBox())!
+    expect(tools.x).toBeGreaterThanOrEqual(0)
+    expect(tools.x + tools.width).toBeLessThanOrEqual(390)
+    // Above the launcher, not under it.
+    expect(tools.y + tools.height).toBeLessThanOrEqual(launcher.y)
+    await page.keyboard.press('Escape')
+  } finally {
+    await page.setViewportSize({ width: 1100, height: 720 })
+  }
+})

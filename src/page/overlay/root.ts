@@ -18,7 +18,12 @@ export const CARD_WIDTH = 300
 
 export const { host, root } = createShadowHost('dib-overlay', baseCss + pickerCss + drawingCss + toolsCss + composerCss + pinsCss)
 registerUiHost(host)
-onReservedRightChange(() => host.style.setProperty('--reserved-right', `${getReservedRight()}px`))
+/** Below this much free width (a phone with the dock open) the overlay steps back: pins would only crowd the edge. */
+const MIN_FREE_WIDTH = 160
+onReservedRightChange(() => {
+  host.style.setProperty('--reserved-right', `${getReservedRight()}px`)
+  host.style.visibility = innerWidth - getReservedRight() < MIN_FREE_WIDTH ? 'hidden' : ''
+})
 
 root.innerHTML = `
 <div class="highlight" hidden>

@@ -37,6 +37,13 @@
   animation: slide-in 180ms var(--ease-out);
 }
 
+/* On a phone-width window (the same 560px as FULL_WIDTH_BELOW in dock.ts) the dock is the whole window. */
+@media (max-width: 560px) {
+  .dock {
+    width: 100vw;
+  }
+}
+
 /* Closed: a small button in the corner, with the number of comments waiting to be sent. */
 .launcher {
   position: fixed;
@@ -258,6 +265,15 @@ kbd {
 .intro-other {
   margin-top: 8px;
   font-size: 12px;
+}
+
+/* One command per line, never broken inside. */
+.intro-other code {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-2);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .command {
