@@ -6,7 +6,7 @@ import { START_COMMAND, type SessionInfo } from '../../shared/protocol.ts'
 import { capturePage } from '../capture.ts'
 import { isPick, newComment } from '../comments.ts'
 import { fillIcons } from '../icons.ts'
-import { isPicking, onModeChange, togglePicker } from '../overlay/mode.ts'
+import { isPicking, onModeChange, setMode, togglePicker } from '../overlay/mode.ts'
 import { agentName, defaultSession, onStateChange, pluginOutdated, readState, sendable, sendOp, type PageState } from '../store.ts'
 import { el, iconNode, query } from '../ui/dom.ts'
 import { frameScheduler, keepKeys, submitOnEnter } from '../ui/events.ts'
@@ -43,9 +43,21 @@ root.innerHTML = `
       </label>
     </div>
     <span class="state" data-testid="status" aria-live="polite"></span>
+    <button type="button" class="icon-button start-over" data-testid="start-over" aria-label="Start over" title="Start over" hidden><span data-icon="restart" data-size="15"></span></button>
     <button type="button" class="icon-button markers" data-testid="markers" aria-pressed="false" aria-label="Hide markers on the page" title="Hide markers on the page"><span data-icon="eye" data-size="15"></span></button>
     <button type="button" class="icon-button close" aria-label="Close" title="Close (⌥⇧D)"><span data-icon="close" data-size="15"></span></button>
   </header>
+  <div class="confirm-scrim" hidden>
+    <div class="confirm" role="alertdialog" aria-modal="true" aria-labelledby="dib-confirm-title" aria-describedby="dib-confirm-text">
+      <p class="confirm-title" id="dib-confirm-title">Start over?</p>
+      <p class="confirm-text" id="dib-confirm-text"></p>
+      <p class="confirm-error" role="alert" hidden></p>
+      <div class="confirm-actions">
+        <button type="button" class="confirm-cancel" data-testid="start-over-cancel">Cancel</button>
+        <button type="button" class="confirm-clear" data-testid="start-over-confirm">Clear chat</button>
+      </div>
+    </div>
+  </div>
   <main class="thread" data-testid="sent">
     <div class="intro">
       <p class="intro-title"></p>
@@ -149,6 +161,67 @@ window.addEventListener('resize', () => {
   if (!dock.hasAttribute('hidden')) reserveDock(true)
 })
 $<HTMLButtonElement>('.close').addEventListener('click', () => setOpen(false))
+
+// Starting over clears this app's thread, its pins and the comments not sent yet, after asking. What the agent is
+// still working on stays until it answers, and the agent keeps everything it was sent.
+const startOverButton = $<HTMLButtonElement>('.start-over')
+const scrim = $<HTMLElement>('.confirm-scrim')
+const confirmText = $<HTMLElement>('.confirm-text')
+const confirmError = $<HTMLElement>('.confirm-error')
+const cancelButton = $<HTMLButtonElement>('.confirm-cancel')
+const clearButton = $<HTMLButtonElement>('.confirm-clear')
+
+function openStartOver(): void {
+  const state = readState()
+  // Picking would take Esc from the dialog, and pins would cover the page behind it.
+  if (isPicking()) setMode({ kind: 'idle' })
+  const agent = agentName(state)
+  const working = state.batches.filter((batch) => batch.status !== 'done').flatMap((batch) => batch.comments).length
+  const still = working === 0 ? '' : ` The ${plural(working, 'comment', 'comments')} ${agent} is still working on stay until it answers.`
+  confirmText.textContent = `This clears the chat and the pins on this app’s pages, and removes comments you haven’t sent. ${agent} keeps what it was sent.${still}`
+  confirmError.hidden = true
+  clearButton.disabled = false
+  scrim.hidden = false
+  cancelButton.focus()
+}
+
+function closeStartOver(): void {
+  scrim.hidden = true
+  if (!startOverButton.hidden) startOverButton.focus()
+  else message.focus()
+}
+
+async function startOver(): Promise<void> {
+  clearButton.disabled = true
+  try {
+    await sendOp({ type: 'start-over' })
+    closeStartOver()
+  } catch (error) {
+    confirmError.textContent = `Couldn’t clear the chat: ${error instanceof Error ? error.message : String(error)}`
+    confirmError.hidden = false
+    clearButton.disabled = false
+  }
+}
+
+startOverButton.addEventListener('click', openStartOver)
+cancelButton.addEventListener('click', closeStartOver)
+clearButton.addEventListener('click', () => void startOver())
+scrim.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    event.stopPropagation()
+    closeStartOver()
+    return
+  }
+  // Tab stays between the two buttons while the dialog is open.
+  if (event.key !== 'Tab') return
+  event.preventDefault()
+  ;(root.activeElement === cancelButton ? clearButton : cancelButton).focus()
+})
+
+function renderStartOver(state: PageState): void {
+  startOverButton.hidden = pluginOutdated() || (state.batches.length === 0 && state.draft.length === 0)
+  startOverButton.disabled = state.sending
+}
 
 // Hides the pins and drawings on the page, to see it as it is; the comments and replies stay here.
 const markersButton = $<HTMLButtonElement>('.markers')
@@ -373,6 +446,7 @@ function render(): void {
   pickButton.setAttribute('aria-pressed', String(isPicking()))
   if (dock.hidden) return
   renderHeader(state, session)
+  renderStartOver(state)
 
   const connected = state.connection === 'connected' && session !== null
   const unmatched = state.connection === 'connected' && state.sessions.length > 0 && session === null

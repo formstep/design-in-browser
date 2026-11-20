@@ -238,6 +238,7 @@ test('the dock routes to the session on its project, or to none', () => {
     variantChoices: {},
     tweakValues: {},
     dismissed: [],
+    cleared: null,
   }
   assert.equal(defaultSession(state)?.id, 'new')
   assert.equal(defaultSession({ ...state, pickedSessionId: 'other' })?.id, 'other')

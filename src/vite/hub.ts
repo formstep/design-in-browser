@@ -1,6 +1,7 @@
 // The plugin's state: the comment stack and the user's choices (saved in the project's journal folder,
 // so they survive reloads and dev-server restarts), plus sessions and batches from the daemon.
-// It never starts the daemon: an agent session does that when it connects.
+// Batches belong to the project, but each app's thread shows only those made on its own dev server, so two apps
+// in one repo don't share a chat. It never starts the daemon: an agent session does that when it connects.
 import fs from 'node:fs'
 import path from 'node:path'
 import WebSocket from 'ws'
@@ -13,7 +14,13 @@ import { ensureJournal } from '../node/journal.ts'
 const RETRY_MS = 2000
 const KEEPALIVE_MS = 20_000
 
-type Saved = Pick<PageState, 'draft' | 'pickedSessionId' | 'sendOnAdd' | 'variantChoices' | 'tweakValues' | 'dismissed'>
+type Saved = Pick<PageState, 'draft' | 'pickedSessionId' | 'sendOnAdd' | 'variantChoices' | 'tweakValues' | 'dismissed' | 'cleared'>
+
+/** The port a page URL is served on; pages of one dev server share it, whatever the loopback name. */
+function portOf(url: string): string {
+  const { port, protocol } = new URL(url)
+  return port || (protocol === 'https:' ? '443' : '80')
+}
 
 export class Hub {
   readonly state: PageState
@@ -25,6 +32,10 @@ export class Hub {
   private readonly inFlight = new Map<string, string[]>()
   private readonly savedFile: string
   private readonly broadcast: (state: PageState) => void
+  /** This project's batches from the daemon, newest first, before this app's view of them. */
+  private projectBatches: Batch[] = []
+  /** The dev server's port, once it listens: a batch belongs to this app when its comments were made here. */
+  private port: string | null = null
 
   /** `appRoot` is the dev server's root: two apps in one repo each keep their own stack. */
   constructor(projectRoot: string, appRoot: string, broadcast: (state: PageState) => void) {
@@ -46,10 +57,13 @@ export class Hub {
       variantChoices: saved.variantChoices,
       tweakValues: saved.tweakValues,
       dismissed: saved.dismissed,
+      cleared: saved.cleared,
     }
   }
 
-  start(): void {
+  /** `port`: the dev server's, so its thread shows the batches made on it. */
+  start(port: number): void {
+    this.port = String(port)
     this.stopped = false
     this.connect()
   }
@@ -85,6 +99,13 @@ export class Hub {
       case 'dismiss':
         if (!this.state.dismissed.includes(op.commentId)) this.update({ dismissed: [...this.state.dismissed, op.commentId] }, true)
         return null
+      case 'start-over': {
+        // What the agent is still working on stays in view until it answers; the rest of the thread goes.
+        const keep = this.state.batches.filter((batch) => batch.status !== 'done').map((batch) => batch.id)
+        this.state.cleared = { at: new Date().toISOString(), keep }
+        this.update({ draft: [], dismissed: [], batches: this.visible() }, true)
+        return null
+      }
       case 'show-variant':
         this.update({ variantChoices: { ...this.state.variantChoices, [op.group]: op.index } }, true)
         return null
@@ -163,16 +184,28 @@ export class Hub {
     return sameProject(batch.projectRoot, this.state.projectRoot)
   }
 
+  /** This app's thread: the project's batches made on this dev server, less those cleared by starting over. */
+  private visible(): Batch[] {
+    const { cleared } = this.state
+    return this.projectBatches
+      .filter((batch) => this.port === null || batch.comments.some((comment) => portOf(comment.page.url) === this.port))
+      .filter((batch) => cleared === null || batch.createdAt >= cleared.at || cleared.keep.includes(batch.id))
+      .slice(0, 30)
+  }
+
+  /** Takes in the daemon's latest copy of a batch, and returns this app's thread with it. */
   private upsert(batch: Batch): Batch[] {
-    const rest = this.state.batches.filter((entry) => !(entry.id === batch.id && entry.projectRoot === batch.projectRoot))
+    const rest = this.projectBatches.filter((entry) => !(entry.id === batch.id && entry.projectRoot === batch.projectRoot))
     const next = this.ours(batch) ? [batch, ...rest] : rest
-    return next.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 30)
+    this.projectBatches = next.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    return this.visible()
   }
 
   private handle(message: DaemonToPlugin): void {
     switch (message.type) {
       case 'state':
-        this.update({ sessions: message.sessions, batches: message.batches.filter((batch) => this.ours(batch)) })
+        this.projectBatches = message.batches.filter((batch) => this.ours(batch)).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        this.update({ sessions: message.sessions, batches: this.visible() })
         return
       case 'sessions':
         this.update({ sessions: message.sessions })
@@ -212,7 +245,15 @@ export class Hub {
 
   /** The saved stack and choices. Fields missing from an older file start empty; an unreadable file is reported. */
   private load(): Saved {
-    const empty: Saved = { draft: [], pickedSessionId: null, sendOnAdd: false, variantChoices: {}, tweakValues: {}, dismissed: [] }
+    const empty: Saved = {
+      draft: [],
+      pickedSessionId: null,
+      sendOnAdd: false,
+      variantChoices: {},
+      tweakValues: {},
+      dismissed: [],
+      cleared: null,
+    }
     if (!fs.existsSync(this.savedFile)) return empty
     try {
       const saved = JSON.parse(fs.readFileSync(this.savedFile, 'utf8')) as Partial<Saved>
@@ -227,11 +268,11 @@ export class Hub {
 
   private save(): void {
     ensureJournal(this.state.projectRoot)
-    const { draft, pickedSessionId, sendOnAdd, variantChoices, tweakValues, dismissed } = this.state
+    const { draft, pickedSessionId, sendOnAdd, variantChoices, tweakValues, dismissed, cleared } = this.state
     const tmp = `${this.savedFile}.tmp`
     fs.writeFileSync(
       tmp,
-      JSON.stringify({ draft, pickedSessionId, sendOnAdd, variantChoices, tweakValues, dismissed } satisfies Saved, null, 2) + '\n'
+      JSON.stringify({ draft, pickedSessionId, sendOnAdd, variantChoices, tweakValues, dismissed, cleared } satisfies Saved, null, 2) + '\n'
     )
     fs.renameSync(tmp, this.savedFile)
   }

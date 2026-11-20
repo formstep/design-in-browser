@@ -186,6 +186,11 @@ await call('live_reply', {
 await page.waitForTimeout(400)
 await shot('dock-10-long-text')
 
+// Starting over asks first.
+await dock.getByTestId('start-over').click()
+await shot('dock-11-start-over')
+await dock.getByTestId('start-over-cancel').click()
+
 // Keyboard: focus on the toolbar's drawing tools.
 await page.keyboard.press('Alt+Shift+C')
 await page.locator('dib-overlay .tools .pick-tool').focus()

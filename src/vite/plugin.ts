@@ -181,7 +181,8 @@ function devServer(options: DesignInBrowserOptions, state: DevState): Plugin {
           )
           return
         }
-        hub?.start()
+        const address = server.httpServer?.address()
+        if (address && typeof address !== 'string') hub?.start(address.port)
       })
       server.httpServer?.once('close', () => hub?.stop())
 

@@ -51,6 +51,11 @@ export type PageState = {
   tweakValues: Record<string, Record<string, TweakValue>>
   /** The agent's questions and notes the user dismissed without answering, by comment id: they lose their pin. */
   dismissed: string[]
+  /**
+   * When the user last started over: batches from before it are left out of this app's thread and pins, except
+   * those the agent was still working on then (`keep`, by batch id), which stay until it answers.
+   */
+  cleared: { at: string; keep: string[] } | null
 }
 
 /** The key of one version of a `<Variants>` group, for its tweak values. */
@@ -66,6 +71,7 @@ export type PageOp =
   | { type: 'show-variant'; group: string; index: number }
   | { type: 'set-tweak'; group: string; index: number; id: string; value: TweakValue }
   | { type: 'dismiss'; commentId: string }
+  | { type: 'start-over' }
 
 export type OpRequest = { id: string; op: PageOp }
 export type OpAck = { id: string; ok: true } | { id: string; ok: false; error: string }

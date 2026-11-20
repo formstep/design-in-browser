@@ -750,3 +750,78 @@ textarea::placeholder {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* --- starting over ---------------------------------------------------------------------- */
+
+/* The confirmation covers the thread and the composer, below the header, until answered. */
+.confirm-scrim {
+  position: absolute;
+  inset: 44px 0 0;
+  z-index: 2;
+  padding: 16px 14px;
+  background: rgb(0 0 0 / 0.5);
+}
+
+.confirm {
+  padding: 16px;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-float);
+}
+
+.confirm-title {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+
+.confirm-text {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.confirm-error {
+  margin: 10px 0 0;
+  color: var(--danger-ink);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.confirm-actions button {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: var(--radius-control);
+  font: 500 13px/18px var(--font);
+  cursor: pointer;
+}
+
+.confirm-cancel {
+  background: var(--control);
+  color: var(--ink);
+}
+
+.confirm-cancel:hover {
+  background: var(--control-hover);
+}
+
+.confirm-clear {
+  background: var(--danger-tint);
+  color: var(--danger-ink);
+}
+
+.confirm-clear:hover {
+  background: rgb(255 143 143 / 0.18);
+}
+
+.confirm-clear:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

@@ -28,6 +28,7 @@ const initial: PageState = {
   variantChoices: {},
   tweakValues: {},
   dismissed: [],
+  cleared: null,
 }
 
 let current: PageState = initial
@@ -35,7 +36,7 @@ const listeners = new Set<() => void>()
 const waiting = new Map<string, { resolve: () => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>()
 
 /** What a plugin from an older build leaves out, so this page still renders while it asks for a restart. */
-const olderPlugin: Pick<PageState, 'build' | 'dismissed'> = { build: 'older', dismissed: [] }
+const olderPlugin: Pick<PageState, 'build' | 'dismissed' | 'cleared'> = { build: 'older', dismissed: [], cleared: null }
 
 hot.on(PAGE_EVENT.state, (state: Partial<PageState>) => {
   current = { ...initial, ...olderPlugin, ...state }
