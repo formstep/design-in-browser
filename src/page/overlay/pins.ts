@@ -12,6 +12,7 @@ import { keepKeys } from '../ui/events.ts'
 import { when } from '../ui/format.ts'
 import { clamp, pointOn, type Point } from '../ui/geometry.ts'
 import { cameFromUi, usableWidth } from '../ui/layout.ts'
+import { markersHidden } from '../ui/markers.ts'
 import { onModeChange } from './mode.ts'
 import { CARD_WIDTH, PIN, root } from './root.ts'
 
@@ -114,6 +115,9 @@ function sentPin(
   }
 }
 
+/** A comment the agent finished (done or skipped) needs nothing more from the user: its reply stays in the dock. */
+const finished = (comment: BatchComment) => comment.status === 'done' || comment.status === 'skipped'
+
 /** Alternatives the agent put on this page: their switcher stands in for the pin, which would sit on top of them. */
 const switcherShows = (comment: BatchComment) =>
   comment.status === 'variants' &&
@@ -148,7 +152,9 @@ function pinsForThisPage(state: PageState): PinModel[] {
   const sent = state.batches.flatMap((batch) =>
     batch.comments.flatMap((comment) => {
       const place = placeOf(comment)
-      return place && onThisPage(comment) && !switcherShows(comment) ? [sentPin(batch, comment, place, answered, ownProject)] : []
+      return place && onThisPage(comment) && !finished(comment) && !switcherShows(comment)
+        ? [sentPin(batch, comment, place, answered, ownProject)]
+        : []
     })
   )
   return [...drafts, ...sent]
@@ -202,6 +208,7 @@ function answerField(pin: PinModel): HTMLElement[] {
 }
 
 export function renderPins(): void {
+  pins.hidden = markersHidden()
   const wanted = pinsForThisPage(readState())
   models = new Map(wanted.map((pin) => [pin.key, pin]))
   for (const node of [...pins.children] as HTMLElement[]) if (!models.has(node.dataset.key ?? '')) node.remove()

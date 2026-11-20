@@ -305,17 +305,22 @@ kbd {
 
 .turns {
   display: grid;
+  /* Columns as wide as the dock and no wider: a long line that doesn't wrap, such as an element's name, gets an
+     ellipsis instead of widening every turn past the dock's edge. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 22px;
 }
 
 .turn {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
 /* You: a bubble on the right, as in a chat app. */
 .you {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: end;
   gap: 4px;
 }
@@ -329,6 +334,7 @@ kbd {
 
 .bubble-comments {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   margin: 0;
   padding: 0;
@@ -384,6 +390,7 @@ kbd {
 /* The agent: plain text in the reply serif, no bubble. */
 .agent {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   padding-right: 8px;
 }
@@ -408,6 +415,7 @@ kbd {
 
 .replies {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   margin: 0;
   padding: 0;
@@ -416,7 +424,7 @@ kbd {
 
 .reply {
   display: grid;
-  grid-template-columns: 18px 1fr;
+  grid-template-columns: 18px minmax(0, 1fr);
   gap: 10px;
 }
 

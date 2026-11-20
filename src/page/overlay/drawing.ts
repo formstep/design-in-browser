@@ -6,6 +6,7 @@ import { samePage } from '../capture.ts'
 import { readState } from '../store.ts'
 import { query } from '../ui/dom.ts'
 import { isUiHost } from '../ui/layout.ts'
+import { markersHidden } from '../ui/markers.ts'
 import { openComposer } from './composer.ts'
 import { centerOf, cornerOf, drawMark, toPage } from './marks.ts'
 import { getMode, onModeChange, setMode, type DrawTool } from './mode.ts'
@@ -76,7 +77,7 @@ function addMark(mark: Mark): void {
 export function renderMarks(): void {
   ink.classList.toggle('active', acceptsMarks())
   const mode = getMode()
-  const drafts = readState().draft.filter((comment) => comment.marks && samePage(comment.page.url))
+  const drafts = markersHidden() ? [] : readState().draft.filter((comment) => comment.marks && samePage(comment.page.url))
   const current = mode.kind === 'commenting' ? mode.marks : []
   const drawing = stroke ? markOf(stroke) : null
   ink.replaceChildren(

@@ -4,6 +4,7 @@
 import { onStateChange, readState } from '../store.ts'
 import { frameScheduler } from '../ui/events.ts'
 import { onReservedRightChange } from '../ui/layout.ts'
+import { markersHidden, onMarkersHiddenChange, setMarkersHidden } from '../ui/markers.ts'
 import { mountVariants, onGroupsChange, renderVariants, syncFromState } from '../variants/switcher.ts'
 import { leaveComposer, renderComposer } from './composer.ts'
 import { renderMarks } from './drawing.ts'
@@ -47,7 +48,12 @@ window.addEventListener(
 
 mountVariants(root)
 onGroupsChange(scheduleRender)
-onModeChange(scheduleRender)
+onModeChange((mode) => {
+  // Hidden markers come back once the user comments again, so a new pin never lands out of sight.
+  if (mode.kind !== 'idle' && markersHidden()) setMarkersHidden(false)
+  scheduleRender()
+})
+onMarkersHiddenChange(scheduleRender)
 onReservedRightChange(scheduleRender)
 onStateChange(() => {
   syncFromState(readState())

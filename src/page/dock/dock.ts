@@ -12,6 +12,7 @@ import { el, iconNode, query } from '../ui/dom.ts'
 import { frameScheduler, keepKeys, submitOnEnter } from '../ui/events.ts'
 import { plural } from '../ui/format.ts'
 import { registerUiHost, setReservedRight } from '../ui/layout.ts'
+import { markersHidden, onMarkersHiddenChange, setMarkersHidden } from '../ui/markers.ts'
 import { createShadowHost } from '../ui/shadow-host.ts'
 import dockCss from './dock.css'
 import { answerPlaces, turns, where } from './thread.ts'
@@ -41,6 +42,7 @@ root.innerHTML = `
       </label>
     </div>
     <span class="state" data-testid="status" aria-live="polite"></span>
+    <button type="button" class="icon-button markers" data-testid="markers" aria-pressed="false" aria-label="Hide markers on the page" title="Hide markers on the page"><span data-icon="eye" data-size="15"></span></button>
     <button type="button" class="icon-button close" aria-label="Close" title="Close (⌥⇧D)"><span data-icon="close" data-size="15"></span></button>
   </header>
   <main class="thread" data-testid="sent">
@@ -118,10 +120,21 @@ function readOpen(): boolean {
   }
 }
 
+/**
+ * The open dock takes its width from the page, which moves aside (a right margin on the root element), so what sat
+ * under it can still be commented on. A full-width dock (a phone-width window) covers the page instead: there is no
+ * room left to move it into. Elements the page fixes to the window's right edge stay where they are.
+ */
+function reserveDock(open: boolean): void {
+  const width = open ? dockWidth() : 0
+  setReservedRight(width)
+  document.documentElement.style.marginRight = open && width < innerWidth ? `${width}px` : ''
+}
+
 function setOpen(open: boolean): void {
   dock.hidden = !open
   launcher.hidden = open
-  setReservedRight(open ? dockWidth() : 0)
+  reserveDock(open)
   try {
     localStorage.setItem(OPEN_KEY, open ? '1' : '0')
   } catch {
@@ -133,9 +146,23 @@ function setOpen(open: boolean): void {
 launcher.addEventListener('click', () => setOpen(true))
 // The dock is never wider than the window; what it covers follows a resize.
 window.addEventListener('resize', () => {
-  if (!dock.hasAttribute('hidden')) setReservedRight(dockWidth())
+  if (!dock.hasAttribute('hidden')) reserveDock(true)
 })
 $<HTMLButtonElement>('.close').addEventListener('click', () => setOpen(false))
+
+// Hides the pins and drawings on the page, to see it as it is; the comments and replies stay here.
+const markersButton = $<HTMLButtonElement>('.markers')
+function renderMarkersButton(): void {
+  const hidden = markersHidden()
+  const label = hidden ? 'Show markers on the page' : 'Hide markers on the page'
+  markersButton.setAttribute('aria-pressed', String(hidden))
+  markersButton.setAttribute('aria-label', label)
+  markersButton.title = label
+  markersButton.replaceChildren(iconNode(hidden ? 'eyeOff' : 'eye', 15))
+}
+markersButton.addEventListener('click', () => setMarkersHidden(!markersHidden()))
+onMarkersHiddenChange(renderMarkersButton)
+renderMarkersButton()
 window.addEventListener(
   'keydown',
   (event) => {

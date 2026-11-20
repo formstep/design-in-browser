@@ -74,9 +74,8 @@ test('pick, comment, send, and see the reply on the page', async () => {
     ],
   })
   await expect(dock().getByTestId('sent')).toContainText('Headline is now 40px, weight 800.')
-  await expect
-    .poll(() => pins.evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).dataset.status)))
-    .toEqual(['done', 'question'])
+  // A done comment drops its pin; the question keeps one, to answer from the page.
+  await expect.poll(() => pins.evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).dataset.status))).toEqual(['question'])
 })
 
 test('answer a question from the dock and from a pin', async () => {
