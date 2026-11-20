@@ -26,41 +26,25 @@ const RESOLVED_CLIENT = `\0${CLIENT_MODULE}`
 const REACT_MODULE = 'design-in-browser/react'
 const RESOLVED_REACT = '\0design-in-browser:react'
 const JSX_DEV_RUNTIME = 'react/jsx-dev-runtime'
-const RESOLVED_JSX_DEV_RUNTIME = '\0design-in-browser:jsx-dev-runtime'
 
 /**
- * A jsxDEV that puts each host element's source location on it as an attribute the overlay can read, then calls
- * React's (`react`, an expression). The dev JSX transform already passes each element's file, line and column.
- * Paths are relative to the project root, or absolute for a file outside it; elements from node_modules get none.
- * One statement per line, each ending in a semicolon, so it can also be joined into one line.
+ * A jsxDEV, on one line, that puts each host element's source location on it as an attribute the overlay can read,
+ * then calls React's (`react`, an expression). The dev JSX transform already passes each element's file, line and
+ * column. Paths are relative to the project root, or absolute for a file outside it; elements from node_modules get
+ * none.
  */
 function stampingJsxDEV(projectRoot: string, react: string): string {
   const root = JSON.stringify(projectRoot.endsWith('/') ? projectRoot : `${projectRoot}/`)
-  return `function (type, props, key, isStatic, source, self) {
-  const file = source && source.fileName;
-  if (typeof type === 'string' && file && !file.includes('/node_modules/')) {
-    const where = file.startsWith(${root}) ? file.slice(${root}.length) : file;
-    props = { ...props, ${JSON.stringify(SOURCE_ATTRIBUTE)}: where + ':' + source.lineNumber + ':' + source.columnNumber };
-  }
-  return ${react}(type, props, key, isStatic, source, self);
-}`
-}
-
-/** React's dev JSX runtime, wrapped: in the browser, the app's modules import this instead. */
-function sourceStampingRuntime(projectRoot: string): string {
-  return `import { jsxDEV as reactJsxDEV, Fragment } from '${JSX_DEV_RUNTIME}'
-export { Fragment }
-export const jsxDEV = ${stampingJsxDEV(projectRoot, 'reactJsxDEV')}
-`
+  return `function (type, props, key, isStatic, source, self) { const file = source && source.fileName; if (typeof type === 'string' && file && !file.includes('/node_modules/')) { const where = file.startsWith(${root}) ? file.slice(${root}.length) : file; props = { ...props, ${JSON.stringify(SOURCE_ATTRIBUTE)}: where + ':' + source.lineNumber + ':' + source.columnNumber }; } return ${react}(type, props, key, isStatic, source, self); }`
 }
 
 const DEV_RUNTIME_IMPORT = /import\s*\{([^}]*)\}\s*from\s*(['"])react\/jsx-dev-runtime\2;?/
 
 /**
- * Wraps jsxDEV inside one compiled module, for the server: there Vite leaves `react/jsx-dev-runtime` to Node, so the
- * wrapped runtime can't stand in for it. Server-rendered HTML then carries the same attributes as the browser's
- * render, and hydration matches. The import stays on its own line, so the lines below keep their numbers. Null when
- * the module doesn't import jsxDEV.
+ * Wraps jsxDEV inside one compiled module, in the browser and on the server alike: on the server Vite leaves
+ * `react/jsx-dev-runtime` to Node, so nothing short of the module itself can stand in for it, and one way for both
+ * keeps server-rendered HTML and the browser's render the same, so hydration matches. The import stays on its own
+ * line, so the lines below keep their numbers. Null when the module doesn't import jsxDEV.
  */
 export function stampJsxInModule(code: string, projectRoot: string): string | null {
   const found = DEV_RUNTIME_IMPORT.exec(code)
@@ -78,8 +62,10 @@ export function stampJsxInModule(code: string, projectRoot: string): string | nu
     })
   if (local === null) return null
   const quote = found[2]
-  const wrapper = stampingJsxDEV(projectRoot, '__dibReactJsxDEV').replace(/\n\s*/g, ' ')
-  return code.replace(found[0], `import { ${specifiers.join(', ')} } from ${quote}${JSX_DEV_RUNTIME}${quote}; const ${local} = ${wrapper};`)
+  return code.replace(
+    found[0],
+    `import { ${specifiers.join(', ')} } from ${quote}${JSX_DEV_RUNTIME}${quote}; const ${local} = ${stampingJsxDEV(projectRoot, '__dibReactJsxDEV')};`
+  )
 }
 
 const LEFTOVER = `A <Variants> group from ${REACT_MODULE} is still in the code. Pick a version in the browser (the agent then removes the wrapper), or remove it by hand, before building.`
@@ -128,42 +114,25 @@ type DevState = { enabled: boolean; projectRoot: string }
 
 export default function designInBrowser(options: DesignInBrowserOptions = {}): Plugin[] {
   const state: DevState = { enabled: false, projectRoot: '' }
-  return [devServer(options, state), serverSourceLocations(options, state), sourceLines(options, state), buildGuard()]
+  const plugins = [devServer(options, state), buildGuard()]
+  return (options.sourceLocations ?? true) ? [...plugins, sourceLocations(state)] : plugins
 }
 
 /**
- * Puts the JSX positions in a compiled module back on the lines they are written on, where a transform before the
- * JSX compiler added lines on top (lineShift). Reads the original from disk, so the plugins' order doesn't matter.
+ * Source locations, for every module of the project's own with JSX, in the browser and on the server: after the
+ * JSX is compiled, positions a transform above the compiler pushed down go back on their lines (lineShift, from the
+ * file on disk), then jsxDEV is wrapped in place to put each element's location on it (stampJsxInModule).
  */
-function sourceLines(options: DesignInBrowserOptions, state: DevState): Plugin {
+function sourceLocations(state: DevState): Plugin {
   return {
-    name: `${PRODUCT_NAME}:source-lines`,
+    name: `${PRODUCT_NAME}:source-locations`,
     apply: 'serve',
     enforce: 'post',
     transform(code, id) {
-      if ((options.sourceLocations ?? true) === false || !state.enabled) return null
       const file = id.split('?')[0] ?? id
-      if (id.startsWith('\0') || file.includes('/node_modules/') || !/\.[jt]sx$/.test(file) || !code.includes('columnNumber')) return null
-      const original = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null
-      const shift = original === null ? 0 : lineShift(original, code)
-      return shift === 0 ? null : { code: shiftLines(code, shift), map: null }
-    },
-  }
-}
-
-/**
- * Source locations in server-rendered React (Astro's islands, or any SSR): the same attributes the browser's render
- * puts on, or hydration would find them missing. Runs after the JSX is compiled.
- */
-function serverSourceLocations(options: DesignInBrowserOptions, state: DevState): Plugin {
-  return {
-    name: `${PRODUCT_NAME}:server-source-locations`,
-    apply: 'serve',
-    enforce: 'post',
-    transform(code, id) {
-      if ((options.sourceLocations ?? true) === false || !state.enabled) return null
-      if (this.environment.config.consumer !== 'server' || id.startsWith('\0') || id.includes('/node_modules/')) return null
-      const stamped = stampJsxInModule(code, state.projectRoot)
+      if (!state.enabled || id.startsWith('\0') || file.includes('/node_modules/') || !code.includes('react/jsx-dev-runtime')) return null
+      const shift = /\.[jt]sx$/.test(file) && fs.existsSync(file) ? lineShift(fs.readFileSync(file, 'utf8'), code) : 0
+      const stamped = stampJsxInModule(shift === 0 ? code : shiftLines(code, shift), state.projectRoot)
       return stamped === null ? null : { code: stamped, map: null }
     },
   }
@@ -184,19 +153,16 @@ function buildGuard(): Plugin {
 
 function devServer(options: DesignInBrowserOptions, state: DevState): Plugin {
   let hub: Hub | null = null
-  const stampSources = options.sourceLocations ?? true
 
   return {
     name: PRODUCT_NAME,
     apply: 'serve',
     enforce: 'pre',
 
-    resolveId(id, importer) {
+    resolveId(id) {
       if (id === CLIENT_MODULE) return RESOLVED_CLIENT
       // Served from here, not from the package, so `react` inside it is the app's own React.
       if (id === REACT_MODULE) return RESOLVED_REACT
-      // The app's JSX gets the wrapped runtime; the wrapper itself gets React's.
-      if (id === JSX_DEV_RUNTIME && state.enabled && stampSources && importer !== RESOLVED_JSX_DEV_RUNTIME) return RESOLVED_JSX_DEV_RUNTIME
       return undefined
     },
 
@@ -205,7 +171,6 @@ function devServer(options: DesignInBrowserOptions, state: DevState): Plugin {
       if (id === RESOLVED_CLIENT)
         return state.enabled ? fs.readFileSync(fileURLToPath(new URL('./client.js', import.meta.url)), 'utf8') : ''
       if (id === RESOLVED_REACT) return fs.readFileSync(fileURLToPath(new URL('./react-dev.js', import.meta.url)), 'utf8')
-      if (id === RESOLVED_JSX_DEV_RUNTIME) return sourceStampingRuntime(state.projectRoot)
       return undefined
     },
 
