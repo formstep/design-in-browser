@@ -95,12 +95,60 @@ function loopbackOnly(address: AddressInfo | string | null | undefined): boolean
   return address.address === '::1' || address.address.startsWith('127.')
 }
 
+/** A position the dev JSX transform passes to jsxDEV, as written in a compiled module. */
+const SOURCE_POSITION = /lineNumber: (\d+),(\s*)columnNumber: (\d+)/g
+/** How far down a header can push a module's code; past it, positions are left as they are. */
+const MAX_LINE_SHIFT = 64
+
+/**
+ * How many lines too low a compiled module reports its JSX elements. @vitejs/plugin-react 4 puts React Refresh's
+ * header above the source before the JSX is compiled, so every element is reported that many lines down (19).
+ * Found from where each element's `<` really is in the original source: 0 when they line up already, or when no
+ * one shift lines them all up.
+ */
+export function lineShift(original: string, compiled: string): number {
+  const lines = original.split('\n')
+  const positions = [...compiled.matchAll(SOURCE_POSITION)].map((match) => ({ line: Number(match[1]), column: Number(match[3]) }))
+  const hits = (shift: number) => positions.filter(({ line, column }) => lines[line - 1 - shift]?.[column - 1] === '<').length
+  if (positions.length === 0 || hits(0) === positions.length) return 0
+  for (let shift = 1; shift <= MAX_LINE_SHIFT; shift++) if (hits(shift) === positions.length) return shift
+  return 0
+}
+
+/** The compiled module with its JSX positions moved up `shift` lines, back onto the source. */
+export function shiftLines(compiled: string, shift: number): string {
+  return compiled.replace(
+    SOURCE_POSITION,
+    (_, line: string, space: string, column: string) => `lineNumber: ${Number(line) - shift},${space}columnNumber: ${column}`
+  )
+}
+
 /** What the dev server learns once it listens, shared by the plugins below. */
 type DevState = { enabled: boolean; projectRoot: string }
 
 export default function designInBrowser(options: DesignInBrowserOptions = {}): Plugin[] {
   const state: DevState = { enabled: false, projectRoot: '' }
-  return [devServer(options, state), serverSourceLocations(options, state), buildGuard()]
+  return [devServer(options, state), serverSourceLocations(options, state), sourceLines(options, state), buildGuard()]
+}
+
+/**
+ * Puts the JSX positions in a compiled module back on the lines they are written on, where a transform before the
+ * JSX compiler added lines on top (lineShift). Reads the original from disk, so the plugins' order doesn't matter.
+ */
+function sourceLines(options: DesignInBrowserOptions, state: DevState): Plugin {
+  return {
+    name: `${PRODUCT_NAME}:source-lines`,
+    apply: 'serve',
+    enforce: 'post',
+    transform(code, id) {
+      if ((options.sourceLocations ?? true) === false || !state.enabled) return null
+      const file = id.split('?')[0] ?? id
+      if (id.startsWith('\0') || file.includes('/node_modules/') || !/\.[jt]sx$/.test(file) || !code.includes('columnNumber')) return null
+      const original = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null
+      const shift = original === null ? 0 : lineShift(original, code)
+      return shift === 0 ? null : { code: shiftLines(code, shift), map: null }
+    },
+  }
 }
 
 /**
