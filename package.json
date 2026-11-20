@@ -1,6 +1,6 @@
 {
   "name": "design-in-browser",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Comment on your running React + Vite app in the browser, and your coding agent changes the code: comments, alternatives with live tweaks, before and after.",
   "keywords": [
     "ai-agent",
