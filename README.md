@@ -6,7 +6,7 @@ Click an element, say what should change, and send. The agent goes straight to t
 
 ![A comment card on a heading, with the chat dock open on the right](https://raw.githubusercontent.com/formstep/design-in-browser/main/docs/images/comment.png)
 
-It works with React apps on a Vite dev server, and with [Claude Code](https://claude.com/claude-code) as the agent. Support for other agents, such as OpenCode, is planned.
+It works with React apps on a Vite dev server. [Claude Code](https://claude.com/claude-code) gets a plugin; other agents, such as OpenCode, connect to the same MCP server with [a few lines of setup](https://github.com/formstep/design-in-browser/blob/main/docs/agents.md).
 
 ## Quick start
 
@@ -91,14 +91,14 @@ Your comments only travel on your machine. The plugin turns itself off when the 
 ## Limits
 
 - React and Vite only. Other frameworks, and pages Vite doesn't serve (such as Astro's), aren't supported yet.
-- Claude Code is the only agent for now.
+- Agents other than Claude Code need [their own setup](https://github.com/formstep/design-in-browser/blob/main/docs/agents.md), and no plugin does it for them yet.
 - The dev server must run on localhost with hot reload on.
 
 ## Roadmap
 
 - Draw on the page: boxes, arrows and freehand marks, sent with a cropped screenshot.
 - Let the agent annotate the page back.
-- Connect OpenCode and other agents.
+- Plugins for OpenCode and other agents, like Claude Code's.
 
 ## Contributing
 

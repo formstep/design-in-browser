@@ -37,7 +37,10 @@ await build({
   target: 'node22',
   // ws loads these optional native helpers inside try/catch.
   external: ['bufferutil', 'utf-8-validate'],
-  banner: { js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);" },
+  // The shebang lets npm install mcp.mjs as the design-in-browser-mcp command, for agents other than Claude Code.
+  banner: {
+    js: "#!/usr/bin/env node\nimport { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
+  },
   define: { __BUILD_ID__: JSON.stringify(id) },
   // Keeps names readable in stack traces while cutting the committed bundle size.
   minifyWhitespace: true,

@@ -31,9 +31,9 @@ function freePort(): Promise<number> {
   })
 }
 
-async function startShim(): Promise<Client> {
+async function startShim(name = 'bridge-test'): Promise<Client> {
   const transport = new StdioClientTransport({ command: process.execPath, args: ['plugin/dist/mcp.mjs'], env, stderr: 'pipe' })
-  const client = new Client({ name: 'bridge-test', version: '0' })
+  const client = new Client({ name, version: '0' })
   await client.connect(transport)
   shims.push(client)
   return client
@@ -143,7 +143,13 @@ after(async () => {
 test('the shim stays inert until live_connect', async () => {
   const client = await startShim()
   const tools = await client.listTools()
-  assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), ['live_connect', 'live_get_batch', 'live_reply', 'live_status'])
+  assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), [
+    'live_connect',
+    'live_get_batch',
+    'live_reply',
+    'live_status',
+    'live_wait',
+  ])
   await assert.rejects(fetch(`http://127.0.0.1:${port}/health`))
 })
 
@@ -360,6 +366,31 @@ test('a stale choice or tweak from older source falls back to what the page has 
     badge: { kind: 'toggle', label: 'Badge', default: true },
   } as const
   assert.deepEqual(valuesFor('hero', 1, specs), { padding: 48, badge: false })
+})
+
+test('an agent without a Monitor waits with live_wait, and reads as listening meanwhile', async () => {
+  const waitProject = path.join(tmp, 'waiting')
+  fs.mkdirSync(waitProject)
+  const client = await startShim('opencode')
+  await callTool(client, 'live_connect', { projectRoot: waitProject })
+  const devServer = await openDevServer()
+  devServer.socket.send(JSON.stringify({ type: 'hello' }))
+  const state = await devServer.inbox.next((m) => m.type === 'state')
+  const session = state.type === 'state' ? state.sessions.find((entry) => entry.projectRoot === waitProject) : undefined
+  assert.ok(session)
+  assert.equal(session.agent, 'OpenCode')
+
+  const waiting = callTool(client, 'live_wait', { timeoutSeconds: 20 })
+  await devServer.inbox.next((m) => m.type === 'sessions' && m.sessions.some((entry) => entry.id === session.id && entry.listening))
+  devServer.socket.send(
+    JSON.stringify({ type: 'send-batch', clientBatchId: 'w1', sessionId: session.id, comments: [comment('Wait for me')] })
+  )
+  const batch = JSON.parse(await waiting) as Batch
+  assert.equal(batch.status, 'fetched')
+  assert.equal(batch.comments[0]!.text, 'Wait for me')
+  assert.match(await callTool(client, 'live_wait', { timeoutSeconds: 5 }), /No batch yet/)
+  devServer.socket.close()
+  await client.close()
 })
 
 test('the MCP server leaves when its agent closes stdio, so no ghost session stays', async () => {

@@ -255,6 +255,11 @@ kbd {
   color: var(--ink-3);
 }
 
+.intro-other {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
 .command {
   display: inline-flex;
   align-items: center;

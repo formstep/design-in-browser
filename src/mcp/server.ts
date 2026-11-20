@@ -4,6 +4,7 @@ import crypto from 'node:crypto'
 import path from 'node:path'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import WebSocket from 'ws'
 import { z } from 'zod'
 import { LISTENER_REPLACED_CLOSE_CODE, PRODUCT_NAME, agentLabel, type ConnectParams } from '../shared/protocol.ts'
 import { BUILD_ID } from '../node/config.ts'
@@ -12,6 +13,13 @@ import { DaemonConnection, ensureDaemon } from './daemon-client.ts'
 const sessionId = `s-${crypto.randomBytes(4).toString('hex')}`
 let connection: DaemonConnection | null = null
 let registration: ConnectParams | null = null
+/** The session's Monitor URL, for live_wait to listen on itself. */
+let listenUrl: string | null = null
+/** live_wait's own listener: while it is open, the browser shows the agent as listening. */
+let doorbell: WebSocket | null = null
+const waiters = new Set<() => void>()
+const DEFAULT_WAIT_SECONDS = 300
+const REPOLL_MS = 15_000
 
 /** Reconnects after a daemon restart and registers the session again, so a tool call never needs a second live_connect. */
 async function daemon(): Promise<DaemonConnection> {
@@ -19,8 +27,35 @@ async function daemon(): Promise<DaemonConnection> {
   if (!registration) throw new Error('Not connected. Call live_connect first.')
   await ensureDaemon()
   connection = await DaemonConnection.open()
-  await connection.call('connect', registration)
+  listenUrl = (await connection.call('connect', registration)).listenUrl
   return connection
+}
+
+/** Listens for doorbells like a Monitor would, for agents without one. Stays open, so the session reads as listening. */
+function listenForDoorbells(): void {
+  if (!listenUrl || doorbell) return
+  const socket = new WebSocket(listenUrl)
+  doorbell = socket
+  socket.on('message', () => {
+    for (const wake of waiters) wake()
+  })
+  socket.on('error', () => {})
+  socket.on('close', () => {
+    if (doorbell === socket) doorbell = null
+  })
+}
+
+/** Resolves on the next doorbell, or after `ms`. */
+function nextDoorbell(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const wake = () => {
+      clearTimeout(timer)
+      waiters.delete(wake)
+      resolve()
+    }
+    const timer = setTimeout(wake, ms)
+    waiters.add(wake)
+  })
 }
 
 function text(value: string) {
@@ -67,6 +102,7 @@ server.registerTool(
         connection = await DaemonConnection.open()
       }
       const result = await connection.call('connect', registration)
+      listenUrl = result.listenUrl
       const pending =
         result.unfetched.length > 0
           ? `Unfetched batches: ${result.unfetched.join(', ')}. The Monitor rings for them when it connects.`
@@ -76,6 +112,7 @@ server.registerTool(
           `Connected as session ${sessionId} for ${registration.projectRoot}. The browser shows you as "${registration.agent}".`,
           `Next: arm Monitor with ws url ${result.listenUrl}, timeout_ms 1800000, description "browser comments".`,
           `Re-arm it with the same url whenever it expires or closes, except close code ${LISTENER_REPLACED_CLOSE_CODE} (a newer Monitor replaced it).`,
+          `Without a Monitor tool, call live_wait instead: it returns the next batch, and you call it again after replying.`,
           pending,
           `Journal: ${result.journalDir}`,
         ].join('\n')
@@ -101,6 +138,41 @@ server.registerTool(
       const batch = await (await daemon()).call('getBatch', { sessionId, batchId })
       if (!batch) return text('No unfetched batch.')
       return text(JSON.stringify(batch, null, 2))
+    } catch (error) {
+      return failure(error)
+    }
+  }
+)
+
+server.registerTool(
+  'live_wait',
+  {
+    title: 'Wait for browser comments',
+    description:
+      'For agents without a Monitor tool: wait until the user sends a batch from the browser, then return it, fetched, as live_get_batch would. While you wait, the browser shows you as listening. Handle the batch, reply with live_reply, then call live_wait again to keep listening. Returns "No batch yet" when the wait times out; call it again.',
+    inputSchema: {
+      timeoutSeconds: z
+        .number()
+        .int()
+        .min(5)
+        .max(1800)
+        .optional()
+        .describe(`How long to wait, in seconds. Default ${DEFAULT_WAIT_SECONDS}; lower it if your client times out tool calls sooner.`),
+    },
+  },
+  async ({ timeoutSeconds }) => {
+    try {
+      const deadline = Date.now() + (timeoutSeconds ?? DEFAULT_WAIT_SECONDS) * 1000
+      for (;;) {
+        const live = await daemon()
+        listenForDoorbells()
+        const batch = await live.call('getBatch', { sessionId })
+        if (batch) return text(JSON.stringify(batch, null, 2))
+        const left = deadline - Date.now()
+        if (left <= 0) return text('No batch yet. Call live_wait again to keep listening.')
+        // A doorbell wakes the wait at once; the re-poll covers a doorbell lost while reconnecting.
+        await nextDoorbell(Math.min(left, REPOLL_MS))
+      }
     } catch (error) {
       return failure(error)
     }
@@ -166,6 +238,7 @@ await server.connect(new StdioServerTransport())
 // When the agent quits, its end of stdio closes. Leave with it: the daemon socket would otherwise keep this
 // process, and its session, alive as a ghost in the browser's session list.
 const leave = () => {
+  doorbell?.close()
   connection?.close()
   process.exit(0)
 }

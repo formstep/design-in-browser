@@ -22,8 +22,12 @@
     "type": "git",
     "url": "git+https://github.com/formstep/design-in-browser.git"
   },
+  "bin": {
+    "design-in-browser-mcp": "plugin/dist/mcp.mjs"
+  },
   "files": [
-    "dist"
+    "dist",
+    "plugin/dist"
   ],
   "type": "module",
   "exports": {

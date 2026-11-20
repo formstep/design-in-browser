@@ -49,6 +49,7 @@ root.innerHTML = `
         <span data-icon="copy" data-size="14"></span>
         <span class="copied" hidden>Copied</span>
       </button>
+      <p class="intro-text intro-other" hidden>Another agent? Add the design-in-browser-mcp server, then ask it to call live_connect and live_wait.</p>
     </div>
     <div class="turns"></div>
   </main>
@@ -86,6 +87,7 @@ const introTitle = $<HTMLElement>('.intro-title')
 const introText = $<HTMLElement>('.intro-text')
 const commandButton = $<HTMLButtonElement>('.command')
 const copied = $<HTMLElement>('.copied')
+const introOther = $<HTMLElement>('.intro-other')
 const turnList = $<HTMLElement>('.turns')
 const notice = $<HTMLElement>('.notice')
 const errorLine = $<HTMLElement>('.error')
@@ -186,6 +188,7 @@ function renderIntro(state: PageState, session: SessionInfo | null): void {
   const needsStart = state.connection === 'offline' || !session
   intro.hidden = state.batches.length > 0 && !needsStart
   commandButton.hidden = !needsStart
+  introOther.hidden = !needsStart
   if (needsStart) {
     introTitle.textContent = state.connection === 'offline' ? 'Not connected to a coding agent' : 'No agent session'
     introText.textContent = 'Connect a session from your project. In Claude Code, run:'
