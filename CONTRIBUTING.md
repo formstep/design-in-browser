@@ -62,6 +62,13 @@ Run one browser spec with `pnpm exec playwright test --config test/e2e/playwrigh
 - [DESIGN.md](DESIGN.md) describes the look and [PRODUCT.md](PRODUCT.md) who it's for. Read them before changing the UI.
 - The published `.d.mts` files are written by hand; `test/public-types.ts` fails the typecheck when they drift from the code.
 
+## Releasing
+
+1. Set the new version in `package.json` and `plugin/.claude-plugin/plugin.json`, run `pnpm build`, and commit with `plugin/dist`.
+2. Push `main`, then a tag for the version: `git tag v0.4.0 && git push origin v0.4.0`.
+
+The `release` workflow checks that the tag matches the version, runs every test, and publishes to npm with trusted publishing, so no npm token is stored anywhere. Claude Code users get the plugin from `main`.
+
 ## Pull requests
 
 - Keep one change per pull request, with tests for new behavior. `pnpm check`, `pnpm test` and `pnpm test:e2e` should pass.

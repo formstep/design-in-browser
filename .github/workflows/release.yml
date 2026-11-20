@@ -1,0 +1,33 @@
+name: release
+
+# Publishes to npm when a version tag (v0.4.0) is pushed, through npm's trusted publishing: no token is
+# stored anywhere. One-time setup on npmjs.com: the package's Settings, Trusted Publisher, GitHub Actions,
+# with owner formstep, repository design-in-browser and workflow release.yml.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - name: The tag matches the package version
+        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+      # Trusted publishing needs npm 11.5 or later.
+      - run: npm install -g npm@11
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      # prepublishOnly runs pnpm check and the bridge tests first.
+      - run: npm publish --access public
