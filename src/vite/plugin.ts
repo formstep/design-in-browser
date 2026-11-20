@@ -90,7 +90,7 @@ function gitRoot(dir: string): string {
 }
 
 /** Only a dev server that listens on loopback alone may carry comments into an agent's session. */
-function loopbackOnly(address: AddressInfo | string | null | undefined): boolean {
+function loopbackOnly(address: AddressInfo | string | null | undefined): address is AddressInfo {
   if (!address || typeof address === 'string') return false
   return address.address === '::1' || address.address.startsWith('127.')
 }
@@ -217,28 +217,29 @@ function devServer(options: DesignInBrowserOptions, state: DevState): Plugin {
     configureServer(server) {
       state.projectRoot = options.projectRoot ?? gitRoot(server.config.root)
       const hot = server.environments.client.hot
-      hub = new Hub(state.projectRoot, server.config.root, (state) => hot.send(PAGE_EVENT.state, state))
 
+      // The hub exists once the server listens on loopback, and not otherwise: then the page is left alone.
       server.httpServer?.once('listening', () => {
         // With HMR off (as in some end-to-end setups) there is no socket to talk over: stay out of the page.
         if (server.config.server.hmr === false) return
-        state.enabled = loopbackOnly(server.httpServer?.address())
-        if (!state.enabled) {
+        const address = server.httpServer?.address()
+        if (!loopbackOnly(address)) {
           server.config.logger.warn(
             `[${PRODUCT_NAME}] Off: this dev server listens beyond localhost (--host), so anyone on the network could send text into your agent's session. Run it on localhost to use it.`
           )
           return
         }
-        const address = server.httpServer?.address()
-        if (address && typeof address !== 'string') hub?.start(address.port)
+        state.enabled = true
+        hub = new Hub(state.projectRoot, server.config.root, address.port, (next) => hot.send(PAGE_EVENT.state, next))
+        hub.start()
       })
       server.httpServer?.once('close', () => hub?.stop())
 
       hot.on(PAGE_EVENT.hello, (_data, client) => {
-        if (state.enabled && hub) client.send(PAGE_EVENT.state, hub.state)
+        if (hub) client.send(PAGE_EVENT.state, hub.state)
       })
       hot.on(PAGE_EVENT.op, (request: OpRequest, client) => {
-        if (!state.enabled || !hub) return
+        if (!hub) return
         let ack: OpAck
         try {
           const error = hub.apply(request.op)

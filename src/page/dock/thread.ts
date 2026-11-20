@@ -2,6 +2,7 @@
 // under each question to answer it (or dismiss it) and a link from alternatives to their switcher on the page.
 import type { Batch, BatchComment, DraftComment } from '../../shared/protocol.ts'
 import { answering, newComment, pickOf } from '../comments.ts'
+import { dismissButton } from '../dismiss.ts'
 import { sendOp, type PageState } from '../store.ts'
 import { button, el, iconNode } from '../ui/dom.ts'
 import { submitOnEnter } from '../ui/events.ts'
@@ -89,17 +90,6 @@ function answerForm(batch: Batch, comment: BatchComment): HTMLFormElement {
   return form
 }
 
-/** Closes a question or note without answering it: its pin leaves the page. The agent isn't told. */
-function dismissButton(comment: BatchComment, index: number): HTMLElement {
-  const dismiss = button({
-    className: 'dismiss',
-    textContent: 'Dismiss',
-    attrs: { 'aria-label': `Dismiss ${comment.status === 'question' ? 'question' : 'note'} ${index + 1}`, 'data-testid': 'dismiss' },
-  })
-  dismiss.addEventListener('click', () => void sendOp({ type: 'dismiss', commentId: comment.id }))
-  return dismiss
-}
-
 /** Where an agent's note points, as the agent named it. */
 const anchorText = (comment: BatchComment) =>
   comment.anchor ? ('source' in comment.anchor ? comment.anchor.source : comment.anchor.selector) : ''
@@ -121,9 +111,9 @@ function reply(batch: Batch, comment: BatchComment, index: number, { answered, s
     const answer = answered.get(comment.id)
     if (answer) body.append(followup(answer))
     else if (dismissed) body.append(followup('Dismissed.'))
-    else body.append(answerForm(batch, comment), dismissButton(comment, index))
+    else body.append(answerForm(batch, comment), dismissButton(comment.id, `Dismiss question ${index + 1}`))
   }
-  if (comment.status === 'note') body.append(dismissed ? followup('Dismissed.') : dismissButton(comment, index))
+  if (comment.status === 'note') body.append(dismissed ? followup('Dismissed.') : dismissButton(comment.id, `Dismiss note ${index + 1}`))
   if (comment.status === 'variants' && comment.group) {
     const pick = pickOf(comment.group, state.draft, state.batches)
     body.append(pick ? followup(`You picked “${pick.label}”.`) : showOnPage(comment.group))

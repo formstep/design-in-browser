@@ -5,6 +5,7 @@ import { SOURCE_ATTRIBUTE } from '../../shared/page-protocol.ts'
 import type { Batch, BatchComment, CommentStatus, DraftComment, ElementRef, InReplyTo, NoteAnchor, PageRef } from '../../shared/protocol.ts'
 import { captureElement, samePage } from '../capture.ts'
 import { answeredIds, answering, isPick, newComment, settled } from '../comments.ts'
+import { dismissButton } from '../dismiss.ts'
 import { icon } from '../icons.ts'
 import { agentName, defaultSession, readState, sendOp, type PageState } from '../store.ts'
 import { el, findBySelector, query } from '../ui/dom.ts'
@@ -164,7 +165,7 @@ function buildThread(pin: PinModel, thread: HTMLElement): void {
     thread.replaceChildren(
       el('div', { className: 'entry agent' }, [head, el('p', { className: 'entry-text', textContent: pin.reply ?? '' })]),
       ...answerField(pin),
-      ...dismissButton(pin)
+      ...dismissIfOpen(pin)
     )
     return
   }
@@ -190,20 +191,12 @@ function buildThread(pin: PinModel, thread: HTMLElement): void {
       ])
     )
   }
-  thread.replaceChildren(...parts, ...answerField(pin), ...dismissButton(pin))
+  thread.replaceChildren(...parts, ...answerField(pin), ...dismissIfOpen(pin))
 }
 
-/** Closes an open question or a note without answering: the pin leaves the page, the reply stays in the dock. */
-function dismissButton(pin: PinModel): HTMLElement[] {
-  if (!pin.dismissable) return []
-  return [
-    el('button', {
-      className: 'dismiss',
-      textContent: 'Dismiss',
-      attrs: { type: 'button', 'data-action': 'dismiss', 'data-key': pin.key },
-    }),
-  ]
-}
+/** Closes an open question or a note without answering it. */
+const dismissIfOpen = (pin: PinModel): HTMLElement[] =>
+  pin.dismissable ? [dismissButton(pin.key, pin.status === 'question' ? 'Dismiss question' : 'Dismiss note')] : []
 
 /** The field under an open question, when this page can take the answer. */
 function answerField(pin: PinModel): HTMLElement[] {
@@ -307,11 +300,6 @@ pins.addEventListener('click', (event) => {
   if (pinButton?.parentElement) {
     closeThreads(pinButton.parentElement)
     pinButton.parentElement.classList.toggle('open')
-    return
-  }
-  const dismiss = clicked.closest<HTMLButtonElement>('[data-action="dismiss"]')
-  if (dismiss?.dataset.key) {
-    void sendOp({ type: 'dismiss', commentId: dismiss.dataset.key })
     return
   }
   const remove = clicked.closest<HTMLButtonElement>('[data-action="remove"]')

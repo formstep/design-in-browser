@@ -17,7 +17,7 @@ test('a page-state file from an older release loads, and a dismissal is kept in 
     JSON.stringify({ draft: [], pickedSessionId: null, sendOnAdd: true, variantChoices: { hero: 1 }, tweakValues: {} })
   )
 
-  const hub = new Hub(project, project, () => {})
+  const hub = new Hub(project, project, 3000, () => {})
   assert.deepEqual(hub.state.dismissed, [])
   assert.equal(hub.state.sendOnAdd, true)
   assert.deepEqual(hub.state.variantChoices, { hero: 1 })
@@ -26,17 +26,15 @@ test('a page-state file from an older release loads, and a dismissal is kept in 
   assert.equal(hub.apply({ type: 'dismiss', commentId: 'c-1' }), null)
   assert.deepEqual(hub.state.dismissed, ['c-1'])
   assert.deepEqual(JSON.parse(fs.readFileSync(saved, 'utf8')).dismissed, ['c-1'])
-  assert.deepEqual(new Hub(project, project, () => {}).state.dismissed, ['c-1'])
+  assert.deepEqual(new Hub(project, project, 3000, () => {}).state.dismissed, ['c-1'])
 })
 
 test('each app sees the batches made on its own dev server, and starting over clears all but those in progress', () => {
   const project = fs.mkdtempSync(path.join(os.tmpdir(), 'dib-hub-'))
-  const hub = new Hub(project, project, () => {})
+  const hub = new Hub(project, project, 3000, () => {})
   // Read through a function: an assertion on the field would narrow it to null for the rest of the test.
   const cleared = () => hub.state.cleared
   assert.equal(cleared(), null)
-  // Stands in for start(port) without connecting to a daemon.
-  hub['port'] = '3000'
   const batch = (id: string, port: number, status: Batch['status'], createdAt: string): Batch =>
     ({
       id,
@@ -79,5 +77,5 @@ test('each app sees the batches made on its own dev server, and starting over cl
     ['003']
   )
   assert.deepEqual(cleared()?.keep, ['003'])
-  assert.deepEqual(new Hub(project, project, () => {}).state.cleared?.keep, ['003'])
+  assert.deepEqual(new Hub(project, project, 3000, () => {}).state.cleared?.keep, ['003'])
 })

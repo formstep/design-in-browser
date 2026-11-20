@@ -34,12 +34,13 @@ export class Hub {
   private readonly broadcast: (state: PageState) => void
   /** This project's batches from the daemon, newest first, before this app's view of them. */
   private projectBatches: Batch[] = []
-  /** The dev server's port, once it listens: a batch belongs to this app when its comments were made here. */
-  private port: string | null = null
+  /** The dev server's port: a batch belongs to this app when its comments were made on it. */
+  private readonly port: string
 
-  /** `appRoot` is the dev server's root: two apps in one repo each keep their own stack. */
-  constructor(projectRoot: string, appRoot: string, broadcast: (state: PageState) => void) {
+  /** `appRoot` and `port` are the dev server's: two apps in one repo each keep their own stack and thread. */
+  constructor(projectRoot: string, appRoot: string, port: number, broadcast: (state: PageState) => void) {
     this.broadcast = broadcast
+    this.port = String(port)
     const app = path.relative(projectRoot, appRoot).replace(/[^\w.-]+/g, '-') || 'root'
     this.savedFile = path.join(projectRoot, '.design-in-browser', `page-state.${app}.json`)
     const saved = this.load()
@@ -61,9 +62,7 @@ export class Hub {
     }
   }
 
-  /** `port`: the dev server's, so its thread shows the batches made on it. */
-  start(port: number): void {
-    this.port = String(port)
+  start(): void {
     this.stopped = false
     this.connect()
   }
@@ -102,8 +101,8 @@ export class Hub {
       case 'start-over': {
         // What the agent is still working on stays in view until it answers; the rest of the thread goes.
         const keep = this.state.batches.filter((batch) => batch.status !== 'done').map((batch) => batch.id)
-        this.state.cleared = { at: new Date().toISOString(), keep }
-        this.update({ draft: [], dismissed: [], batches: this.visible() }, true)
+        const cleared = { at: new Date().toISOString(), keep }
+        this.update({ cleared, draft: [], dismissed: [], batches: this.visible(cleared) }, true)
         return null
       }
       case 'show-variant':
@@ -185,10 +184,9 @@ export class Hub {
   }
 
   /** This app's thread: the project's batches made on this dev server, less those cleared by starting over. */
-  private visible(): Batch[] {
-    const { cleared } = this.state
+  private visible(cleared = this.state.cleared): Batch[] {
     return this.projectBatches
-      .filter((batch) => this.port === null || batch.comments.some((comment) => portOf(comment.page.url) === this.port))
+      .filter((batch) => batch.comments.some((comment) => portOf(comment.page.url) === this.port))
       .filter((batch) => cleared === null || batch.createdAt >= cleared.at || cleared.keep.includes(batch.id))
       .slice(0, 30)
   }
