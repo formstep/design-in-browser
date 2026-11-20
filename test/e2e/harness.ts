@@ -123,7 +123,8 @@ export async function killDaemon(): Promise<void> {
   }
 }
 
-export function useHarness(): void {
+/** `browserArgs`: extra Chromium switches, such as one that answers the tab-share prompt without asking. */
+export function useHarness({ browserArgs = [] }: { browserArgs?: string[] } = {}): void {
   // The tests in a file build on each other, so a failure skips the rest instead of running them without that state.
   test.describe.configure({ mode: 'serial' })
 
@@ -153,7 +154,7 @@ export function useHarness(): void {
     await armListener()
 
     vite = await startVite()
-    browser = await chromium.launch()
+    browser = await chromium.launch({ args: browserArgs })
     context = await browser.newContext({ viewport: { width: 1100, height: 720 } })
     page = await context.newPage()
   })

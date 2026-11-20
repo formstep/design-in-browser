@@ -29,6 +29,18 @@ const IMAGE_PLACEHOLDER =
 const IMAGE_TIMEOUT_MS = 3000
 
 /** A computed color with alpha 0: `rgba(r, g, b, 0)`, or `… / 0)` in the space-separated forms. */
+/** How long drawing the area may take. Past it, the browser's tab capture is tried instead: an image that never
+ * decodes leaves html-to-image waiting forever. */
+const DRAW_TIMEOUT_MS = 8000
+
+function withDeadline<T>(work: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms)
+  })
+  return Promise.race([work, deadline]).finally(() => clearTimeout(timer))
+}
+
 const isTransparent = (color: string) => color === 'transparent' || /^rgba\((?:[^,]*,){3}\s*0\)$|\/\s*0\)$/.test(color)
 
 /** The color the page shows behind `node`: its own background or its nearest ancestor's, else the window's white. */
@@ -79,12 +91,16 @@ export async function renderArea(area: Area, marks: Mark[]): Promise<string> {
   const holder = holderOf(area)
   const box = holder.getBoundingClientRect()
   const scale = devicePixelRatio
-  const drawn = await toCanvas(holder, {
-    pixelRatio: scale,
-    filter: (node) => !isUiHost(node),
-    imagePlaceholder: IMAGE_PLACEHOLDER,
-    fetchRequestInit: { signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS) },
-  })
+  const drawn = await withDeadline(
+    toCanvas(holder, {
+      pixelRatio: scale,
+      filter: (node) => !isUiHost(node),
+      imagePlaceholder: IMAGE_PLACEHOLDER,
+      fetchRequestInit: { signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS) },
+    }),
+    DRAW_TIMEOUT_MS,
+    `Drawing the page took more than ${DRAW_TIMEOUT_MS / 1000} seconds.`
+  )
   const canvas = document.createElement('canvas')
   canvas.width = Math.round(area.width * scale)
   canvas.height = Math.round(area.height * scale)
