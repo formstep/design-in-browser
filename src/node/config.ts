@@ -15,12 +15,22 @@ function readPort(): number {
   return port
 }
 
+/**
+ * Read from the environment each time, not once at import: a process that loads the plugin before it sets DIB_*
+ * (as the end-to-end tests do, one daemon per spec in one process) still reaches the right daemon.
+ */
 export const config = {
-  port: readPort(),
+  get port(): number {
+    return readPort()
+  },
   /** Token, daemon log and other per-user state. */
-  home: process.env.DIB_HOME ?? path.join(os.homedir(), '.design-in-browser'),
+  get home(): string {
+    return process.env.DIB_HOME ?? path.join(os.homedir(), '.design-in-browser')
+  },
   /** The daemon exits after this long with no session connected. */
-  idleExitMs: Number(process.env.DIB_IDLE_EXIT_MS ?? 30 * 60 * 1000),
+  get idleExitMs(): number {
+    return Number(process.env.DIB_IDLE_EXIT_MS ?? 30 * 60 * 1000)
+  },
 }
 
 export const tokenPath = () => path.join(config.home, 'token')
