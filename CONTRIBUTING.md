@@ -24,6 +24,8 @@ pnpm add -D link:/path/to/design-in-browser
 claude --plugin-dir /path/to/design-in-browser/plugin
 ```
 
+For OpenCode, list the checkout's folder in the app's `opencode.json`, as `"plugins": ["/path/to/design-in-browser"]`. OpenCode takes a folder there, not a file such as `dist/opencode.mjs`.
+
 ## Commands
 
 | Command | Does |
