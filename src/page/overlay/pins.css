@@ -101,7 +101,8 @@
   left: auto;
 }
 
-.pin-wrap:hover .thread,
+/* A card shows on hover only while not commenting or drawing: then it would cover what the user is picking. */
+.pins:not(.busy) .pin-wrap:hover .thread,
 .pin-wrap:focus-within .thread,
 .pin-wrap.open .thread {
   visibility: visible;

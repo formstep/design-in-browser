@@ -13,7 +13,7 @@ import { when } from '../ui/format.ts'
 import { clamp, pointOn, type Point } from '../ui/geometry.ts'
 import { cameFromUi, usableWidth } from '../ui/layout.ts'
 import { markersHidden } from '../ui/markers.ts'
-import { onModeChange } from './mode.ts'
+import { getMode, onModeChange } from './mode.ts'
 import { CARD_WIDTH, PIN, root } from './root.ts'
 
 type PinStatus = 'draft' | CommentStatus | 'answered'
@@ -215,6 +215,7 @@ function answerField(pin: PinModel): HTMLElement[] {
 
 export function renderPins(): void {
   pins.hidden = markersHidden()
+  pins.classList.toggle('busy', getMode().kind !== 'idle')
   const wanted = pinsForThisPage(readState())
   models = new Map(wanted.map((pin) => [pin.key, pin]))
   for (const node of [...pins.children] as HTMLElement[]) if (!models.has(node.dataset.key ?? '')) node.remove()
@@ -274,6 +275,9 @@ function placeThread(thread: HTMLElement, pinTop: number): void {
 
 export function closeThreads(except?: Element): void {
   for (const wrap of pins.querySelectorAll('.pin-wrap.open')) if (wrap !== except) wrap.classList.remove('open')
+  // A focused pin or field keeps its card shown (:focus-within), over the page: let go of it too.
+  const focused = root.activeElement
+  if (focused instanceof HTMLElement && pins.contains(focused) && !except?.contains(focused)) focused.blur()
 }
 
 async function submitAnswer(form: HTMLFormElement): Promise<void> {
@@ -335,6 +339,7 @@ window.addEventListener(
   },
   true
 )
+// Starting to comment or draw closes open cards: they would cover what the user is about to pick.
 onModeChange((mode) => {
-  if (mode.kind === 'commenting') closeThreads()
+  if (mode.kind !== 'idle') closeThreads()
 })

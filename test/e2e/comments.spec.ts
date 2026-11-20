@@ -235,6 +235,10 @@ test('the agent leaves notes on the page, and a note that asks takes an answer f
   await note.locator('.pin').click()
   await expect(note.locator('.thread')).toContainText('The headline is 40px now.')
   await expect(note.locator('.entry')).toHaveCount(1)
+  // Starting to comment puts the card away, though the mouse is still on the pin: it would cover what you pick.
+  await page.keyboard.press('Alt+Shift+C')
+  await expect(note.locator('.thread')).toBeHidden()
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
 
   // The dock shows the notes as the agent's own turn.
