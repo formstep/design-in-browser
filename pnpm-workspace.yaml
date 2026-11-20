@@ -1,2 +1,5 @@
 allowBuilds:
   esbuild: true
+  # An optional native speed-up for msgpackr, pulled in by @opencode-ai/plugin (a dev dependency). msgpackr works
+  # without it, and pnpm 12 fails the install on a build script nobody decided on.
+  msgpackr-extract: false
