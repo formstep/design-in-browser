@@ -4,7 +4,7 @@
   "description": "Lets this session take comments from your running React + Vite app in the browser, reply on the page, and show alternatives with live tweaks.",
   "keywords": ["design", "browser", "vite", "react", "ui", "review"],
   "author": {
-    "name": "Onur H."
+    "name": "Formstep"
   },
   "homepage": "https://github.com/formstep/design-in-browser",
   "repository": "https://github.com/formstep/design-in-browser",
