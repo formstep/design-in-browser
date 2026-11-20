@@ -1,6 +1,7 @@
 // A screenshot of the marked part of the window. First the page draws that area from its own DOM, which needs
 // no permission: close to what the user sees, though some effects can come out blank, and an image the page
-// may not read (cross-origin without CORS) or that takes too long shows as a grey box.
+// may not read (cross-origin without CORS) or that is still loading after 3 seconds shows as a grey box, until
+// the page reloads.
 // When drawing fails, the browser's tab capture takes a real screenshot, after its share prompt.
 import { toCanvas } from 'html-to-image'
 import type { Mark } from '../../shared/protocol.ts'
@@ -24,10 +25,11 @@ function holderOf(area: Area): HTMLElement {
 /** Stands in for an image the page may not read, or that didn't arrive in time: a grey box its size. */
 const IMAGE_PLACEHOLDER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3Crect width='1' height='1' fill='%23e4e4e7'/%3E%3C/svg%3E"
-/** How long one image may take to fetch before it's drawn as the placeholder. */
+/** How long the drawing waits for its images, all together, before the rest are drawn as the placeholder. */
 const IMAGE_TIMEOUT_MS = 3000
 
-const isTransparent = (color: string) => color === 'transparent' || /[,/]\s*0\)$/.test(color)
+/** A computed color with alpha 0: `rgba(r, g, b, 0)`, or `… / 0)` in the space-separated forms. */
+const isTransparent = (color: string) => color === 'transparent' || /^rgba\((?:[^,]*,){3}\s*0\)$|\/\s*0\)$/.test(color)
 
 /** The color the page shows behind `node`: its own background or its nearest ancestor's, else the window's white. */
 function backgroundBehind(node: Element): string {

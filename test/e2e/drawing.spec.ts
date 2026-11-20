@@ -168,3 +168,31 @@ test('a screenshot still comes out with an image it may not read, a slow image, 
     images.close()
   }
 })
+
+test('a screenshot of a dark page keeps its dark background', async () => {
+  await page.goto(appUrl)
+  // The marked area sits in a panel with no background of its own, so the screenshot shows what's behind it.
+  await page.evaluate(() => {
+    document.body.style.background = 'rgb(0, 0, 0)'
+    document.body.style.color = '#fff'
+    const panel = document.createElement('div')
+    panel.style.cssText = 'position: fixed; left: 770px; top: 350px; width: 320px; height: 200px'
+    document.body.append(panel)
+  })
+  if (await dock().isVisible()) await dock().getByRole('button', { name: 'Close' }).click()
+  await page.keyboard.press('Alt+Shift+C')
+  await page.locator('dib-overlay .tools').getByRole('button', { name: 'Draw a box' }).click()
+  await drag({ x: 820, y: 400 }, { x: 1040, y: 500 })
+  const composer = page.locator('dib-overlay .composer')
+  await composer.locator('textarea').fill('Lighter here')
+  await composer.locator('.attach-shot').check()
+  await composer.locator('textarea').press('Enter')
+  await expect(composer).toBeHidden({ timeout: 10_000 })
+  await page.keyboard.press('Escape')
+
+  await page.keyboard.press('Alt+Shift+D')
+  await dock().getByTestId('send').click()
+  await expect.poll(() => doorbells.at(-1)).toMatch(/ready, 1 comment\./)
+  const { jpeg } = await batchWithScreenshot()
+  for (const channel of await pixelOf(jpeg, 4, 4)) expect(channel).toBeLessThan(20)
+})
