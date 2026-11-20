@@ -217,6 +217,43 @@ server.registerTool(
 )
 
 server.registerTool(
+  'live_note',
+  {
+    title: 'Leave notes on the page',
+    description:
+      'Leave notes on elements of a page in the browser, without being asked: what you changed and where, something the user should check, or a question. Each note shows as a pin on its element and in the dock. A note with question: true gets an answer field; the answer reaches you in a later batch as a comment with inReplyTo pointing at the note, which you then reply to with live_reply like any question. Point at an element by its CSS selector, or by its source location (path:line:column, as in element.sources) when the page has them.',
+    inputSchema: {
+      url: z.string().url().describe("The page, as a full URL such as a comment's page.url: http://localhost:5173/pricing."),
+      notes: z
+        .array(
+          z.object({
+            selector: z.string().optional().describe('A CSS selector that finds the element on that page.'),
+            source: z.string().optional().describe("The element's source location, path:line:column from the project root."),
+            note: z.string().describe('One or two short sentences for the user.'),
+            question: z.boolean().optional().describe('True when you want an answer.'),
+          })
+        )
+        .min(1)
+        .max(20),
+    },
+  },
+  async ({ url, notes }) => {
+    try {
+      const anchored = notes.map(({ selector, source, note, question }) => {
+        if (selector && source) throw new Error('Give each note a selector or a source, not both.')
+        const anchor = selector ? { selector } : source ? { source } : null
+        if (!anchor) throw new Error('Give each note a selector or a source.')
+        return { anchor, note, question: question ?? false }
+      })
+      const batch = await (await daemon()).call('note', { sessionId, url, notes: anchored })
+      return text(`Left ${batch.comments.length} note(s) as batch ${batch.id}.`)
+    } catch (error) {
+      return failure(error)
+    }
+  }
+)
+
+server.registerTool(
   'live_status',
   {
     title: 'Browser bridge status',

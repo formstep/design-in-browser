@@ -71,6 +71,8 @@ function handleShimRequest(request: ShimRequest, shim: WebSocket): unknown {
       return state.getBatch(request.params)
     case 'reply':
       return state.reply(request.params)
+    case 'note':
+      return state.note(request.params)
     case 'status':
       return state.status(request.params.sessionId, devServers.size)
   }

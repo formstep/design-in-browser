@@ -50,7 +50,11 @@ export function readBatches(projectRoot: string): Batch[] {
       .readdirSync(dir)
       .filter((name) => /^\d+\.json$/.test(name))
       .sort()
-      // Batches written before agents were named have no `agent`.
-      .map((name) => ({ agent: FALLBACK_AGENT, ...(JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8')) as Omit<Batch, 'agent'>) }))
+      // Batches written before agents were named have no `agent`, and before agent notes no `from`.
+      .map((name) => ({
+        agent: FALLBACK_AGENT,
+        from: 'user' as const,
+        ...(JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8')) as Omit<Batch, 'agent' | 'from'>),
+      }))
   )
 }

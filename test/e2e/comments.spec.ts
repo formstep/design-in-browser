@@ -215,3 +215,40 @@ test('the dock picks the session working on this project and keeps a manual pick
   // With the picked session gone, the dock falls back to the session on this project.
   await expect(dock().locator('.project')).toHaveText('project')
 })
+
+test('the agent leaves notes on the page, and a note that asks takes an answer from its pin', async () => {
+  await page.goto(appUrl)
+  const lede = await page.locator('.lede').getAttribute('data-dib-src')
+  expect(lede).toBeTruthy()
+  await callTool(shim, 'live_note', {
+    url: appUrl,
+    notes: [
+      { selector: 'h1', note: 'The headline is 40px now.' },
+      { source: lede, note: 'Should the subtitle be shorter?', question: true },
+    ],
+  })
+
+  // Each note is a pin on its element, found by selector or by source location, with the agent's words alone.
+  const note = page.locator('dib-overlay .pins .pin-wrap[data-status="note"]:not([hidden])')
+  await expect(note).toHaveCount(1)
+  await note.locator('.pin').click()
+  await expect(note.locator('.thread')).toContainText('The headline is 40px now.')
+  await expect(note.locator('.entry')).toHaveCount(1)
+  await page.keyboard.press('Escape')
+
+  // The dock shows the notes as the agent's own turn.
+  await expect(dock().locator('article[data-from="agent"]')).toContainText('Should the subtitle be shorter?')
+
+  const asking = page
+    .locator('dib-overlay .pins .pin-wrap[data-status="question"]:not([hidden])')
+    .filter({ hasText: 'Should the subtitle be shorter?' })
+  await asking.locator('.pin').click()
+  await asking.getByRole('textbox', { name: 'Answer Claude' }).fill('Yes, cut it to five words')
+  await asking.getByRole('textbox', { name: 'Answer Claude' }).press('Enter')
+  await expect(dock().getByTestId('draft-item')).toContainText('Claude asked: Should the subtitle be shorter?')
+  await dock().getByTestId('send').click()
+  await expect.poll(() => doorbells.at(-1)).toMatch(/ready, 1 comment/)
+  const answer = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
+  expect(answer.comments[0]!.inReplyTo?.question).toBe('Should the subtitle be shorter?')
+  expect(answer.comments[0]!.element?.text).toBe('One plan for every team.')
+})

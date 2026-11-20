@@ -12,6 +12,7 @@ import {
   type ConnectResult,
   type DraftComment,
   type GetBatchParams,
+  type NoteParams,
   type ReplyParams,
   type SessionInfo,
   type StatusResult,
@@ -100,6 +101,7 @@ export function queueBatch(sessionId: string, comments: DraftComment[]): Batch {
   ensureJournal(session.projectRoot)
   const batch: Batch = {
     id: nextBatchId(session.projectRoot),
+    from: 'user',
     projectRoot: session.projectRoot,
     agent: session.agent,
     sessionId: session.id,
@@ -217,6 +219,40 @@ export function reply(params: ReplyParams): Batch {
   }
   saveBatch(updated, { type: 'replied', session: session.id, comments: [...byId.keys()] })
   return updated
+}
+
+/**
+ * Notes the agent leaves on a page, as a batch of its own: each note is a comment with no text whose reply is the
+ * note. A note that wants an answer is a question, which the user answers like any other.
+ */
+export function note(params: NoteParams): Batch {
+  const session = requireSession(params.sessionId)
+  ensureJournal(session.projectRoot)
+  const createdAt = new Date().toISOString()
+  const batch: Batch = {
+    id: nextBatchId(session.projectRoot),
+    from: 'agent',
+    projectRoot: session.projectRoot,
+    agent: session.agent,
+    sessionId: session.id,
+    createdAt,
+    status: 'done',
+    summary: null,
+    comments: params.notes.map(({ anchor, note: text, question }) => ({
+      id: crypto.randomUUID(),
+      text: '',
+      // The agent's note has no capture behind it: only the page it is on, and an anchor instead of an element.
+      page: { url: params.url, title: '', viewport: { width: 0, height: 0 } },
+      element: null,
+      anchor,
+      inReplyTo: null,
+      createdAt,
+      status: question ? 'question' : 'note',
+      reply: text,
+    })),
+  }
+  saveBatch(batch, { type: 'noted', session: session.id, notes: batch.comments.length })
+  return batch
 }
 
 export function status(sessionId: string, devServersConnected: number): StatusResult {

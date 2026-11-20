@@ -13,6 +13,7 @@ const statusWord: Record<BatchComment['status'], string> = {
   question: 'Question',
   skipped: 'Skipped',
   variants: 'Alternatives',
+  note: 'Note',
 }
 
 /** Answers being typed under the agent's questions, by comment id. Kept outside the DOM so a rebuild keeps them. */
@@ -87,12 +88,20 @@ function answerForm(batch: Batch, comment: BatchComment): HTMLFormElement {
   return form
 }
 
+/** Where an agent's note points, as the agent named it. */
+const anchorText = (comment: BatchComment) =>
+  comment.anchor ? ('selector' in comment.anchor ? comment.anchor.selector : comment.anchor.source) : ''
+
 function reply(batch: Batch, comment: BatchComment, index: number, answered: Map<string, string>): HTMLElement {
-  // The numbered disc ties a reply to its comment; only a question or a skip gets a visible label.
+  // The numbered disc ties a reply to its comment; only a question or a skip gets a visible label. A note says
+  // where it is, since there is no comment of yours above it.
   const label =
     comment.status === 'done'
       ? el('span', { className: 'visually-hidden', textContent: `Done, comment ${index + 1}: ` })
-      : el('p', { className: 'reply-label', textContent: statusWord[comment.status] })
+      : el('p', {
+          className: 'reply-label',
+          textContent: batch.from === 'agent' ? `${statusWord[comment.status]} · ${anchorText(comment)}` : statusWord[comment.status],
+        })
   const body = el('div', {}, [label, el('p', { className: 'reply-text', textContent: comment.reply ?? '' })])
   if (comment.status === 'question') {
     const followup = answered.get(comment.id)
@@ -135,9 +144,27 @@ function yourSide(batch: Batch): HTMLElement {
   ])
 }
 
+/** Notes the agent left: no message of yours, just the agent's notes under a line saying when. */
+function notesSide(batch: Batch, answered: Map<string, string>): HTMLElement {
+  return el('div', { className: 'agent' }, [
+    el('p', { className: 'meta notes-meta', textContent: `Notes from ${batch.agent} · ${when(batch.createdAt)}` }),
+    el(
+      'ol',
+      { className: 'replies' },
+      batch.comments.map((comment, index) => reply(batch, comment, index, answered))
+    ),
+  ])
+}
+
 /** One article per batch, oldest first. */
 export function turns(batches: Batch[], answered: Map<string, string>): HTMLElement[] {
   return [...batches]
     .reverse()
-    .map((batch) => el('article', { className: 'turn', attrs: { 'data-batch': batch.id } }, [yourSide(batch), agentSide(batch, answered)]))
+    .map((batch) =>
+      el(
+        'article',
+        { className: 'turn', attrs: { 'data-batch': batch.id, 'data-from': batch.from } },
+        batch.from === 'agent' ? [notesSide(batch, answered)] : [yourSide(batch), agentSide(batch, answered)]
+      )
+    )
 }

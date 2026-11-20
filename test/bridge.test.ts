@@ -146,6 +146,7 @@ test('the shim stays inert until live_connect', async () => {
   assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), [
     'live_connect',
     'live_get_batch',
+    'live_note',
     'live_reply',
     'live_status',
     'live_wait',
@@ -366,6 +367,55 @@ test('a stale choice or tweak from older source falls back to what the page has 
     badge: { kind: 'toggle', label: 'Badge', default: true },
   } as const
   assert.deepEqual(valuesFor('hero', 1, specs), { padding: 48, badge: false })
+})
+
+test('the agent leaves notes on a page: they never ring, and a question among them takes an answer', async () => {
+  const notesProject = path.join(tmp, 'notes')
+  fs.mkdirSync(notesProject)
+  const client = await startShim('claude-code')
+  const listener = await openListener(listenUrlFrom(await callTool(client, 'live_connect', { projectRoot: notesProject })))
+  const devServer = await openDevServer()
+  devServer.socket.send(JSON.stringify({ type: 'hello' }))
+  const state = await devServer.inbox.next((m) => m.type === 'state')
+  const session = state.type === 'state' ? state.sessions.find((entry) => entry.projectRoot === notesProject) : undefined
+  assert.ok(session)
+
+  await callTool(client, 'live_note', {
+    url: 'http://localhost:5173/pricing',
+    notes: [
+      { selector: 'main > h1', note: 'The headline is 40px now.' },
+      { source: 'src/Pricing.tsx:12:7', note: 'Keep the subtitle?', question: true },
+    ],
+  })
+  const updated = await devServer.inbox.next((m) => m.type === 'batch-updated' && m.batch.projectRoot === notesProject)
+  const notes = updated.type === 'batch-updated' ? updated.batch : assert.fail()
+  assert.equal(notes.from, 'agent')
+  assert.equal(notes.status, 'done')
+  assert.deepEqual(
+    notes.comments.map((note) => [note.status, note.reply, note.anchor, note.text]),
+    [
+      ['note', 'The headline is 40px now.', { selector: 'main > h1' }, ''],
+      ['question', 'Keep the subtitle?', { source: 'src/Pricing.tsx:12:7' }, ''],
+    ]
+  )
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  assert.equal(listener.inbox.items.length, 0, 'notes must not ring the doorbell')
+  assert.equal(await callTool(client, 'live_get_batch'), 'No unfetched batch.')
+
+  // The user answers the question; the answer reaches the agent pointing at the note.
+  const question = notes.comments[1]!
+  const answer = {
+    ...comment('Yes, keep it'),
+    inReplyTo: { batchId: notes.id, commentId: question.id, comment: '', question: 'Keep the subtitle?' },
+  }
+  devServer.socket.send(JSON.stringify({ type: 'send-batch', clientBatchId: 'n1', sessionId: session.id, comments: [answer] }))
+  await devServer.inbox.next((m) => m.type === 'batch-accepted' && m.clientBatchId === 'n1')
+  const fetched = JSON.parse(await callTool(client, 'live_get_batch')) as Batch
+  assert.equal(fetched.from, 'user')
+  assert.equal(fetched.comments[0]!.inReplyTo?.commentId, question.id)
+  devServer.socket.close()
+  listener.socket.close()
+  await client.close()
 })
 
 test('an agent without a Monitor waits with live_wait, and reads as listening meanwhile', async () => {

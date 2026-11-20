@@ -105,15 +105,21 @@ export type DraftComment = {
   createdAt: string
 }
 
-/** `variants`: alternatives are in the page behind a `<Variants>` wrapper, waiting for the user to pick one. */
-export type CommentStatus = 'pending' | 'done' | 'question' | 'skipped' | 'variants'
-export type ReplyStatus = Exclude<CommentStatus, 'pending'>
+/** How the agent answered a comment. `variants`: alternatives are in the page behind a `<Variants>` wrapper. */
+export type ReplyStatus = 'done' | 'question' | 'skipped' | 'variants'
+/** `note`: a note the agent left on the page, wanting no answer (a note that wants one is a `question`). */
+export type CommentStatus = 'pending' | ReplyStatus | 'note'
+
+/** Where an agent's note points: an element by CSS selector, or by the source location the plugin stamped on it. */
+export type NoteAnchor = { selector: string } | { source: string }
 
 export type BatchComment = DraftComment & {
   status: CommentStatus
   reply: string | null
   /** The `<Variants>` group the agent put in the page for this comment, with a `variants` reply. */
   group?: string
+  /** On an agent's note, which has no captured element: the element it points at. */
+  anchor?: NoteAnchor
 }
 
 /**
@@ -125,6 +131,11 @@ export type BatchStatus = 'queued' | 'fetched' | 'done'
 
 export type Batch = {
   id: string
+  /**
+   * user: comments the user sent. agent: notes the agent left on the page with live_note, whose text is empty and
+   * whose reply is the note. An agent batch never rings or waits to be fetched.
+   */
+  from: 'user' | 'agent'
   projectRoot: string
   /** Name of the agent that owns the batch, for the UI ("Claude", "OpenCode"). */
   agent: string
@@ -175,6 +186,12 @@ export type ReplyParams = {
   replies: Array<{ commentId: string; status: ReplyStatus; message: string; group?: string }>
   summary?: string
 }
+export type NoteParams = {
+  sessionId: string
+  /** The page the notes are on, a full URL as in a comment's page.url. */
+  url: string
+  notes: Array<{ anchor: NoteAnchor; note: string; question: boolean }>
+}
 export type StatusResult = {
   sessionId: string
   listening: boolean
@@ -188,6 +205,7 @@ export type ShimMethods = {
   connect: { params: ConnectParams; result: ConnectResult }
   getBatch: { params: GetBatchParams; result: Batch | null }
   reply: { params: ReplyParams; result: Batch }
+  note: { params: NoteParams; result: Batch }
   status: { params: { sessionId: string }; result: StatusResult }
 }
 

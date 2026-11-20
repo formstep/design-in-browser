@@ -58,6 +58,8 @@ The agent replies to each comment: done, a question, or skipped with a reason. A
 
 To send a note about the whole page, use **Ask Claude** in the toolbar or the dock's message field.
 
+The agent can leave notes on the page too, such as where a change landed or a question about one element. They show as pins, and you answer a question right in its pin.
+
 ## Try alternatives
 
 Switch the comment card to **Alternatives**, choose how many (1 to 4), and send. The agent builds them in your code, and a switcher appears on that part of the page:
@@ -97,7 +99,6 @@ Your comments only travel on your machine. The plugin turns itself off when the 
 ## Roadmap
 
 - Draw on the page: boxes, arrows and freehand marks, sent with a cropped screenshot.
-- Let the agent annotate the page back.
 - Plugins for OpenCode and other agents, like Claude Code's.
 
 ## Contributing

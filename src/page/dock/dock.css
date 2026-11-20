@@ -360,6 +360,11 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 
+/* Notes the agent left start its own turn, so the line saying whose and when sits above them. */
+.notes-meta {
+  margin-bottom: 8px;
+}
+
 /* The agent: plain text in the reply serif, no bubble. */
 .agent {
   display: grid;

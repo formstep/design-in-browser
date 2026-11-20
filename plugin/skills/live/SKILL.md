@@ -46,6 +46,10 @@ New comments the user sends while you work queue as the next batch; the Monitor 
 
 A comment with `inReplyTo` answers a question you asked. `inReplyTo.comment` is the original request and `inReplyTo.question` is what you asked. Make the original change using the answer, reply `done` to the new comment, and reply again to the original comment (`inReplyTo.batchId`, `inReplyTo.commentId`) with `done` or `skipped`, so its question closes in the browser.
 
+## Notes on the page
+
+`live_note` puts notes on elements of a page, as pins the user sees on the element and in the dock. Use it when a pin helps more than chat: where a change landed that is easy to miss, a related spot you left alone and why, or a question about a specific element (`question: true`; the answer comes back like any answer). Point at the element with `source` from `element.sources` when the page has them, else a `selector`. Leave a few notes at most, and never a note per change you already replied to.
+
 ## Alternatives and tweaks
 
 A comment with `intent.kind: "alternatives"` asks for `intent.count` alternatives (1 to 4) of its element. Build them in the source, wrapped so the user can switch between them on the page:

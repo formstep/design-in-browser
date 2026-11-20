@@ -1,7 +1,8 @@
-// Pins: one per comment on this page, at the point that was clicked. A pin's disc shows the draft number or the
-// agent's answer (done, question, skipped, alternatives), and opening it shows the thread, with a field to
-// answer the agent's question from right there.
-import type { Batch, BatchComment, CommentStatus, DraftComment, ElementRef, InReplyTo, PageRef } from '../../shared/protocol.ts'
+// Pins: one per comment on this page, at the point that was clicked, and one per note the agent left on an
+// element. A pin's disc shows the draft number or the agent's answer (done, question, skipped, alternatives,
+// note), and opening it shows the thread, with a field to answer the agent's question from right there.
+import { SOURCE_ATTRIBUTE } from '../../shared/page-protocol.ts'
+import type { Batch, BatchComment, CommentStatus, DraftComment, ElementRef, InReplyTo, NoteAnchor, PageRef } from '../../shared/protocol.ts'
 import { captureElement, samePage } from '../capture.ts'
 import { answeredIds, answering, isPick, newComment } from '../comments.ts'
 import { icon } from '../icons.ts'
@@ -9,7 +10,7 @@ import { agentName, defaultSession, readState, sendOp, type PageState } from '..
 import { el, query } from '../ui/dom.ts'
 import { keepKeys } from '../ui/events.ts'
 import { when } from '../ui/format.ts'
-import { clamp, pointOn } from '../ui/geometry.ts'
+import { clamp, pointOn, type Point } from '../ui/geometry.ts'
 import { cameFromUi, usableWidth } from '../ui/layout.ts'
 import { onModeChange } from './mode.ts'
 import { CARD_WIDTH, PIN, root } from './root.ts'
@@ -23,7 +24,12 @@ type PinModel = {
   key: string
   /** Who replies: the batch's agent, or the page's agent for a draft. */
   agent: string
-  ref: ElementRef
+  /** Finds the element the pin sits on, as the page is now. */
+  find: () => Element | null
+  /** Where on the element: the clicked point, or its top-left corner for a note. */
+  offset: Point | undefined
+  /** An agent's note has the agent's words alone, with no "You" entry. */
+  fromAgent: boolean
   status: PinStatus
   /** The draft's place in the stack; null once sent, when the disc shows the status instead. */
   number: number | null
@@ -42,6 +48,7 @@ const statusLabel: Record<PinStatus, string> = {
   question: 'Needs your answer',
   skipped: 'Skipped',
   variants: 'Alternatives on the page',
+  note: 'Note',
   answered: 'Answered',
 }
 
@@ -51,18 +58,37 @@ const statusGlyph: Record<Exclude<PinStatus, 'draft'>, string> = {
   question: icon('question'),
   skipped: icon('minus'),
   variants: icon('layers'),
+  note: icon('comment'),
   answered: icon('clock'),
 }
 
 const pins = query<HTMLDivElement>(root, '.pins')
 let models = new Map<string, PinModel>()
 
-const hasElement = <T extends { element: ElementRef | null }>(comment: T): comment is T & { element: ElementRef } =>
-  comment.element !== null
+/** The element a selector names now, if any; a selector that no longer parses finds nothing. */
+function find(selector: string): Element | null {
+  try {
+    return document.querySelector(selector)
+  } catch {
+    return null
+  }
+}
+
+const findAnchor = (anchor: NoteAnchor) =>
+  'selector' in anchor ? find(anchor.selector) : find(`[${SOURCE_ATTRIBUTE}="${CSS.escape(anchor.source)}"]`)
+
+/** Where a comment's pin goes: the element the user clicked, or the element an agent's note points at. */
+function placeOf(comment: DraftComment & { anchor?: NoteAnchor }): Pick<PinModel, 'find' | 'offset'> | null {
+  const { element, anchor } = comment
+  if (element) return { find: () => find(element.selector), offset: element.clickOffset }
+  if (anchor) return { find: () => findAnchor(anchor), offset: undefined }
+  return null
+}
 
 function sentPin(
   batch: Batch,
-  comment: BatchComment & { element: ElementRef },
+  comment: BatchComment,
+  place: Pick<PinModel, 'find' | 'offset'>,
   answered: Set<string>,
   ownProject: string | null
 ): PinModel {
@@ -70,7 +96,8 @@ function sentPin(
   return {
     key: comment.id,
     agent: batch.agent,
-    ref: comment.element,
+    ...place,
+    fromAgent: batch.from === 'agent',
     status: comment.status === 'question' && answered.has(comment.id) ? 'answered' : comment.status,
     number: null,
     text: comment.text,
@@ -96,13 +123,15 @@ function pinsForThisPage(state: PageState): PinModel[] {
   const answered = answeredIds(state.draft, state.batches)
   const ownProject = defaultSession(state)?.projectRoot ?? null
   const onThisPage = (comment: DraftComment) => samePage(comment.page.url) && !isPick(comment)
-  const drafts = state.draft.flatMap((comment, index): PinModel[] =>
-    hasElement(comment) && onThisPage(comment)
+  const drafts = state.draft.flatMap((comment, index): PinModel[] => {
+    const place = placeOf(comment)
+    return place && onThisPage(comment)
       ? [
           {
             key: comment.id,
             agent: agentName(state),
-            ref: comment.element,
+            ...place,
+            fromAgent: false,
             status: 'draft',
             number: index + 1,
             text: comment.text,
@@ -113,17 +142,30 @@ function pinsForThisPage(state: PageState): PinModel[] {
           },
         ]
       : []
-  )
+  })
   const sent = state.batches.flatMap((batch) =>
-    batch.comments
-      .filter(hasElement)
-      .filter((comment) => onThisPage(comment) && !switcherShows(comment))
-      .map((comment) => sentPin(batch, comment, answered, ownProject))
+    batch.comments.flatMap((comment) => {
+      const place = placeOf(comment)
+      return place && onThisPage(comment) && !switcherShows(comment) ? [sentPin(batch, comment, place, answered, ownProject)] : []
+    })
   )
   return [...drafts, ...sent]
 }
 
 function buildThread(pin: PinModel, thread: HTMLElement): void {
+  if (pin.fromAgent) {
+    // The agent's note: its words, under its name and the note's time and status.
+    const head = el('p', { className: 'entry-head' }, [
+      el('span', { textContent: pin.agent }),
+      el('span', { className: 'when', textContent: when(pin.createdAt) }),
+      el('span', { className: 'status', textContent: statusLabel[pin.status] }),
+    ])
+    thread.replaceChildren(
+      el('div', { className: 'entry agent' }, [head, el('p', { className: 'entry-text', textContent: pin.reply ?? '' })]),
+      ...answerField(pin)
+    )
+    return
+  }
   const head = el('p', { className: 'entry-head' }, [
     el('span', { textContent: 'You' }),
     el('span', { className: 'when', textContent: when(pin.createdAt) }),
@@ -146,21 +188,15 @@ function buildThread(pin: PinModel, thread: HTMLElement): void {
       ])
     )
   }
-  if (pin.answer) {
-    const field = el('textarea', { attrs: { rows: '1', placeholder: `Answer ${pin.agent}`, 'aria-label': `Answer ${pin.agent}` } })
-    const send = el('button', { className: 'send', html: icon('arrowUp', 15), attrs: { type: 'submit', 'aria-label': 'Add answer' } })
-    parts.push(el('form', { className: 'reply-field', attrs: { 'data-key': pin.key } }, [field, send]))
-  }
-  thread.replaceChildren(...parts)
+  thread.replaceChildren(...parts, ...answerField(pin))
 }
 
-/** The element a pin's selector names now, if any; a selector that no longer parses finds nothing. */
-function find(selector: string): Element | null {
-  try {
-    return document.querySelector(selector)
-  } catch {
-    return null
-  }
+/** The field under an open question, when this page can take the answer. */
+function answerField(pin: PinModel): HTMLElement[] {
+  if (!pin.answer) return []
+  const field = el('textarea', { attrs: { rows: '1', placeholder: `Answer ${pin.agent}`, 'aria-label': `Answer ${pin.agent}` } })
+  const send = el('button', { className: 'send', html: icon('arrowUp', 15), attrs: { type: 'submit', 'aria-label': 'Add answer' } })
+  return [el('form', { className: 'reply-field', attrs: { 'data-key': pin.key } }, [field, send])]
 }
 
 export function renderPins(): void {
@@ -194,8 +230,8 @@ export function renderPins(): void {
       buildThread(pin, thread)
     }
 
-    const element = find(pin.ref.selector)
-    const point = element ? pointOn(element, pin.ref.clickOffset) : null
+    const element = pin.find()
+    const point = element ? pointOn(element, pin.offset) : null
     if (!point) {
       wrap.hidden = true
       continue
@@ -230,11 +266,11 @@ async function submitAnswer(form: HTMLFormElement): Promise<void> {
   const field = query<HTMLTextAreaElement>(form, 'textarea')
   const text = field.value.trim()
   if (!pin?.answer || text === '') return
-  const element = find(pin.ref.selector)
+  const element = pin.find()
   const comment = newComment({
     text,
     page: pin.answer.page,
-    element: element ? { ...captureElement(element), clickOffset: pin.ref.clickOffset } : pin.answer.element,
+    element: element ? { ...captureElement(element), clickOffset: pin.offset } : pin.answer.element,
     inReplyTo: pin.answer.inReplyTo,
   })
   field.blur()
