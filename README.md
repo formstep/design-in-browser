@@ -113,6 +113,7 @@ Your comments only travel on your machine. The plugin turns itself off when the 
 - React with Vite, and Astro. On an Astro site, only React islands carry their source location; for markup written in `.astro` files, the agent finds the file by its text. Other frameworks aren't supported yet.
 - Claude Code and OpenCode get plugins; other agents need their MCP settings edited by hand ([docs/agents.md](https://github.com/formstep/design-in-browser/blob/main/docs/agents.md)).
 - The dev server must run on localhost with hot reload on.
+- The open dock moves the page aside, but the page's media queries still see the whole window, so it keeps its wide layout in the narrower space. Elements fixed to the window, such as dialogs and toasts, stay under the dock.
 
 ## Roadmap
 

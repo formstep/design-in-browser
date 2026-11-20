@@ -2,7 +2,7 @@
 // can be hidden, while finished comments drop theirs.
 import { expect, test } from '@playwright/test'
 import type { Batch } from '../../src/shared/protocol.ts'
-import { appUrl, callTool, comment, dock, doorbells, page, shim, useHarness } from './harness.ts'
+import { appUrl, callTool, comment, dock, doorbells, page, shim, useHarness, vite } from './harness.ts'
 
 useHarness()
 
@@ -131,4 +131,32 @@ test('dismiss a question from the dock and a note from its pin, without answerin
   await page.reload()
   await expect(dock().getByTestId('dismiss')).toHaveCount(0)
   await expect(page.locator('dib-overlay .pins .pin-wrap:not([hidden])')).toHaveCount(0)
+})
+
+test('a dev server still running an older plugin gets a restart notice, and the dock keeps working', async () => {
+  await page.goto(appUrl)
+  if (await page.locator('dib-dock .launcher').isVisible()) await page.locator('dib-dock .launcher').click()
+  // What a plugin from before the page build ID sends: no build, and none of the newer fields.
+  vite.environments.client.hot.send('design-in-browser:state', {
+    connection: 'connected',
+    projectRoot: '/elsewhere',
+    sessions: [],
+    batches: [],
+    draft: [],
+    sending: false,
+    lastError: null,
+    pickedSessionId: null,
+    sendOnAdd: false,
+    variantChoices: {},
+    tweakValues: {},
+  })
+  const notice = dock().locator('.notice')
+  await expect(notice).toHaveText('This dev server still runs an older design-in-browser. Restart it to finish the update.')
+  await expect(dock().getByTestId('start-over')).toBeHidden()
+  await expect(dock().getByTestId('status')).toHaveText('No session')
+
+  // The current plugin's next state clears it.
+  await page.reload()
+  await expect(dock().getByTestId('status')).toContainText('Claude is listening')
+  await expect(notice).toBeHidden()
 })
