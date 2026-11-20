@@ -2,7 +2,7 @@
 
 Comment on your running app in the browser, and the coding agent in your terminal changes the code.
 
-Click an element, say what should change, and send. The agent edits the source, your dev server reloads, and the agent's reply appears next to your comment. Ask for alternatives and you can flip between them on the real page, tweak them, and pick one.
+Click an element, say what should change, and send. The agent goes straight to the file and line that rendered it, edits the source, your dev server reloads, and the agent's reply appears next to your comment. Ask for alternatives and you can flip between them on the real page, tweak them, and pick one.
 
 ![A comment card on a heading, with the chat dock open on the right](docs/images/comment.png)
 
@@ -96,7 +96,6 @@ Your comments only travel on your machine. The plugin turns itself off when the 
 
 ## Roadmap
 
-- Point the agent straight at the source file and line of the element you clicked.
 - Draw on the page: boxes, arrows and freehand marks, sent with a cropped screenshot.
 - Let the agent annotate the page back.
 - Connect OpenCode and other agents.

@@ -59,6 +59,10 @@ test('pick, comment, send, and see the reply on the page', async () => {
     ['button[data-testid="starter-cta"]', 'Use the accent color for the free plan button'],
   ])
   expect(batch.comments[1]!.element!.ancestors).toEqual(['article.plan', 'div.plans', 'main', 'div#root'])
+  // The plugin stamps where each element's JSX is written. The fixture's source sits outside this test's project
+  // folder, so its path is absolute.
+  expect(batch.comments[1]!.element!.sources).toEqual([expect.stringMatching(/\/test\/e2e\/app\/src\/main\.tsx:16:\d+$/)])
+  expect(batch.comments[1]!.element!.html).not.toContain('data-dib-src')
   await expect(dock().getByTestId('sent')).toContainText('Working on it')
   await callTool(shim, 'live_reply', {
     batchId: batch.id,

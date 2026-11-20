@@ -22,6 +22,8 @@ const elementRef = z.object({
   rect,
   styles: z.record(z.string(), z.string().max(500)),
   ancestors: z.array(z.string().max(300)).max(10),
+  // Comments saved before source locations existed have none.
+  sources: z.array(z.string().max(500)).max(5).default([]),
   clickOffset: z.object({ x: z.number(), y: z.number() }).optional(),
 })
 

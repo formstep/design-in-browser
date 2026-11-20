@@ -114,6 +114,7 @@ function comment(text: string, selector = 'main > h1'): DraftComment {
       rect: { x: 0, y: 0, width: 400, height: 40 },
       styles: { 'font-size': '32px' },
       ancestors: ['main'],
+      sources: ['src/Pricing.tsx:12:7'],
     },
     inReplyTo: null,
     createdAt: new Date().toISOString(),

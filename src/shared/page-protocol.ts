@@ -14,6 +14,9 @@ export const PAGE_EVENT = {
   state: 'design-in-browser:state',
 } as const
 
+/** The attribute the plugin puts on each element React renders from the project's JSX: `path:line:column`. */
+export const SOURCE_ATTRIBUTE = 'data-dib-src'
+
 /** The client module's id, as pages import it. The plugin resolves it to a virtual module. */
 export const CLIENT_MODULE = 'design-in-browser:client'
 

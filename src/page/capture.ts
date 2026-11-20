@@ -1,4 +1,5 @@
 // What the page records about a picked element, so the agent can find it in the source.
+import { SOURCE_ATTRIBUTE } from '../shared/page-protocol.ts'
 import type { ElementRef, PageRef } from '../shared/protocol.ts'
 
 const STYLE_KEYS = [
@@ -78,7 +79,8 @@ export function captureElement(element: Element): ElementRef {
     ancestors.push(label(parent))
   }
 
-  const html = element.outerHTML
+  // The source attributes are in `sources`; in the HTML they are noise.
+  const html = element.outerHTML.replaceAll(new RegExp(` ${SOURCE_ATTRIBUTE}="[^"]*"`, 'g'), '')
   return {
     selector: buildSelector(element),
     tag: element.localName,
@@ -89,7 +91,26 @@ export function captureElement(element: Element): ElementRef {
     rect: { x: box.x + scrollX, y: box.y + scrollY, width: box.width, height: box.height },
     styles,
     ancestors,
+    sources: sourcesOf(element),
   }
+}
+
+/** The element's own source location, then the nearest ones around it in other files: at most three. */
+function sourcesOf(element: Element): string[] {
+  const sources: string[] = []
+  const files = new Set<string>()
+  for (
+    let node = element.closest(`[${SOURCE_ATTRIBUTE}]`);
+    node && sources.length < 3;
+    node = node.parentElement?.closest(`[${SOURCE_ATTRIBUTE}]`) ?? null
+  ) {
+    const source = node.getAttribute(SOURCE_ATTRIBUTE) ?? ''
+    const file = source.replace(/:\d+:\d+$/, '')
+    if (files.has(file)) continue
+    files.add(file)
+    sources.push(source)
+  }
+  return sources
 }
 
 export function capturePage(): PageRef {

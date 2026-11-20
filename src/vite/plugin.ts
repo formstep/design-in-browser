@@ -7,18 +7,47 @@ import fs from 'node:fs'
 import type { AddressInfo } from 'node:net'
 import { fileURLToPath } from 'node:url'
 import type { Plugin } from 'vite'
-import { CLIENT_MODULE, PAGE_EVENT, type OpAck, type OpRequest } from '../shared/page-protocol.ts'
+import { CLIENT_MODULE, PAGE_EVENT, SOURCE_ATTRIBUTE, type OpAck, type OpRequest } from '../shared/page-protocol.ts'
 import { PRODUCT_NAME } from '../shared/protocol.ts'
 import { Hub } from './hub.ts'
 
 export type DesignInBrowserOptions = {
   /** The project the agent works in. Defaults to the git root above Vite's root, else Vite's root. */
   projectRoot?: string
+  /**
+   * Put each element's source location (`data-dib-src="src/App.tsx:12:5"`) on the elements React renders from the
+   * project's JSX, so the agent opens the right file. Default true.
+   */
+  sourceLocations?: boolean
 }
 
 const RESOLVED_CLIENT = `\0${CLIENT_MODULE}`
 const REACT_MODULE = 'design-in-browser/react'
 const RESOLVED_REACT = '\0design-in-browser:react'
+const JSX_DEV_RUNTIME = 'react/jsx-dev-runtime'
+const RESOLVED_JSX_DEV_RUNTIME = '\0design-in-browser:jsx-dev-runtime'
+
+/**
+ * React's dev JSX runtime, wrapped. In dev, the JSX transform already passes each element's file, line and column to
+ * jsxDEV; this puts them on host elements outside node_modules as an attribute the overlay can read. Paths are
+ * relative to the project root, or absolute for a file outside it.
+ */
+function sourceStampingRuntime(projectRoot: string): string {
+  const root = JSON.stringify(projectRoot.endsWith('/') ? projectRoot : `${projectRoot}/`)
+  return `import { jsxDEV as reactJsxDEV, Fragment } from '${JSX_DEV_RUNTIME}'
+const root = ${root}
+export { Fragment }
+export function jsxDEV(type, props, key, isStatic, source, self) {
+  const file = source && source.fileName
+  if (typeof type === 'string' && file && !file.includes('/node_modules/')) {
+    const where = file.startsWith(root) ? file.slice(root.length) : file
+    props = { ...props, ${JSON.stringify(SOURCE_ATTRIBUTE)}: where + ':' + source.lineNumber + ':' + source.columnNumber }
+  }
+  return reactJsxDEV(type, props, key, isStatic, source, self)
+}
+`
+}
+
 const LEFTOVER = `A <Variants> group from ${REACT_MODULE} is still in the code. Pick a version in the browser (the agent then removes the wrapper), or remove it by hand, before building.`
 
 function gitRoot(dir: string): string {
@@ -52,22 +81,27 @@ function buildGuard(): Plugin {
 function devServer(options: DesignInBrowserOptions): Plugin {
   let enabled = false
   let hub: Hub | null = null
+  let projectRoot = ''
+  const stampSources = options.sourceLocations ?? true
 
   return {
     name: PRODUCT_NAME,
     apply: 'serve',
     enforce: 'pre',
 
-    resolveId(id) {
+    resolveId(id, importer) {
       if (id === CLIENT_MODULE) return RESOLVED_CLIENT
       // Served from here, not from the package, so `react` inside it is the app's own React.
       if (id === REACT_MODULE) return RESOLVED_REACT
+      // The app's JSX gets the wrapped runtime; the wrapper itself gets React's.
+      if (id === JSX_DEV_RUNTIME && enabled && stampSources && importer !== RESOLVED_JSX_DEV_RUNTIME) return RESOLVED_JSX_DEV_RUNTIME
       return undefined
     },
 
     load(id) {
       if (id === RESOLVED_CLIENT) return fs.readFileSync(fileURLToPath(new URL('./client.js', import.meta.url)), 'utf8')
       if (id === RESOLVED_REACT) return fs.readFileSync(fileURLToPath(new URL('./react-dev.js', import.meta.url)), 'utf8')
+      if (id === RESOLVED_JSX_DEV_RUNTIME) return sourceStampingRuntime(projectRoot)
       return undefined
     },
 
@@ -77,7 +111,7 @@ function devServer(options: DesignInBrowserOptions): Plugin {
     },
 
     configureServer(server) {
-      const projectRoot = options.projectRoot ?? gitRoot(server.config.root)
+      projectRoot = options.projectRoot ?? gitRoot(server.config.root)
       const hot = server.environments.client.hot
       hub = new Hub(projectRoot, server.config.root, (state) => hot.send(PAGE_EVENT.state, state))
 

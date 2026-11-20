@@ -24,7 +24,7 @@ Four pieces run on your machine:
 
 ## A comment's trip
 
-1. You pick an element. The overlay records a selector, its text, a slice of its HTML, a few computed styles, its ancestors and where you clicked (`src/page/capture.ts`).
+1. You pick an element. The overlay records a selector, its text, a slice of its HTML, a few computed styles, its ancestors, where you clicked, and where its JSX is written (`src/page/capture.ts`).
 2. The comment goes to the Vite plugin, which adds it to the stack and sends the new state to every tab.
 3. On Send, the plugin passes the stack to the daemon, which writes `batches/<id>.json` and rings the session's Monitor with one line: `design-in-browser: batch 003 ready, 2 comments. Call live_get_batch.`
 4. The agent fetches the batch, edits the source, and calls `live_reply` per comment. Each reply goes back through the daemon and the plugin to the page, where the pin and the dock update.
@@ -45,6 +45,10 @@ When a comment asks for alternatives, the agent wraps that part of the page in `
 ```
 
 In dev, the plugin serves `design-in-browser/react` itself, so it uses your app's own React. Only the version you look at renders. The switcher (`src/page/variants/`) and the components share one object on `window` (`variants-bridge.ts`), so a slider moves the page at once. A pick goes to the agent as a comment with the version and every tweak value; the agent writes that version into the code and removes the wrapper. In a production build, importing `design-in-browser/react` fails with a message saying why.
+
+## Source locations
+
+In dev, React's JSX transform already passes each element's file, line and column to `jsxDEV`. The plugin serves a wrapped `react/jsx-dev-runtime` to the app's modules that puts them on each host element as `data-dib-src="src/App.tsx:12:5"`, relative to the project root. A comment then carries `element.sources`: the element's own location, then the nearest locations around it in other files (the component's caller), so the agent can open the right file without searching. Turn it off with `designInBrowser({ sourceLocations: false })`.
 
 ## The journal
 

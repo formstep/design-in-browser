@@ -41,6 +41,12 @@ export type ElementRef = {
   styles: Record<string, string>
   /** Short labels of the closest ancestors, nearest first, e.g. `section.hero`. */
   ancestors: string[]
+  /**
+   * Where the element's JSX is written, as `path:line:column` from the project root (absolute outside it), then the JSX around it in
+   * other files (the component's caller), nearest first, at most three. Empty when the page has no source
+   * locations: not React, or the plugin's `sourceLocations` turned off.
+   */
+  sources: string[]
   /** Where in the element the user clicked, in px from its top-left corner. The pin sits there. Absent on older comments. */
   clickOffset?: { x: number; y: number }
 }
