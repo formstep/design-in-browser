@@ -15,6 +15,7 @@ import { registerUiHost, setReservedRight } from '../ui/layout.ts'
 import { markersHidden, onMarkersHiddenChange, setMarkersHidden } from '../ui/markers.ts'
 import { createShadowHost } from '../ui/shadow-host.ts'
 import dockCss from './dock.css'
+import { pushPage } from './push.ts'
 import { answerPlaces, turns, where } from './thread.ts'
 
 const DOCK_WIDTH = 380
@@ -121,14 +122,13 @@ function readOpen(): boolean {
 }
 
 /**
- * The open dock takes its width from the page, which moves aside (a right margin on the root element), so what sat
- * under it can still be commented on. A full-width dock (a phone-width window) covers the page instead: there is no
- * room left to move it into. Elements the page fixes to the window's right edge stay where they are.
+ * The open dock takes its width from the page, which moves aside (push.ts). A full-width dock (a phone-width window)
+ * covers the page instead: there is no room left to move it into.
  */
 function reserveDock(open: boolean): void {
   const width = open ? dockWidth() : 0
   setReservedRight(width)
-  document.documentElement.style.marginRight = open && width < innerWidth ? `${width}px` : ''
+  pushPage(open && width < innerWidth ? width : 0)
 }
 
 function setOpen(open: boolean): void {

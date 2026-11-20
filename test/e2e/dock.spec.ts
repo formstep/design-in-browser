@@ -10,14 +10,28 @@ const rootMargin = () => page.evaluate(() => document.documentElement.style.marg
 
 test('the open dock pushes the page aside, and gives the room back when it closes', async () => {
   await page.goto(appUrl)
+  // A layout sized to the window, as Tailwind's w-screen does: a margin on the root alone wouldn't move it.
+  await page.evaluate(() => {
+    const root = document.getElementById('root')!
+    const wide = document.createElement('div')
+    wide.className = 'window-wide'
+    wide.style.width = '100vw'
+    root.before(wide)
+    wide.append(root)
+  })
   await page.locator('dib-dock .launcher').click()
   await expect(dock()).toBeVisible()
   expect(await rootMargin()).toBe('380px')
-  const plans = (await page.locator('.plans').boundingBox())!
-  expect(plans.x + plans.width).toBeLessThanOrEqual(1100 - 380)
+  await expect
+    .poll(async () => (await page.locator('.plans').boundingBox())!.x + (await page.locator('.plans').boundingBox())!.width)
+    .toBeLessThanOrEqual(1100 - 380)
+  const wideBox = (await page.locator('.window-wide').boundingBox())!
+  expect(wideBox.x + wideBox.width).toBeLessThanOrEqual(1100 - 380)
 
   await dock().getByRole('button', { name: 'Close' }).click()
   expect(await rootMargin()).toBe('')
+  await expect(page.locator('.window-wide')).toHaveCSS('width', '1100px')
+  expect(await page.locator('.window-wide').evaluate((node: HTMLElement) => node.style.maxWidth)).toBe('')
 
   // A phone-width window: the dock covers the whole window, so it pushes nothing.
   await page.setViewportSize({ width: 390, height: 720 })
