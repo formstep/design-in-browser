@@ -58,13 +58,13 @@ It works with React apps on a Vite dev server and with Astro sites, and with [Cl
 
    With OpenCode instead, run `opencode plugin add design-in-browser`, then `/design-in-browser` in OpenCode.
 
-5. Start your dev server, open the app, and press **Alt+Shift+D** to open the dock.
+5. Start your dev server, open the app, and click the round button in the bottom-right corner (or press **Alt+Shift+D**) to open the dock. It opens beside your app and moves the page aside, so all of it stays in reach.
 
 ## Comment on your app
 
-Press **Alt+Shift+C**, click anything on the page, type what should change, and press Enter. A pin stays where you clicked. Add as many comments as you like, on any page, then press **Send** in the dock.
+Click **Comment** in the dock (or press **Alt+Shift+C**), click anything on the page, type what should change, and press Enter. A pin stays where you clicked. Add as many comments as you like, on any page, then press **Send** in the dock.
 
-The agent replies to each comment: done, a question, or skipped with a reason. Answer a question right under it, in the dock or in the pin.
+The agent replies to each comment: done, a question, or skipped with a reason. Answer a question right under it, in the dock or in the pin, or dismiss it. Pins go away once a comment is done; the eye button in the dock's header hides the rest while you look at the page.
 
 ![A pin's thread with the agent's question and an answer field, next to the dock's replies](https://raw.githubusercontent.com/formstep/design-in-browser/main/docs/images/replies.png)
 
