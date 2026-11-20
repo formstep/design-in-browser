@@ -4,13 +4,17 @@ Design in Browser talks to agents through an MCP server, so any agent that runs 
 
 ## OpenCode
 
+Add the OpenCode plugin from this package:
+
 ```bash
-npx design-in-browser setup opencode
+opencode plugin add design-in-browser
 ```
 
-It adds the MCP server to `opencode.json` in your project, keeping what is already there, and adds a `/design-in-browser` command to `.opencode/commands/`. Restart OpenCode in the project and run `/design-in-browser`.
+Or run `npx design-in-browser setup opencode` in your project, which adds it to the `plugins` list in `opencode.json`, keeping what is already there.
 
-If your project uses `opencode.jsonc`, setup leaves it alone, since rewriting it would drop your comments, and prints the entry to add under `"mcp": { "servers": { … } }` yourself.
+The plugin adds the MCP server and a `/design-in-browser` command. Restart OpenCode in the project and run `/design-in-browser`. Once the agent has connected, the plugin wakes the session whenever you send comments, as Claude Code's Monitor does, so the agent doesn't have to keep calling `live_wait`.
+
+If your project uses `opencode.jsonc`, setup leaves it alone, since rewriting it would drop your comments, and tells you what to add.
 
 ## Codex
 
@@ -28,12 +32,12 @@ Add the server to the agent's MCP settings as a local (stdio) server with this c
 npx -y -p design-in-browser design-in-browser-mcp
 ```
 
-Set the agent's tool timeout to at least 300 seconds, or pass `timeoutSeconds` to `live_wait`. Then give the agent the instructions that setup writes for OpenCode and Codex: they are in [src/setup/listen.md](../src/setup/listen.md).
+Set the agent's tool timeout to at least 300 seconds, or pass `timeoutSeconds` to `live_wait`. Then give the agent the instructions setup writes for Codex: they are in [src/setup/listen.md](../src/setup/listen.md).
 
 ## How listening works
 
-Claude Code wakes up through its Monitor tool. Other agents call `live_wait`, which returns the next batch as soon as you send one; while the agent waits, the dock shows it as listening. After handling a batch, the agent calls `live_wait` again.
+Claude Code wakes up through its Monitor tool, and OpenCode through the plugin. Other agents call `live_wait`, which returns the next batch as soon as you send one; while the agent waits, the dock shows it as listening. After handling a batch, the agent calls `live_wait` again.
 
 The dock names the agent from the name its MCP client sends. OpenCode and Codex are recognized; any other agent shows as "Agent".
 
-Setup pins the package version it ran with. Run it again after updating to move the agents to the new version.
+Setup pins the package version it ran with. Run it again after updating to move the agent to the new version.

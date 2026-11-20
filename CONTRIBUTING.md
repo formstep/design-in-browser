@@ -52,6 +52,8 @@ Run one browser spec with `pnpm exec playwright test --config test/e2e/playwrigh
 | `src/node/` | all three Node processes | config and the journal |
 | `src/shared/` | everywhere | the types and contracts between the pieces |
 | `src/react/` | your app | `<Variants>` and `<Variant>` |
+| `src/opencode/` | OpenCode | the OpenCode plugin (the package's `./server` export) |
+| `src/setup/` | the user's shell | `npx design-in-browser setup <agent>` |
 | `plugin/` | Claude Code | the plugin manifest, the `live` skill and the built MCP server |
 
 ## Things to know

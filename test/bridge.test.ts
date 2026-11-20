@@ -461,6 +461,116 @@ test('a drawing comment keeps its marks, and its screenshot reaches the agent as
   await client.close()
 })
 
+test('the OpenCode plugin adds the server and command, and wakes the session on each doorbell', async () => {
+  type Registration = { dispose: () => Promise<void> }
+  type AfterCall = { tool: string; sessionID: string; status: 'completed'; result: { content: string } }
+  type Setup = (ctx: unknown) => Promise<() => Promise<void>>
+  const modulePath: string = '../dist/opencode.mjs'
+  const { default: plugin } = (await import(modulePath)) as { default: { id: string; setup: Setup } }
+  // OpenCode's V2 plugin API: setup(ctx).
+  const registration: Registration = { dispose: async () => {} }
+  const servers = new Map<string, { type: string; command: string[] }>()
+  const commands = new Map<string, { execute: (input: { sessionID: string }) => Promise<void> }>()
+  const prompts: Array<{ sessionID: string; text: string }> = []
+  let afterTool: (call: AfterCall) => void = () => {}
+  // The parts of OpenCode's plugin context the plugin uses.
+  const ctx = {
+    mcp: {
+      transform: async (edit: (editor: unknown) => void) => (
+        edit({ set: (name: string, config: { type: string; command: string[] }) => servers.set(name, config) }),
+        registration
+      ),
+    },
+    command: {
+      transform: async (edit: (editor: unknown) => void) => (
+        edit({
+          add: (definition: { name: string; execute: (input: { sessionID: string }) => Promise<void> }) =>
+            commands.set(definition.name, definition),
+        }),
+        registration
+      ),
+    },
+    tool: { hook: async (_name: string, callback: (call: AfterCall) => void) => ((afterTool = callback), registration) },
+    session: { prompt: async (input: { sessionID: string; text: string }) => void prompts.push(input) },
+  }
+  const cleanup = await plugin.setup(ctx)
+  assert.equal(plugin.id, 'design-in-browser')
+  assert.equal(servers.get('design-in-browser')?.command[0], 'node')
+  assert.ok(fs.existsSync(servers.get('design-in-browser')!.command[1]!), 'the server path points at the bundled MCP server')
+
+  // The command hands the session the listening instructions.
+  await commands.get('design-in-browser')!.execute({ sessionID: 'ses_1' })
+  assert.match(prompts[0]!.text, /^Listen for comments/)
+
+  // When the agent connects, the plugin listens on its doorbell like a Monitor, and each doorbell becomes a message.
+  const ocProject = path.join(tmp, 'opencode')
+  fs.mkdirSync(ocProject)
+  const client = await startShim('opencode')
+  const connected = await callTool(client, 'live_connect', { projectRoot: ocProject })
+  const devServer = await openDevServer()
+  devServer.socket.send(JSON.stringify({ type: 'hello' }))
+  afterTool({ tool: 'design-in-browser_live_connect', sessionID: 'ses_1', status: 'completed', result: { content: connected } })
+  const listening = await devServer.inbox.next(
+    (m) => m.type === 'sessions' && m.sessions.some((entry) => entry.projectRoot === ocProject && entry.listening)
+  )
+  const session = listening.type === 'sessions' ? listening.sessions.find((entry) => entry.projectRoot === ocProject)! : assert.fail()
+  devServer.socket.send(
+    JSON.stringify({ type: 'send-batch', clientBatchId: 'o1', sessionId: session.id, comments: [comment('Wake OpenCode')] })
+  )
+  await new Promise((resolve) => setTimeout(resolve, 500))
+  assert.deepEqual(prompts.at(-1), { sessionID: 'ses_1', text: 'design-in-browser: batch 001 ready, 1 comment. Call live_get_batch.' })
+
+  await cleanup()
+  devServer.socket.close()
+  await client.close()
+})
+
+test('the OpenCode plugin works on OpenCode 1.x too: config, and a doorbell into the session', async () => {
+  type Hooks = {
+    config: (config: Record<string, Record<string, unknown> | undefined>) => Promise<void>
+    'tool.execute.after': (
+      input: { tool: string; sessionID: string; callID: string; args: unknown },
+      output: { title: string; output: string; metadata: unknown }
+    ) => Promise<void>
+    dispose: () => Promise<void>
+  }
+  const modulePath: string = '../dist/opencode.mjs'
+  const { default: plugin } = (await import(modulePath)) as { default: { server: (input: unknown) => Promise<Hooks> } }
+  const prompts: unknown[] = []
+  // OpenCode's V1 plugin API: server({ client, ... }) returns hooks.
+  const hooks = await plugin.server({ client: { session: { prompt: async (input: unknown) => void prompts.push(input) } } })
+  const config: Record<string, Record<string, unknown> | undefined> = { mcp: { other: { type: 'remote', url: 'https://x' } } }
+  await hooks.config(config)
+  assert.deepEqual(Object.keys(config.mcp!), ['other', 'design-in-browser'])
+  assert.match((config.command!['design-in-browser'] as { template: string }).template, /^Listen for comments/)
+
+  const v1Project = path.join(tmp, 'opencode-v1')
+  fs.mkdirSync(v1Project)
+  const client = await startShim('opencode')
+  const connected = await callTool(client, 'live_connect', { projectRoot: v1Project })
+  const devServer = await openDevServer()
+  devServer.socket.send(JSON.stringify({ type: 'hello' }))
+  await hooks['tool.execute.after'](
+    { tool: 'design-in-browser_live_connect', sessionID: 'ses_v1', callID: 'c', args: {} },
+    { title: '', output: connected, metadata: {} }
+  )
+  const listening = await devServer.inbox.next(
+    (m) => m.type === 'sessions' && m.sessions.some((entry) => entry.projectRoot === v1Project && entry.listening)
+  )
+  const session = listening.type === 'sessions' ? listening.sessions.find((entry) => entry.projectRoot === v1Project)! : assert.fail()
+  devServer.socket.send(
+    JSON.stringify({ type: 'send-batch', clientBatchId: 'v1', sessionId: session.id, comments: [comment('Wake OpenCode 1')] })
+  )
+  await new Promise((resolve) => setTimeout(resolve, 500))
+  assert.deepEqual(prompts.at(-1), {
+    path: { id: 'ses_v1' },
+    body: { parts: [{ type: 'text', text: 'design-in-browser: batch 001 ready, 1 comment. Call live_get_batch.' }] },
+  })
+  await hooks.dispose()
+  devServer.socket.close()
+  await client.close()
+})
+
 test('an agent without a Monitor waits with live_wait, and reads as listening meanwhile', async () => {
   const waitProject = path.join(tmp, 'waiting')
   fs.mkdirSync(waitProject)

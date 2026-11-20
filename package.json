@@ -5,8 +5,11 @@
   "keywords": [
     "ai-agent",
     "claude-code",
+    "codex",
     "design-review",
     "mcp",
+    "opencode",
+    "opencode-plugin",
     "react",
     "ui",
     "vite",
@@ -32,6 +35,9 @@
   ],
   "type": "module",
   "exports": {
+    ".": {
+      "import": "./dist/opencode.mjs"
+    },
     "./vite": {
       "types": "./dist/vite.d.mts",
       "import": "./dist/vite.mjs"
@@ -39,6 +45,9 @@
     "./react": {
       "types": "./dist/react.d.mts",
       "import": "./dist/react.mjs"
+    },
+    "./server": {
+      "import": "./dist/opencode.mjs"
     },
     "./package.json": "./package.json"
   },
@@ -56,6 +65,8 @@
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
+    "@opencode-ai/plugin": "1.19.6",
+    "@opencode/plugin": "2.3.2",
     "@playwright/test": "1.63.0",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",

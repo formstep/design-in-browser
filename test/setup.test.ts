@@ -8,7 +8,6 @@ import { test } from 'node:test'
 
 const cli = path.resolve(import.meta.dirname, '../dist/cli.mjs')
 const { version } = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, '../package.json'), 'utf8')) as { version: string }
-const mcpCommand = ['npx', '-y', '-p', `design-in-browser@${version}`, 'design-in-browser-mcp']
 
 function scratch(files: Record<string, string> = {}): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dib-setup-'))
@@ -22,19 +21,18 @@ function scratch(files: Record<string, string> = {}): string {
 const run = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8' })
 const read = (dir: string, file: string) => fs.readFileSync(path.join(dir, file), 'utf8')
 
-test('setup opencode adds the MCP server to opencode.json, keeps the rest, and adds a command', () => {
-  const project = scratch({
-    'opencode.json': JSON.stringify({ theme: 'dark', mcp: { servers: { other: { type: 'local', command: ['x'] } } } }),
-  })
+test('setup opencode lists the plugin in opencode.json, keeps the rest, and replaces an earlier pin', () => {
+  const project = scratch({ 'opencode.json': JSON.stringify({ theme: 'dark', plugins: ['opencode-other', 'design-in-browser@0.0.1'] }) })
   const first = run('setup', 'opencode', '--project', project)
   assert.equal(first.status, 0, first.stderr)
   const config = JSON.parse(read(project, 'opencode.json'))
   assert.equal(config.theme, 'dark')
-  assert.deepEqual(config.mcp.servers.other, { type: 'local', command: ['x'] })
-  assert.deepEqual(config.mcp.servers['design-in-browser'], { type: 'local', command: mcpCommand })
-  assert.match(read(project, '.opencode/commands/design-in-browser.md'), /^---\ndescription: .+\n---\n\nListen for comments/)
+  assert.deepEqual(config.plugins, ['opencode-other', `design-in-browser@${version}`])
+  // The plugin brings the server and the command itself.
+  assert.equal(config.mcp, undefined)
+  assert.equal(fs.existsSync(path.join(project, '.opencode/commands')), false)
   // Again: nothing changes.
-  assert.match(run('setup', 'opencode', '--project', project).stdout, /unchanged opencode\.json\nunchanged \.opencode/)
+  assert.match(run('setup', 'opencode', '--project', project).stdout, /unchanged opencode\.json/)
 })
 
 test('setup opencode leaves opencode.jsonc alone and prints what to add', () => {

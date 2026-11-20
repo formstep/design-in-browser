@@ -49,7 +49,7 @@ root.innerHTML = `
         <span data-icon="copy" data-size="14"></span>
         <span class="copied" hidden>Copied</span>
       </button>
-      <p class="intro-text intro-other" hidden>OpenCode or Codex? Run npx design-in-browser setup opencode (or codex) in your project, then its design-in-browser command.</p>
+      <p class="intro-text intro-other" hidden>OpenCode? Run opencode plugin add design-in-browser. Codex? Run npx design-in-browser setup codex in your project.</p>
     </div>
     <div class="turns"></div>
   </main>

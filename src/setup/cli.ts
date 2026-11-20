@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // `npx design-in-browser setup <agent>`: does for OpenCode or Codex what the Claude Code plugin does, in this
-// project: adds the MCP server to the agent's config and an instruction it runs to listen for comments.
+// project. OpenCode gets this package's OpenCode plugin in its plugins list; Codex gets the MCP server in its config
+// and a skill it runs to listen for comments.
 import fs from 'node:fs'
 import path from 'node:path'
 import listen from './listen.md'
@@ -29,23 +30,24 @@ function write(file: string, content: string): Written {
   return { file, change: before === null ? 'created' : 'updated' }
 }
 
+/** The OpenCode plugin in this package brings the MCP server, the command and the wake-up; setup only lists it. */
 function setupOpenCode(project: string): Written[] {
+  const entry = `design-in-browser@${__PACKAGE_VERSION__}`
   if (fs.existsSync(path.join(project, 'opencode.jsonc'))) {
     throw new Error(
-      `This project has opencode.jsonc, which setup can't edit without losing its comments. Add this under "mcp": { "servers": { … } } yourself:\n"${SERVER}": ${JSON.stringify({ type: 'local', command: MCP_COMMAND })}`
+      `This project has opencode.jsonc, which setup can't edit without losing its comments. Add "${entry}" to its "plugins" list, or run: opencode plugin add ${entry}`
     )
   }
   const configFile = path.join(project, 'opencode.json')
   const config = fs.existsSync(configFile)
     ? (JSON.parse(fs.readFileSync(configFile, 'utf8')) as Record<string, unknown>)
     : { $schema: 'https://opencode.ai/config.json' }
-  const mcp = (config.mcp ?? {}) as { servers?: Record<string, unknown> }
-  config.mcp = { ...mcp, servers: { ...mcp.servers, [SERVER]: { type: 'local', command: MCP_COMMAND } } }
-  const command = `---\ndescription: Listen for comments from the browser and act on them (design-in-browser)\n---\n\n${listen}`
-  return [
-    write(configFile, `${JSON.stringify(config, null, 2)}\n`),
-    write(path.join(project, '.opencode/commands/design-in-browser.md'), command),
-  ]
+  // An earlier pin of this package gives way to this one; every other plugin stays.
+  const plugins = (Array.isArray(config.plugins) ? config.plugins : []).filter(
+    (plugin) => typeof plugin !== 'string' || !/^design-in-browser(@|$)/.test(plugin)
+  )
+  config.plugins = [...plugins, entry]
+  return [write(configFile, `${JSON.stringify(config, null, 2)}\n`)]
 }
 
 /** The `[mcp_servers.design-in-browser]` table, replacing an earlier one from setup. */

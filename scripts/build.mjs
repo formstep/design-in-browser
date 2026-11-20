@@ -89,6 +89,21 @@ await build({
 })
 fs.chmodSync('dist/cli.mjs', 0o755)
 
+// The OpenCode plugin (the package's ./server export), with ws and its instructions inlined.
+await build({
+  entryPoints: { opencode: 'src/opencode/plugin.ts' },
+  outdir: 'dist',
+  outExtension: { '.js': '.mjs' },
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  target: 'node22',
+  external: ['bufferutil', 'utf-8-validate'],
+  banner: { js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);" },
+  loader: { '.md': 'text' },
+  logLevel: 'warning',
+})
+
 // design-in-browser/react: the dev implementation (served by the plugin, `react` left to the app) and the
 // package entry a build would load, which refuses, because alternatives must be resolved before shipping.
 await build({

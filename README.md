@@ -46,7 +46,7 @@ It works with React apps on a Vite dev server, and with [Claude Code](https://cl
 
    Claude connects and says it is listening.
 
-   With OpenCode or Codex instead, run `npx design-in-browser setup opencode` (or `codex`) in your project for steps 3 and 4, then the `design-in-browser` command it adds.
+   With OpenCode instead, run `opencode plugin add design-in-browser`, then `/design-in-browser` in OpenCode. With Codex, run `npx design-in-browser setup codex` in your project, then `$design-in-browser`.
 
 5. Start your dev server, open the app, and press **Alt+Shift+D** to open the dock.
 
@@ -101,7 +101,7 @@ Your comments only travel on your machine. The plugin turns itself off when the 
 ## Limits
 
 - React and Vite only. Other frameworks, and pages Vite doesn't serve (such as Astro's), aren't supported yet.
-- OpenCode and Codex take one setup command per project ([docs/agents.md](https://github.com/formstep/design-in-browser/blob/main/docs/agents.md)); other agents need their MCP settings edited by hand.
+- OpenCode gets a plugin and Codex one setup command ([docs/agents.md](https://github.com/formstep/design-in-browser/blob/main/docs/agents.md)); other agents need their MCP settings edited by hand.
 - The dev server must run on localhost with hot reload on.
 
 ## Roadmap
