@@ -53,6 +53,33 @@ export function settled(comment: BatchComment, state: { batches: Batch[]; dismis
   return false
 }
 
+export type Sent = { batch: Batch; comment: BatchComment }
+
+/**
+ * The batches' comments as threads: an answer (`inReplyTo`) joins the thread of the comment it answers. Each thread
+ * starts at its earliest comment still in view (starting over, or the 30 newest batches, can leave out the first).
+ */
+export function threads(batches: Batch[]): Sent[][] {
+  const all = batches.flatMap((batch) => batch.comments.map((comment) => ({ batch, comment })))
+  const byId = new Map(all.map((sent) => [sent.comment.id, sent]))
+  const rootOf = (sent: Sent): string => {
+    const seen = new Set<string>()
+    let at = sent
+    for (
+      let up = byId.get(at.comment.inReplyTo?.commentId ?? '');
+      up && !seen.has(up.comment.id);
+      up = byId.get(up.comment.inReplyTo?.commentId ?? '')
+    ) {
+      seen.add(up.comment.id)
+      at = up
+    }
+    return at.comment.id
+  }
+  const grouped = new Map<string, Sent[]>()
+  for (const sent of all) grouped.set(rootOf(sent), [...(grouped.get(rootOf(sent)) ?? []), sent])
+  return [...grouped.values()].map((thread) => thread.sort((a, b) => a.comment.createdAt.localeCompare(b.comment.createdAt)))
+}
+
 /** How many of the agent's questions wait for the user: neither answered nor dismissed. */
 export function openQuestions(state: { batches: Batch[]; dismissed: string[] }): number {
   const answered = answeredIds(state.batches)

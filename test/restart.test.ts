@@ -94,7 +94,7 @@ test('the same comments sent twice make one batch', async () => {
   const comments = [comment('Only once')]
   devServer.socket.send(JSON.stringify({ type: 'send-batch', clientBatchId: 't1', sessionId: session.id, comments }))
   const first = await devServer.inbox.next((m) => m.type === 'batch-accepted' && m.clientBatchId === 't1')
-  // The daemon died before its answer arrived, say, and the page sends the same stack again.
+  // The daemon died before its answer arrived, say, and the page sends the same comments again.
   devServer.socket.send(JSON.stringify({ type: 'send-batch', clientBatchId: 't2', sessionId: session.id, comments }))
   const second = await devServer.inbox.next((m) => m.type === 'batch-accepted' && m.clientBatchId === 't2')
   assert.equal(second.type === 'batch-accepted' && second.batch.id, first.type === 'batch-accepted' && first.batch.id)

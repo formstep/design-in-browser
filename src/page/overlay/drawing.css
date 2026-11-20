@@ -28,7 +28,7 @@ rect.mark {
   fill: var(--blue-fill);
 }
 
-/* Marks of comments already in the stack: there, but quieter than the one being drawn. */
+/* Marks of sent comments: there until settled, but quieter than the one being drawn. */
 .mark.saved {
   opacity: 0.55;
 }

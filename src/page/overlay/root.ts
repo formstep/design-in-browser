@@ -56,6 +56,7 @@ root.innerHTML = `
     <input type="text" placeholder="Describe a change to this page" aria-label="Note about this page" />
     <button type="submit" class="send" aria-label="Send note"><span data-icon="arrowUp" data-size="15"></span></button>
   </form>
+  <p class="ask-error" role="alert" hidden></p>
   <div class="tools" role="toolbar" aria-label="Design in Browser">
     <button type="button" class="tool pick-tool" title="Comment on an element" aria-label="Comment on an element"><span data-icon="comment" data-size="18"></span></button>
     <button type="button" class="tool draw-tool" data-tool="box" title="Draw a box" aria-label="Draw a box"><span data-icon="square" data-size="17"></span></button>

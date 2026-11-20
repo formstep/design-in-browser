@@ -1,6 +1,6 @@
 // The dock: a chat with the coding agent inside the app's page, opened from a launcher in the bottom-right
 // corner (Alt+Shift+D). The header names the session, the thread shows sent batches and the agent's replies,
-// and the composer at the bottom holds the stacked comments plus an optional note.
+// and the composer at the bottom sends a message about the page.
 // Lists are rebuilt only when their data changes, so the periodic render never wipes text being typed.
 import { START_COMMAND, type SessionInfo } from '../../shared/protocol.ts'
 import { capturePage } from '../capture.ts'
@@ -262,10 +262,14 @@ function renderComposer(state: PageState, canSend: boolean): void {
   errorText.textContent = error ?? ''
 }
 
+/** True while a message is on its way, so a second Enter doesn't send it twice. */
+let sending = false
+
 /** Sends the message, about the page as a whole, to the agent now. It stays in the field until the daemon has it. */
 async function send(): Promise<void> {
   const text = message.value.trim()
-  if (text === '') return
+  if (text === '' || sending) return
+  sending = true
   sendError = null
   try {
     await sendComment(newComment({ text, page: capturePage(), element: null }))
@@ -273,6 +277,8 @@ async function send(): Promise<void> {
     scrollToEnd = true
   } catch (error) {
     sendError = error instanceof Error ? error.message : String(error)
+  } finally {
+    sending = false
   }
   scheduleRender()
 }

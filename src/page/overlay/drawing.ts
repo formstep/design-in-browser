@@ -3,7 +3,7 @@
 // until the agent settles it.
 import type { DraftComment, Mark, PagePoint } from '../../shared/protocol.ts'
 import { samePage } from '../capture.ts'
-import { settled } from '../comments.ts'
+import { settled, threads } from '../comments.ts'
 import { readState } from '../store.ts'
 import { findBySelector, query } from '../ui/dom.ts'
 import { isUiHost } from '../ui/layout.ts'
@@ -106,15 +106,21 @@ export function renderMarks(): void {
   ink.classList.toggle('active', acceptsMarks())
   const mode = getMode()
   const state = readState()
-  const drafts = markersHidden()
+  // A thread is settled by its newest comment, as its pin is: an answered drawing stays until the thread is done.
+  const sent = markersHidden()
     ? []
-    : state.batches
-        .flatMap((batch) => batch.comments)
-        .filter((comment) => comment.marks?.length && samePage(comment.page.url) && !settled(comment, state))
+    : threads(state.batches)
+        .filter((thread) => {
+          const last = thread.at(-1)
+          return last !== undefined && !settled(last.comment, state)
+        })
+        .flat()
+        .map((sent) => sent.comment)
+        .filter((comment) => comment.marks?.length && samePage(comment.page.url))
   const current = mode.kind === 'commenting' ? mode.marks : []
   const drawing = stroke ? markOf(stroke) : null
   ink.replaceChildren(
-    ...drafts.map(savedMarks),
+    ...sent.map(savedMarks),
     ...current.map((mark) => drawMark(mark, 'mark')),
     ...(drawing ? [drawMark(drawing, 'mark')] : [])
   )

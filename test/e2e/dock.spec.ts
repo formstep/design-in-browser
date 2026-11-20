@@ -134,7 +134,7 @@ test('dismiss a question from the dock and a note from its pin, without answerin
   await note.getByRole('button', { name: 'Dismiss' }).click()
   await expect(note).toHaveCount(0)
 
-  // Dismissals are kept with the comment stack, so a reload (or another tab) agrees.
+  // Dismissals are kept with the other choices, so a reload (or another tab) agrees.
   await page.reload()
   await expect(dock().getByTestId('dismiss')).toHaveCount(0)
   await expect(page.locator('dib-overlay .pins .pin-wrap:not([hidden])')).toHaveCount(0)
@@ -166,6 +166,44 @@ test('a dev server still running an older plugin gets a restart notice, and the 
   await page.reload()
   await expect(dock().getByTestId('status')).toContainText('Claude is listening')
   await expect(notice).toBeHidden()
+})
+
+test('the Ask bar keeps a note it couldn’t send, says why, and sends it on the next Enter', async () => {
+  await page.goto(appUrl)
+  if (await page.locator('dib-dock .launcher').isVisible()) await page.locator('dib-dock .launcher').click()
+  await expect(dock().getByTestId('status')).toHaveText('Claude is listening')
+  await page.keyboard.press('Alt+Shift+C')
+  const askButton = page.locator('dib-overlay .tools .tool.ask')
+  await askButton.click()
+  const input = page.locator('dib-overlay .askbar input')
+  await input.fill('Calmer colors')
+  // An older plugin's state: sending is refused until the current plugin speaks again. With no session in it, the
+  // button names no agent, which shows the state has arrived.
+  vite.environments.client.hot.send('design-in-browser:state', {
+    connection: 'connected',
+    projectRoot: '/elsewhere',
+    sessions: [],
+    batches: [],
+    pickedSessionId: null,
+    variantChoices: {},
+    tweakValues: {},
+  })
+  await expect(askButton).toHaveText('Ask Agent')
+  await input.press('Enter')
+  await expect(page.locator('dib-overlay .ask-error')).toContainText('older design-in-browser')
+  await expect(input).toHaveValue('Calmer colors')
+
+  // A note from the agent makes the hub send its state; the same Enter, with the text untouched, goes through.
+  await callTool(shim, 'live_note', { url: `${appUrl}elsewhere`, notes: [{ selector: 'h1', note: 'Unrelated' }] })
+  await expect(askButton).toHaveText('Ask Claude')
+  const rung = doorbells.length
+  await input.press('Enter')
+  await expect(page.locator('dib-overlay .askbar')).toBeHidden()
+  await expect(page.locator('dib-overlay .ask-error')).toBeHidden()
+  await expect.poll(() => doorbells.length).toBe(rung + 1)
+  const sent = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
+  expect(sent.comments[0]!.text).toBe('Calmer colors')
+  await page.keyboard.press('Escape')
 })
 
 test('a pin follows its element to another page when that element is shared there, and only then', async () => {

@@ -1,9 +1,9 @@
 // The comment card: opens beside a pin at the clicked point, takes a comment or a request for alternatives,
-// and adds it to the stack (or sends it, with "Send to <agent>" ticked).
+// and sends it to the agent on Enter.
 import type { Mark } from '../../shared/protocol.ts'
 import { captureElement, capturePage, visibleText } from '../capture.ts'
 import { newComment } from '../comments.ts'
-import { agentName, sendComment } from '../store.ts'
+import { agentName, sendComment, sendTarget } from '../store.ts'
 import { query } from '../ui/dom.ts'
 import { elementName } from '../ui/format.ts'
 import { keepKeys, submitOnEnter } from '../ui/events.ts'
@@ -166,6 +166,12 @@ async function submit(): Promise<void> {
     return
   }
   const { element, offset, marks, after } = mode
+  // Said before the screenshot: no share prompt for a comment that can't go anywhere.
+  const target = sendTarget()
+  if ('blocked' in target) {
+    showError(target.blocked)
+    return
+  }
   let screenshot: string | undefined
   if (marks.length > 0 && attachShot.checked) {
     capturing = true

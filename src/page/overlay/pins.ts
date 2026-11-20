@@ -3,9 +3,9 @@
 // disc shows where the thread stands (waiting, question, alternatives, note), and opening it shows the thread, with a
 // field to answer the agent's question from right there. A settled thread leaves the page; the dock keeps it.
 import { SOURCE_ATTRIBUTE } from '../../shared/page-protocol.ts'
-import type { Batch, BatchComment, CommentStatus, DraftComment, ElementRef, InReplyTo, NoteAnchor, PageRef } from '../../shared/protocol.ts'
+import type { BatchComment, CommentStatus, DraftComment, ElementRef, InReplyTo, NoteAnchor, PageRef } from '../../shared/protocol.ts'
 import { captureElement, samePage } from '../capture.ts'
-import { answeredIds, answering, isPick, newComment, settled } from '../comments.ts'
+import { answeredIds, answering, isPick, newComment, settled, threads } from '../comments.ts'
 import { dismissButton } from '../dismiss.ts'
 import { icon } from '../icons.ts'
 import { defaultSession, readState, sendComment, type PageState } from '../store.ts'
@@ -73,33 +73,6 @@ function placeOf(comment: DraftComment & { anchor?: NoteAnchor }): Pick<PinModel
   if (element) return { find: () => findBySelector(element.selector), offset: element.clickOffset }
   if (anchor) return { find: () => findAnchor(anchor), offset: undefined }
   return null
-}
-
-type Sent = { batch: Batch; comment: BatchComment }
-
-/**
- * The batches' comments as threads: an answer (`inReplyTo`) joins the thread of the comment it answers. Each thread
- * starts at its earliest comment still in view (starting over, or the 30 newest batches, can leave out the first).
- */
-function threads(batches: Batch[]): Sent[][] {
-  const all = batches.flatMap((batch) => batch.comments.map((comment) => ({ batch, comment })))
-  const byId = new Map(all.map((sent) => [sent.comment.id, sent]))
-  const rootOf = (sent: Sent): string => {
-    const seen = new Set<string>()
-    let at = sent
-    for (
-      let up = byId.get(at.comment.inReplyTo?.commentId ?? '');
-      up && !seen.has(up.comment.id);
-      up = byId.get(up.comment.inReplyTo?.commentId ?? '')
-    ) {
-      seen.add(up.comment.id)
-      at = up
-    }
-    return at.comment.id
-  }
-  const grouped = new Map<string, Sent[]>()
-  for (const sent of all) grouped.set(rootOf(sent), [...(grouped.get(rootOf(sent)) ?? []), sent])
-  return [...grouped.values()].map((thread) => thread.sort((a, b) => a.comment.createdAt.localeCompare(b.comment.createdAt)))
 }
 
 /** Alternatives the agent put on this page: their switcher stands in for the pin, which would sit on top of them. */
@@ -267,11 +240,14 @@ export function closeThreads(except?: Element): void {
   if (focused instanceof HTMLElement && pins.contains(focused) && !except?.contains(focused)) focused.blur()
 }
 
+/** Answers on their way, by form, so a second Enter doesn't send one twice. */
+const answersInFlight = new WeakSet<HTMLFormElement>()
+
 async function submitAnswer(form: HTMLFormElement): Promise<void> {
   const pin = models.get(form.dataset.key ?? '')
   const field = query<HTMLTextAreaElement>(form, 'textarea')
   const text = field.value.trim()
-  if (!pin?.answer || text === '') return
+  if (!pin?.answer || text === '' || answersInFlight.has(form)) return
   const element = pin.find()
   const comment = newComment({
     text,
@@ -281,6 +257,7 @@ async function submitAnswer(form: HTMLFormElement): Promise<void> {
   })
   // The answer goes to the agent at once; the card closes once the daemon has it, or keeps the text and says why.
   if (form.nextElementSibling?.classList.contains('reply-error')) form.nextElementSibling.remove()
+  answersInFlight.add(form)
   try {
     await sendComment(comment)
     field.value = ''
@@ -290,6 +267,8 @@ async function submitAnswer(form: HTMLFormElement): Promise<void> {
     form.after(
       el('p', { className: 'reply-error', textContent: error instanceof Error ? error.message : String(error), attrs: { role: 'alert' } })
     )
+  } finally {
+    answersInFlight.delete(form)
   }
 }
 

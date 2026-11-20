@@ -37,7 +37,7 @@ export class Hub {
   /** The dev server's port: a batch belongs to this app when its comments were made on it. */
   private readonly port: string
 
-  /** `appRoot` and `port` are the dev server's: two apps in one repo each keep their own stack and thread. */
+  /** `appRoot` and `port` are the dev server's: two apps in one repo each keep their own thread and choices. */
   constructor(projectRoot: string, appRoot: string, port: number, broadcast: (state: PageState) => void) {
     this.broadcast = broadcast
     this.port = String(port)
@@ -221,7 +221,7 @@ export class Hub {
     this.broadcast(this.state)
   }
 
-  /** The saved stack and choices. Fields missing from an older file start empty; an unreadable file is reported. */
+  /** The saved choices. Fields missing from an older file start empty; an unreadable file is reported. */
   private load(): Saved {
     const empty: Saved = {
       pickedSessionId: null,
@@ -236,7 +236,7 @@ export class Hub {
       return { ...empty, ...saved }
     } catch (error) {
       console.warn(
-        `[design-in-browser] Starting with an empty comment stack: could not read ${this.savedFile} (${error instanceof Error ? error.message : String(error)}).`
+        `[design-in-browser] Starting without saved choices: could not read ${this.savedFile} (${error instanceof Error ? error.message : String(error)}).`
       )
       return empty
     }

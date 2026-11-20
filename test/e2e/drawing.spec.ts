@@ -62,7 +62,7 @@ test('draw a box and an arrow, then send them with a comment', async () => {
   await composer.locator('textarea').fill('Too much space between the cards')
   await composer.locator('textarea').press('Enter')
   await expect(composer).toBeHidden()
-  // The drawing stays on the page with its comment in the stack.
+  // The drawing stays on the page while its comment waits for the agent.
   await expect(page.locator('dib-overlay .ink .mark.saved')).toHaveCount(2)
   await page.keyboard.press('Escape')
 
@@ -228,4 +228,48 @@ test('marks of a sent comment move with their element when the dock pushes the p
   await expect(dock()).toBeVisible()
   expect((await card.boundingBox())!.x).toBeLessThan(drawnOn.x - 100)
   await expect.poll(offsetFromCard).toEqual(drawnAt)
+})
+
+test('an answered drawing stays on the page until the agent finishes its thread', async () => {
+  await page.goto(appUrl)
+  if (await dock().isVisible()) await dock().getByRole('button', { name: 'Close' }).click()
+  // Earlier tests' comments are still open, so their marks show too.
+  const marks = page.locator('dib-overlay .ink .mark.saved')
+  const before = await marks.count()
+  await page.keyboard.press('Alt+Shift+C')
+  await page.locator('dib-overlay .tools').getByRole('button', { name: 'Draw a box' }).click()
+  await drag({ x: 500, y: 300 }, { x: 640, y: 360 })
+  const composer = page.locator('dib-overlay .composer')
+  await composer.locator('textarea').fill('Make this stand out')
+  await composer.locator('textarea').press('Enter')
+  await expect(composer).toBeHidden()
+  await page.keyboard.press('Escape')
+  await expect(marks).toHaveCount(before + 1)
+
+  // Earlier tests left a batch unfetched: take batches until this one.
+  const fetchUntil = async (text: string): Promise<Batch> => {
+    for (;;) {
+      const batch = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
+      if (batch.comments[0]!.text === text) return batch
+    }
+  }
+  const drawn = await fetchUntil('Make this stand out')
+  await callTool(shim, 'live_reply', {
+    batchId: drawn.id,
+    replies: [{ commentId: drawn.comments[0]!.id, status: 'question', message: 'With a border, or a tinted background?' }],
+  })
+  await page.keyboard.press('Alt+Shift+D')
+  const field = dock().getByTestId('answer-field')
+  await field.fill('A tinted background')
+  await field.press('Enter')
+  const answer = await fetchUntil('A tinted background')
+  // Answered but not done: the drawing stays.
+  await expect(marks).toHaveCount(before + 1)
+
+  // The agent finishes the answer only, and the original keeps its question: the thread is done all the same.
+  await callTool(shim, 'live_reply', {
+    batchId: answer.id,
+    replies: [{ commentId: answer.comments[0]!.id, status: 'done', message: 'Tinted it.' }],
+  })
+  await expect(marks).toHaveCount(before)
 })

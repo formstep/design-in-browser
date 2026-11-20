@@ -107,6 +107,20 @@
   color: var(--ink-3);
 }
 
+/* Why the note didn't go: between the bar, which keeps the text, and the pill. */
+.ask-error {
+  width: min(560px, calc(100vw - 32px));
+  box-sizing: border-box;
+  margin: 0;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: var(--danger-tint);
+  color: var(--danger-ink);
+  font-size: 12px;
+  line-height: 17px;
+  pointer-events: auto;
+}
+
 /* A phone-width window: the pill keeps its tools and drops its extras, and sits above the dock's launcher. */
 @media (max-width: 560px) {
   .toolbar {

@@ -1,4 +1,4 @@
-// Comments end to end: pick an element, stack comments, send them, and see the agent's replies on the page
+// Comments end to end: pick an element, send a comment on Enter, and see the agent's replies on the page
 // and in the dock, including answering its questions and the session the dock sends to.
 import fs from 'node:fs'
 import path from 'node:path'

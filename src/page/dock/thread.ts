@@ -89,6 +89,8 @@ function answerForm(batch: Batch, comment: BatchComment): HTMLElement[] {
   // the reason if it can't be sent.
   const submit = async () => {
     const text = field.value.trim()
+    // The disabled button marks an answer on its way: Enter doesn't send it twice.
+    if (submitButton.disabled) return
     if (text === '') {
       field.focus()
       return

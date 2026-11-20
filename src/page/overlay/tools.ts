@@ -13,6 +13,7 @@ const toolbar = query<HTMLDivElement>(root, '.toolbar')
 const askbar = query<HTMLFormElement>(root, '.askbar')
 const askInput = query<HTMLInputElement>(root, '.askbar input')
 const askButton = query<HTMLButtonElement>(root, '.tool.ask')
+const askError = query<HTMLParagraphElement>(root, '.ask-error')
 
 export const isAskbarOpen = () => !askbar.hidden
 
@@ -25,6 +26,7 @@ function openAskbar(): void {
 
 export function closeAskbar(): void {
   askbar.hidden = true
+  askError.hidden = true
   askInput.value = ''
   askButton.setAttribute('aria-pressed', 'false')
 }
@@ -61,23 +63,27 @@ for (const button of root.querySelectorAll<HTMLButtonElement>('.draw-tool')) {
     startDrawing(button.dataset.tool === 'arrow' ? 'arrow' : button.dataset.tool === 'pen' ? 'pen' : 'box')
   })
 }
+/** True while a note is on its way, so a second Enter doesn't send it twice. */
+let asking = false
+
 askbar.addEventListener('submit', async (event) => {
   event.preventDefault()
   const text = askInput.value.trim()
-  if (text === '') return
+  if (text === '' || asking) return
+  asking = true
   closeAskbar()
   try {
     await sendComment(newComment({ text, page: capturePage(), element: null }))
   } catch (error) {
-    // The bar comes back with the text, and says why it wasn't sent.
+    // The bar comes back with the text, and says why it wasn't sent; Enter tries again.
     openAskbar()
     askInput.value = text
-    askInput.setCustomValidity(error instanceof Error ? error.message : String(error))
-    askInput.reportValidity()
+    askError.textContent = error instanceof Error ? error.message : String(error)
+    askError.hidden = false
+  } finally {
+    asking = false
   }
 })
-// A reason the last send failed goes once the text changes.
-askInput.addEventListener('input', () => askInput.setCustomValidity(''))
 keepKeys(askbar)
 
 onModeChange((mode) => {

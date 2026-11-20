@@ -143,6 +143,47 @@ test('a comment survives a send that fails while the dev server is down', async 
   await startAppServer()
 })
 
+test('an answer from the dock or a pin, and a dock message, keep their text and say why when the dev server is down', async () => {
+  await page.goto(appUrl)
+  await page.keyboard.press('Alt+Shift+C')
+  await page.locator('h1').click()
+  const composer = page.locator('dib-overlay .composer')
+  await composer.locator('textarea').fill('Bolder')
+  await composer.locator('textarea').press('Enter')
+  await expect(composer).toBeHidden()
+  await page.keyboard.press('Escape')
+  let batch = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
+  while (batch.comments[0]!.text !== 'Bolder') batch = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
+  await callTool(shim, 'live_reply', {
+    batchId: batch.id,
+    replies: [{ commentId: batch.comments[0]!.id, status: 'question', message: 'Heavier, or larger too?' }],
+  })
+  if (await page.locator('dib-dock .launcher').isVisible()) await page.locator('dib-dock .launcher').click()
+  const field = page.locator('dib-dock .dock').getByTestId('answer-field')
+  await expect(field).toBeVisible()
+
+  await stopAppServer()
+  await field.fill('Heavier only')
+  await field.press('Enter')
+  await expect(page.locator('dib-dock .answer-error')).toContainText('The dev server isn’t running', { timeout: 8000 })
+  await expect(field).toHaveValue('Heavier only')
+
+  const pin = page.locator('dib-overlay .pins .pin-wrap[data-status="question"]')
+  await pin.locator('.pin').click()
+  const pinField = pin.locator('textarea')
+  await pinField.fill('Larger too')
+  await pinField.press('Enter')
+  await expect(pin.locator('.reply-error')).toContainText('The dev server isn’t running')
+  await expect(pinField).toHaveValue('Larger too')
+
+  const message = page.locator('dib-dock .dock').getByTestId('message')
+  await message.fill('And the subtitle')
+  await message.press('Enter')
+  await expect(page.locator('dib-dock .dock').getByTestId('error')).toContainText('The dev server isn’t running')
+  await expect(message).toHaveValue('And the subtitle')
+  await startAppServer()
+})
+
 test('a build with a <Variants> group left in the code fails and says why', async () => {
   const { build } = await import('vite')
   process.env.DIB_BUILD_OUT = path.join(tmp, 'build-out')

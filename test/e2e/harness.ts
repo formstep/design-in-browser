@@ -89,7 +89,7 @@ export async function startShim(name: string, projectRoot: string): Promise<Clie
 
 export const dock = (target: Page = page) => target.locator('dib-dock .dock')
 
-/** Clicks an element while picking, types a comment and adds it to the stack. */
+/** Clicks an element while picking, types a comment and sends it with Enter. */
 export async function comment(selector: string, text: string): Promise<void> {
   await page.locator(selector).first().click()
   const composer = page.locator('dib-overlay .composer')

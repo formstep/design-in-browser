@@ -1,4 +1,4 @@
-// The Vite plugin's hub keeps the comment stack and the user's choices in .design-in-browser/page-state.<app>.json.
+// The Vite plugin's hub keeps the user's choices in .design-in-browser/page-state.<app>.json.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'

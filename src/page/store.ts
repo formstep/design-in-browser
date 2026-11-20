@@ -116,12 +116,18 @@ const SEND_TIMEOUT_MS = 15_000
  * Sends one comment to the agent session now, as its own batch. Resolves once the daemon has it; rejects with what
  * to do otherwise (no session, an older dev server, a lost connection), so the caller keeps the text and says why.
  */
-export async function sendComment(comment: DraftComment): Promise<void> {
-  if (!devServerUp) throw new Error(DEV_SERVER_DOWN)
-  if (pluginOutdated()) throw new Error('This dev server still runs an older design-in-browser. Restart it, then send again.')
+/** The session a comment goes to now, or why none can take it. */
+export function sendTarget(): { session: SessionInfo } | { blocked: string } {
+  if (!devServerUp) return { blocked: DEV_SERVER_DOWN }
+  if (pluginOutdated()) return { blocked: 'This dev server still runs an older design-in-browser. Restart it, then send again.' }
   const session = connectedSession()
-  if (!session) {
-    throw new Error(`No agent session is connected to send to. Connect one (in Claude Code: ${START_COMMAND}), then send again.`)
-  }
-  await sendOp({ type: 'send-comment', sessionId: session.id, comment }, SEND_TIMEOUT_MS)
+  if (!session)
+    return { blocked: `No agent session is connected to send to. Connect one (in Claude Code: ${START_COMMAND}), then send again.` }
+  return { session }
+}
+
+export async function sendComment(comment: DraftComment): Promise<void> {
+  const target = sendTarget()
+  if ('blocked' in target) throw new Error(target.blocked)
+  await sendOp({ type: 'send-comment', sessionId: target.session.id, comment }, SEND_TIMEOUT_MS)
 }

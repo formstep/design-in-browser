@@ -71,7 +71,6 @@ export type PageOp =
 export type OpRequest = { id: string; op: PageOp }
 export type OpAck = { id: string; ok: true } | { id: string; ok: false; error: string }
 
-/** The comments a send takes: the stack, less any left empty. */
 /** True when one project root contains the other, or they are the same folder. */
 export function sameProject(a: string, b: string): boolean {
   const trim = (value: string) => value.replace(/[\\/]+$/, '')
