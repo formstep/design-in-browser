@@ -35,3 +35,21 @@ export function answeredIds(draft: DraftComment[], batches: Batch[]): Set<string
     if (comment.inReplyTo) ids.add(comment.inReplyTo.commentId)
   return ids
 }
+
+/** The pick of a `<Variants>` group, sent or still in the stack: once there is one, its alternatives are settled. */
+export function pickOf(group: string, draft: DraftComment[], batches: Batch[]): PickIntent | null {
+  for (const comment of [...draft, ...batches.flatMap((batch) => batch.comments)])
+    if (isPick(comment) && comment.intent.group === group) return comment.intent
+  return null
+}
+
+/**
+ * The agent's question or note no longer waits on the user: answered, dismissed, or (for alternatives) picked. The
+ * comment keeps its reply in the dock but loses its pin on the page.
+ */
+export function settled(comment: BatchComment, state: { draft: DraftComment[]; batches: Batch[]; dismissed: string[] }): boolean {
+  if (comment.status === 'done' || comment.status === 'skipped') return true
+  if (state.dismissed.includes(comment.id)) return true
+  if (comment.status === 'variants') return comment.group !== undefined && pickOf(comment.group, state.draft, state.batches) !== null
+  return false
+}

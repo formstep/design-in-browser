@@ -196,3 +196,34 @@ test('a screenshot of a dark page keeps its dark background', async () => {
   const { jpeg } = await batchWithScreenshot()
   for (const channel of await pixelOf(jpeg, 4, 4)) expect(channel).toBeLessThan(20)
 })
+
+test('marks of a comment in the stack move with their element when the dock pushes the page', async () => {
+  await page.goto(appUrl)
+  if (await dock().isVisible()) await dock().getByRole('button', { name: 'Close' }).click()
+  // Centred cards move when the page gets narrower; left-aligned ones would not show it.
+  await page.evaluate(() => {
+    document.querySelector<HTMLElement>('.plans')!.style.justifyContent = 'center'
+  })
+  const card = page.locator('.plan').first()
+  const drawnOn = (await card.boundingBox())!
+  await page.keyboard.press('Alt+Shift+C')
+  await page.locator('dib-overlay .tools').getByRole('button', { name: 'Draw a box' }).click()
+  await drag({ x: drawnOn.x + 12, y: drawnOn.y + 50 }, { x: drawnOn.x + drawnOn.width - 12, y: drawnOn.y + 120 })
+  const composer = page.locator('dib-overlay .composer')
+  await composer.locator('textarea').fill('Less padding in this card')
+  await composer.locator('textarea').press('Enter')
+  await expect(composer).toBeHidden()
+  await page.keyboard.press('Escape')
+
+  const mark = page.locator('dib-overlay .ink rect.mark.saved')
+  const offsetFromCard = async () => {
+    const markBox = (await mark.boundingBox())!
+    const cardBox = (await card.boundingBox())!
+    return { x: Math.round(markBox.x - cardBox.x), y: Math.round(markBox.y - cardBox.y) }
+  }
+  const drawnAt = await offsetFromCard()
+  await page.keyboard.press('Alt+Shift+D')
+  await expect(dock()).toBeVisible()
+  expect((await card.boundingBox())!.x).toBeLessThan(drawnOn.x - 100)
+  await expect.poll(offsetFromCard).toEqual(drawnAt)
+})

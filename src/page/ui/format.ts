@@ -8,3 +8,14 @@ export function when(iso: string): string {
 }
 
 export const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
+
+/**
+ * How an element is named to the user: its tag and its text (`button “Start free”`), or, with no text, its tag with
+ * its id or first class (`img.logo`). Class lists and paths are for the agent, which gets them in full.
+ */
+export function elementName(element: { tag: string; id: string | null; classes: string[]; text: string }): string {
+  if (element.text) return `${element.tag} “${element.text}”`
+  if (element.id) return `${element.tag}#${element.id}`
+  const [first] = element.classes
+  return first ? `${element.tag}.${first}` : element.tag
+}

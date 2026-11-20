@@ -4,10 +4,10 @@
 import { SOURCE_ATTRIBUTE } from '../../shared/page-protocol.ts'
 import type { Batch, BatchComment, CommentStatus, DraftComment, ElementRef, InReplyTo, NoteAnchor, PageRef } from '../../shared/protocol.ts'
 import { captureElement, samePage } from '../capture.ts'
-import { answeredIds, answering, isPick, newComment } from '../comments.ts'
+import { answeredIds, answering, isPick, newComment, settled } from '../comments.ts'
 import { icon } from '../icons.ts'
 import { agentName, defaultSession, readState, sendOp, type PageState } from '../store.ts'
-import { el, query } from '../ui/dom.ts'
+import { el, findBySelector, query } from '../ui/dom.ts'
 import { keepKeys } from '../ui/events.ts'
 import { when } from '../ui/format.ts'
 import { clamp, pointOn, type Point } from '../ui/geometry.ts'
@@ -40,6 +40,8 @@ type PinModel = {
   /** Set when the pin can take an answer from here. */
   answer: Answering | null
   draftId: string | null
+  /** An open question or a note: the user can dismiss it instead of answering. */
+  dismissable: boolean
 }
 
 const statusLabel: Record<PinStatus, string> = {
@@ -66,24 +68,15 @@ const statusGlyph: Record<Exclude<PinStatus, 'draft'>, string> = {
 const pins = query<HTMLDivElement>(root, '.pins')
 let models = new Map<string, PinModel>()
 
-/** The element a selector names now, if any; a selector that no longer parses finds nothing. */
-function find(selector: string): Element | null {
-  try {
-    return document.querySelector(selector)
-  } catch {
-    return null
-  }
-}
-
 function findAnchor(anchor: NoteAnchor): Element | null {
-  const bySource = 'source' in anchor ? find(`[${SOURCE_ATTRIBUTE}="${CSS.escape(anchor.source)}"]`) : null
-  return bySource ?? (anchor.selector ? find(anchor.selector) : null)
+  const bySource = 'source' in anchor ? findBySelector(`[${SOURCE_ATTRIBUTE}="${CSS.escape(anchor.source)}"]`) : null
+  return bySource ?? (anchor.selector ? findBySelector(anchor.selector) : null)
 }
 
 /** Where a comment's pin goes: the element the user clicked, or the element an agent's note points at. */
 function placeOf(comment: DraftComment & { anchor?: NoteAnchor }): Pick<PinModel, 'find' | 'offset'> | null {
   const { element, anchor } = comment
-  if (element) return { find: () => find(element.selector), offset: element.clickOffset }
+  if (element) return { find: () => findBySelector(element.selector), offset: element.clickOffset }
   if (anchor) return { find: () => findAnchor(anchor), offset: undefined }
   return null
 }
@@ -112,11 +105,9 @@ function sentPin(
         ? { inReplyTo: answering(batch, comment), element: comment.element, page: comment.page }
         : null,
     draftId: null,
+    dismissable: isOpenQuestion || comment.status === 'note',
   }
 }
-
-/** A comment the agent finished (done or skipped) needs nothing more from the user: its reply stays in the dock. */
-const finished = (comment: BatchComment) => comment.status === 'done' || comment.status === 'skipped'
 
 /** Alternatives the agent put on this page: their switcher stands in for the pin, which would sit on top of them. */
 const switcherShows = (comment: BatchComment) =>
@@ -145,6 +136,7 @@ function pinsForThisPage(state: PageState): PinModel[] {
             reply: null,
             answer: null,
             draftId: comment.id,
+            dismissable: false,
           },
         ]
       : []
@@ -152,7 +144,8 @@ function pinsForThisPage(state: PageState): PinModel[] {
   const sent = state.batches.flatMap((batch) =>
     batch.comments.flatMap((comment) => {
       const place = placeOf(comment)
-      return place && onThisPage(comment) && !finished(comment) && !switcherShows(comment)
+      // Settled comments (done, skipped, dismissed, picked) leave the page; their replies stay in the dock.
+      return place && onThisPage(comment) && !settled(comment, state) && !switcherShows(comment)
         ? [sentPin(batch, comment, place, answered, ownProject)]
         : []
     })
@@ -170,7 +163,8 @@ function buildThread(pin: PinModel, thread: HTMLElement): void {
     ])
     thread.replaceChildren(
       el('div', { className: 'entry agent' }, [head, el('p', { className: 'entry-text', textContent: pin.reply ?? '' })]),
-      ...answerField(pin)
+      ...answerField(pin),
+      ...dismissButton(pin)
     )
     return
   }
@@ -196,7 +190,19 @@ function buildThread(pin: PinModel, thread: HTMLElement): void {
       ])
     )
   }
-  thread.replaceChildren(...parts, ...answerField(pin))
+  thread.replaceChildren(...parts, ...answerField(pin), ...dismissButton(pin))
+}
+
+/** Closes an open question or a note without answering: the pin leaves the page, the reply stays in the dock. */
+function dismissButton(pin: PinModel): HTMLElement[] {
+  if (!pin.dismissable) return []
+  return [
+    el('button', {
+      className: 'dismiss',
+      textContent: 'Dismiss',
+      attrs: { type: 'button', 'data-action': 'dismiss', 'data-key': pin.key },
+    }),
+  ]
 }
 
 /** The field under an open question, when this page can take the answer. */
@@ -228,7 +234,7 @@ export function renderPins(): void {
     const thread = query<HTMLElement>(wrap, '.thread')
     // A thread being typed into is left alone until it is done.
     const typing = wrap.contains(root.activeElement) && root.activeElement instanceof HTMLTextAreaElement
-    const signature = JSON.stringify([pin.status, pin.number, pin.text, pin.reply, pin.answer !== null, pin.agent])
+    const signature = JSON.stringify([pin.status, pin.number, pin.text, pin.reply, pin.answer !== null, pin.agent, pin.dismissable])
     if (wrap.dataset.signature !== signature && !typing) {
       wrap.dataset.signature = signature
       wrap.dataset.status = pin.status
@@ -297,6 +303,11 @@ pins.addEventListener('click', (event) => {
   if (pinButton?.parentElement) {
     closeThreads(pinButton.parentElement)
     pinButton.parentElement.classList.toggle('open')
+    return
+  }
+  const dismiss = clicked.closest<HTMLButtonElement>('[data-action="dismiss"]')
+  if (dismiss?.dataset.key) {
+    void sendOp({ type: 'dismiss', commentId: dismiss.dataset.key })
     return
   }
   const remove = clicked.closest<HTMLButtonElement>('[data-action="remove"]')

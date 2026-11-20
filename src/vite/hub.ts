@@ -13,7 +13,7 @@ import { ensureJournal } from '../node/journal.ts'
 const RETRY_MS = 2000
 const KEEPALIVE_MS = 20_000
 
-type Saved = Pick<PageState, 'draft' | 'pickedSessionId' | 'sendOnAdd' | 'variantChoices' | 'tweakValues'>
+type Saved = Pick<PageState, 'draft' | 'pickedSessionId' | 'sendOnAdd' | 'variantChoices' | 'tweakValues' | 'dismissed'>
 
 export class Hub {
   readonly state: PageState
@@ -44,6 +44,7 @@ export class Hub {
       sendOnAdd: saved.sendOnAdd,
       variantChoices: saved.variantChoices,
       tweakValues: saved.tweakValues,
+      dismissed: saved.dismissed,
     }
   }
 
@@ -79,6 +80,9 @@ export class Hub {
         return null
       case 'set-send-on-add':
         this.update({ sendOnAdd: op.value }, true)
+        return null
+      case 'dismiss':
+        if (!this.state.dismissed.includes(op.commentId)) this.update({ dismissed: [...this.state.dismissed, op.commentId] }, true)
         return null
       case 'show-variant':
         this.update({ variantChoices: { ...this.state.variantChoices, [op.group]: op.index } }, true)
@@ -207,7 +211,7 @@ export class Hub {
 
   /** The saved stack and choices. Fields missing from an older file start empty; an unreadable file is reported. */
   private load(): Saved {
-    const empty: Saved = { draft: [], pickedSessionId: null, sendOnAdd: false, variantChoices: {}, tweakValues: {} }
+    const empty: Saved = { draft: [], pickedSessionId: null, sendOnAdd: false, variantChoices: {}, tweakValues: {}, dismissed: [] }
     if (!fs.existsSync(this.savedFile)) return empty
     try {
       const saved = JSON.parse(fs.readFileSync(this.savedFile, 'utf8')) as Partial<Saved>
@@ -222,11 +226,11 @@ export class Hub {
 
   private save(): void {
     ensureJournal(this.state.projectRoot)
-    const { draft, pickedSessionId, sendOnAdd, variantChoices, tweakValues } = this.state
+    const { draft, pickedSessionId, sendOnAdd, variantChoices, tweakValues, dismissed } = this.state
     const tmp = `${this.savedFile}.tmp`
     fs.writeFileSync(
       tmp,
-      JSON.stringify({ draft, pickedSessionId, sendOnAdd, variantChoices, tweakValues } satisfies Saved, null, 2) + '\n'
+      JSON.stringify({ draft, pickedSessionId, sendOnAdd, variantChoices, tweakValues, dismissed } satisfies Saved, null, 2) + '\n'
     )
     fs.renameSync(tmp, this.savedFile)
   }

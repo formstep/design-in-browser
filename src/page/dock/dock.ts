@@ -4,7 +4,7 @@
 // Lists are rebuilt only when their data changes, so the periodic render never wipes text being typed.
 import { START_COMMAND, type SessionInfo } from '../../shared/protocol.ts'
 import { capturePage } from '../capture.ts'
-import { newComment } from '../comments.ts'
+import { isPick, newComment } from '../comments.ts'
 import { fillIcons } from '../icons.ts'
 import { isPicking, onModeChange, togglePicker } from '../overlay/mode.ts'
 import { agentName, defaultSession, onStateChange, readState, sendable, sendOp, type PageState } from '../store.ts'
@@ -331,11 +331,13 @@ let atEnd = true
 
 function renderTurns(state: PageState): void {
   const answered = answerPlaces(state)
-  const signature = JSON.stringify([state.batches, [...answered]])
+  // Picks in the stack settle alternatives, so the draft's picks count too.
+  const picks = state.draft.filter(isPick).map((comment) => comment.id)
+  const signature = JSON.stringify([state.batches, [...answered], state.dismissed, picks])
   if (signature === renderedTurns) return
   renderedTurns = signature
   const focused = root.activeElement instanceof HTMLTextAreaElement ? root.activeElement.dataset.answer : undefined
-  turnList.replaceChildren(...turns(state.batches, answered))
+  turnList.replaceChildren(...turns({ answered, state }))
   if (focused) turnList.querySelector<HTMLTextAreaElement>(`textarea[data-answer="${CSS.escape(focused)}"]`)?.focus()
   if (scrollToEnd) atEnd = true
   scrollToEnd = false
@@ -353,6 +355,16 @@ new ResizeObserver(keepEnd).observe(turnList)
 
 // --- render ----------------------------------------------------------------------------
 
+/** How each known agent starts listening again, by the name the dock shows for it. */
+const LISTEN_COMMAND: Record<string, string> = { Claude: START_COMMAND, OpenCode: '/design-in-browser' }
+
+/** Why sending won't wake the agent now, and how the user gets it listening again. */
+function notListening(agent: string): string {
+  const command = LISTEN_COMMAND[agent]
+  const fix = command ? `Run ${command} in its session to wake it.` : 'Ask it to listen again.'
+  return `${agent} isn’t listening. What you send waits until it’s back. ${fix}`
+}
+
 function render(): void {
   const state = readState()
   const session = defaultSession(state)
@@ -367,7 +379,7 @@ function render(): void {
   notice.hidden = !unmatched && (!connected || session.listening)
   notice.textContent = unmatched
     ? 'No agent session is working on this project. Choose one above to send to it.'
-    : `${agentName(state)} isn’t listening right now. What you send waits until it’s back.`
+    : notListening(agentName(state))
 
   renderComposer(state, session, connected)
   renderIntro(state, session)

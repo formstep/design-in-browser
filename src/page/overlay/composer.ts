@@ -1,10 +1,11 @@
 // The comment card: opens beside a pin at the clicked point, takes a comment or a request for alternatives,
 // and adds it to the stack (or sends it, with "Send to <agent>" ticked).
 import { START_COMMAND, type Mark } from '../../shared/protocol.ts'
-import { captureElement, capturePage, label, visibleText } from '../capture.ts'
+import { captureElement, capturePage, visibleText } from '../capture.ts'
 import { newComment } from '../comments.ts'
 import { addComment, agentName, connectedSession, readState, sendOp } from '../store.ts'
 import { query } from '../ui/dom.ts'
+import { elementName } from '../ui/format.ts'
 import { keepKeys, submitOnEnter } from '../ui/events.ts'
 import { clamp, pointOn } from '../ui/geometry.ts'
 import { usableWidth } from '../ui/layout.ts'
@@ -58,8 +59,12 @@ function updateHint(): void {
 function showTarget(element: Element): void {
   const text = document.createElement('span')
   text.className = 'target-text'
-  const snippet = visibleText(element).slice(0, 60)
-  text.textContent = snippet ? `${label(element)} · “${snippet}”` : label(element)
+  text.textContent = elementName({
+    tag: element.localName,
+    id: element.id || null,
+    classes: [...element.classList],
+    text: visibleText(element).slice(0, 60),
+  })
   target.replaceChildren(text)
 }
 
@@ -144,7 +149,7 @@ export function renderComposer(): void {
   if (agent !== namedAgent) {
     namedAgent = agent
     chip.textContent = `@${agent}`
-    checkText.textContent = `Send to ${agent}`
+    checkText.textContent = 'Send right away'
     textarea.setAttribute('aria-label', `Comment for ${agent}`)
   }
   if (!composer.hidden) textarea.style.textIndent = `${chip.offsetWidth + 7}px`

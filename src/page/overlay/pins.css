@@ -206,3 +206,20 @@
   color: #fff;
   cursor: pointer;
 }
+
+/* Dismiss: closes a question or note without answering it. Quiet, since answering is the way forward. */
+.dismiss {
+  margin-top: 6px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font: 12px/18px var(--font);
+  cursor: pointer;
+}
+
+.dismiss:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

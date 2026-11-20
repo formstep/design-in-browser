@@ -204,4 +204,15 @@ test('alternatives: ask for them, comment on a version, and see the agent hand t
   await expect(dock().getByTestId('show-group')).toHaveCount(1)
   // Its switcher stands for the alternatives on the page, so the comment's pin steps aside instead of covering them.
   await expect(page.locator('dib-overlay .pins .pin-wrap[data-status="variants"]')).toHaveCount(0)
+
+  // Once picked, the alternatives are settled: the dock says which, with no link left to follow, and no pin comes
+  // back when the agent removes the group.
+  const planCta = page.locator('dib-overlay .variant[data-group="plan-cta"]')
+  await planCta.hover()
+  await planCta.getByRole('button', { name: 'Keep before' }).click()
+  await expect(dock().getByTestId('show-group')).toHaveCount(0)
+  await expect(dock().getByTestId('sent')).toContainText('You picked “Before”.')
+  await page.evaluate(() => document.querySelector('dib-variants[data-group="plan-cta"]')?.remove())
+  await page.waitForTimeout(1000)
+  await expect(page.locator('dib-overlay .pins .pin-wrap[data-status="variants"]')).toHaveCount(0)
 })

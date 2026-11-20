@@ -109,3 +109,26 @@ test('finished comments drop their pins, and the rest hide from the header until
   await expect(dock().getByTestId('markers')).toHaveAttribute('aria-pressed', 'false')
   await page.keyboard.press('Escape')
 })
+
+test('dismiss a question from the dock and a note from its pin, without answering', async () => {
+  const dismiss = dock().getByTestId('dismiss')
+  await expect(dismiss).toHaveCount(1)
+  await dismiss.click()
+  await expect(dock().getByTestId('sent')).toContainText('Dismissed.')
+  await expect(dock().getByTestId('answer-field')).toHaveCount(0)
+  await expect(page.locator('dib-overlay .pins .pin-wrap[data-status="question"]')).toHaveCount(0)
+
+  await callTool(shim, 'live_note', {
+    url: page.url(),
+    notes: [{ selector: '.lede', note: 'This line now wraps at 60 characters.' }],
+  })
+  const note = page.locator('dib-overlay .pins .pin-wrap[data-status="note"]:not([hidden])')
+  await note.locator('.pin').click()
+  await note.getByRole('button', { name: 'Dismiss' }).click()
+  await expect(note).toHaveCount(0)
+
+  // Dismissals are kept with the comment stack, so a reload (or another tab) agrees.
+  await page.reload()
+  await expect(dock().getByTestId('dismiss')).toHaveCount(0)
+  await expect(page.locator('dib-overlay .pins .pin-wrap:not([hidden])')).toHaveCount(0)
+})

@@ -1,11 +1,14 @@
 // The dock's thread: each sent batch is your message, and the agent's numbered replies follow it, with a field
-// under each question to answer it and a link from alternatives to their switcher on the page.
+// under each question to answer it (or dismiss it) and a link from alternatives to their switcher on the page.
 import type { Batch, BatchComment, DraftComment } from '../../shared/protocol.ts'
-import { answering, newComment } from '../comments.ts'
+import { answering, newComment, pickOf } from '../comments.ts'
 import { sendOp, type PageState } from '../store.ts'
 import { button, el, iconNode } from '../ui/dom.ts'
 import { submitOnEnter } from '../ui/events.ts'
-import { when } from '../ui/format.ts'
+import { elementName, when } from '../ui/format.ts'
+
+/** What the replies need besides their own batch: answers given, dismissals, and picks of alternatives. */
+export type ThreadContext = { answered: Map<string, string>; state: Pick<PageState, 'draft' | 'batches' | 'dismissed'> }
 
 const statusWord: Record<BatchComment['status'], string> = {
   pending: 'Waiting',
@@ -19,25 +22,21 @@ const statusWord: Record<BatchComment['status'], string> = {
 /** Answers being typed under the agent's questions, by comment id. Kept outside the DOM so a rebuild keeps them. */
 const answerDrafts = new Map<string, string>()
 
-/** Where a comment points: the element and its text, or the page, plus the route. */
+/** Where a comment points: the element by its text, or the page; the route only when it isn't this page. */
 export function where(comment: DraftComment): string {
   const path = new URL(comment.page.url).pathname
   const marks = comment.marks?.length ?? 0
   const drawn = marks === 0 ? '' : marks === 1 ? 'A mark on ' : `${marks} marks on `
-  if (!comment.element) return `${drawn}Page · ${path}`
-  const { tag, id, classes, text } = comment.element
-  const name = `${tag}${id ? `#${id}` : ''}${classes
-    .slice(0, 1)
-    .map((entry) => `.${entry}`)
-    .join('')}`
-  return drawn + [name, text ? `“${text}”` : '', path].filter(Boolean).join(' · ')
+  const target = comment.element ? elementName(comment.element) : drawn ? 'the page' : 'The page'
+  return `${drawn}${target}${path === location.pathname ? '' : ` · ${path}`}`
 }
 
 /** Where each question's answer is: in the composer, or sent in a batch. */
 export function answerPlaces(state: PageState): Map<string, string> {
   const found = new Map<string, string>()
   for (const batch of state.batches) {
-    for (const comment of batch.comments) if (comment.inReplyTo) found.set(comment.inReplyTo.commentId, `Answered in batch ${batch.id}.`)
+    for (const comment of batch.comments)
+      if (comment.inReplyTo) found.set(comment.inReplyTo.commentId, `You answered at ${when(batch.createdAt)}.`)
   }
   for (const comment of state.draft)
     if (comment.inReplyTo) found.set(comment.inReplyTo.commentId, 'Your answer is in the composer, ready to send.')
@@ -90,11 +89,22 @@ function answerForm(batch: Batch, comment: BatchComment): HTMLFormElement {
   return form
 }
 
+/** Closes a question or note without answering it: its pin leaves the page. The agent isn't told. */
+function dismissButton(comment: BatchComment, index: number): HTMLElement {
+  const dismiss = button({
+    className: 'dismiss',
+    textContent: 'Dismiss',
+    attrs: { 'aria-label': `Dismiss ${comment.status === 'question' ? 'question' : 'note'} ${index + 1}`, 'data-testid': 'dismiss' },
+  })
+  dismiss.addEventListener('click', () => void sendOp({ type: 'dismiss', commentId: comment.id }))
+  return dismiss
+}
+
 /** Where an agent's note points, as the agent named it. */
 const anchorText = (comment: BatchComment) =>
   comment.anchor ? ('source' in comment.anchor ? comment.anchor.source : comment.anchor.selector) : ''
 
-function reply(batch: Batch, comment: BatchComment, index: number, answered: Map<string, string>): HTMLElement {
+function reply(batch: Batch, comment: BatchComment, index: number, { answered, state }: ThreadContext): HTMLElement {
   // The numbered disc ties a reply to its comment; only a question or a skip gets a visible label. A note says
   // where it is, since there is no comment of yours above it.
   const label =
@@ -105,24 +115,32 @@ function reply(batch: Batch, comment: BatchComment, index: number, answered: Map
           textContent: batch.from === 'agent' ? `${statusWord[comment.status]} · ${anchorText(comment)}` : statusWord[comment.status],
         })
   const body = el('div', {}, [label, el('p', { className: 'reply-text', textContent: comment.reply ?? '' })])
+  const followup = (text: string) => el('p', { className: 'followup', textContent: text })
+  const dismissed = state.dismissed.includes(comment.id)
   if (comment.status === 'question') {
-    const followup = answered.get(comment.id)
-    body.append(followup ? el('p', { className: 'followup', textContent: followup }) : answerForm(batch, comment))
+    const answer = answered.get(comment.id)
+    if (answer) body.append(followup(answer))
+    else if (dismissed) body.append(followup('Dismissed.'))
+    else body.append(answerForm(batch, comment), dismissButton(comment, index))
   }
-  if (comment.status === 'variants' && comment.group) body.append(showOnPage(comment.group))
+  if (comment.status === 'note') body.append(dismissed ? followup('Dismissed.') : dismissButton(comment, index))
+  if (comment.status === 'variants' && comment.group) {
+    const pick = pickOf(comment.group, state.draft, state.batches)
+    body.append(pick ? followup(`You picked “${pick.label}”.`) : showOnPage(comment.group))
+  }
   return el('li', { className: 'reply', attrs: { 'data-status': comment.status } }, [
     el('span', { className: 'num', textContent: String(index + 1) }),
     body,
   ])
 }
 
-function agentSide(batch: Batch, answered: Map<string, string>): HTMLElement {
+function agentSide(batch: Batch, context: ThreadContext): HTMLElement {
   const side = el('div', { className: 'agent' })
   if (batch.status === 'queued') {
     side.append(el('p', { className: 'waiting', textContent: `Waiting for ${batch.agent}` }))
     return side
   }
-  const replied = batch.comments.flatMap((comment, index) => (comment.status === 'pending' ? [] : [reply(batch, comment, index, answered)]))
+  const replied = batch.comments.flatMap((comment, index) => (comment.status === 'pending' ? [] : [reply(batch, comment, index, context)]))
   if (replied.length > 0) side.append(el('ol', { className: 'replies' }, replied))
   if (batch.status === 'fetched')
     side.append(el('p', { className: 'working', textContent: replied.length > 0 ? 'Working on the rest' : 'Working on it' }))
@@ -142,31 +160,31 @@ function yourSide(batch: Batch): HTMLElement {
   )
   return el('div', { className: 'you' }, [
     el('div', { className: 'bubble' }, [el('ol', { className: 'bubble-comments' }, comments)]),
-    el('p', { className: 'meta', textContent: `Batch ${batch.id} · ${when(batch.createdAt)}` }),
+    el('p', { className: 'meta', textContent: `Sent ${when(batch.createdAt)}` }),
   ])
 }
 
 /** Notes the agent left: no message of yours, just the agent's notes under a line saying when. */
-function notesSide(batch: Batch, answered: Map<string, string>): HTMLElement {
+function notesSide(batch: Batch, context: ThreadContext): HTMLElement {
   return el('div', { className: 'agent' }, [
     el('p', { className: 'meta notes-meta', textContent: `Notes from ${batch.agent} · ${when(batch.createdAt)}` }),
     el(
       'ol',
       { className: 'replies' },
-      batch.comments.map((comment, index) => reply(batch, comment, index, answered))
+      batch.comments.map((comment, index) => reply(batch, comment, index, context))
     ),
   ])
 }
 
 /** One article per batch, oldest first. */
-export function turns(batches: Batch[], answered: Map<string, string>): HTMLElement[] {
-  return [...batches]
+export function turns(context: ThreadContext): HTMLElement[] {
+  return [...context.state.batches]
     .reverse()
     .map((batch) =>
       el(
         'article',
         { className: 'turn', attrs: { 'data-batch': batch.id, 'data-from': batch.from } },
-        batch.from === 'agent' ? [notesSide(batch, answered)] : [yourSide(batch), agentSide(batch, answered)]
+        batch.from === 'agent' ? [notesSide(batch, context)] : [yourSide(batch), agentSide(batch, context)]
       )
     )
 }

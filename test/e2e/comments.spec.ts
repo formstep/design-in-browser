@@ -35,9 +35,9 @@ test('pick, comment, send, and see the reply on the page', async () => {
   await page.keyboard.press('Alt+Shift+C')
   await expect(page.locator('dib-overlay .tools')).toBeVisible()
   await page.locator('h1').click()
-  await expect(page.locator('dib-overlay .composer .target')).toContainText('h1 · “Simple pricing”')
+  await expect(page.locator('dib-overlay .composer .target')).toContainText('h1 “Simple pricing”')
   await page.locator('[data-testid="starter-cta"]').click()
-  await expect(page.locator('dib-overlay .composer .target')).toContainText('button.cta')
+  await expect(page.locator('dib-overlay .composer .target')).toContainText('button “Start free”')
   await expect(page.locator('#clicks')).toHaveText('0')
   await page.keyboard.press('Escape')
 
@@ -134,11 +134,11 @@ test('the Ask bar, Send to the agent, and a dock message all reach the agent', a
   await page.locator('dib-overlay .askbar input').press('Enter')
   await expect(page.locator('dib-overlay .askbar')).toBeHidden()
 
-  // Ticking "Send to Claude" sends the whole stack with the new comment.
+  // Ticking "Send right away" sends the whole stack with the new comment.
   const before = doorbells.length
   await page.locator('.lede').click()
   const composer = page.locator('dib-overlay .composer')
-  await expect(composer.locator('.check')).toHaveText('Send to Claude')
+  await expect(composer.locator('.check')).toHaveText('Send right away')
   await composer.locator('.send-on-add').check()
   await composer.locator('textarea').fill('Shorter subtitle')
   await composer.locator('textarea').press('Enter')

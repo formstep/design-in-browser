@@ -26,6 +26,7 @@ const initial: PageState = {
   sendOnAdd: false,
   variantChoices: {},
   tweakValues: {},
+  dismissed: [],
 }
 
 let current: PageState = initial

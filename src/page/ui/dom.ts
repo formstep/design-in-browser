@@ -40,3 +40,12 @@ export function query<T extends Element>(root: ParentNode, selector: string): T 
   if (!found) throw new Error(`design-in-browser: no ${selector} in its own markup`)
   return found
 }
+
+/** The element a selector from a saved comment names now, if any; a selector that no longer parses finds nothing. */
+export function findBySelector(selector: string): Element | null {
+  try {
+    return document.querySelector(selector)
+  } catch {
+    return null
+  }
+}

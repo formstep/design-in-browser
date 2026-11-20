@@ -1,10 +1,10 @@
 // Drawing on the page: boxes, arrows and pen strokes on a layer over the window. The first mark opens a comment
 // card beside it; more marks join the same comment until it is added. Marks of comments still in the stack stay
 // drawn on their page.
-import type { Mark, PagePoint } from '../../shared/protocol.ts'
+import type { DraftComment, Mark, PagePoint } from '../../shared/protocol.ts'
 import { samePage } from '../capture.ts'
 import { readState } from '../store.ts'
-import { query } from '../ui/dom.ts'
+import { findBySelector, query } from '../ui/dom.ts'
 import { isUiHost } from '../ui/layout.ts'
 import { markersHidden } from '../ui/markers.ts'
 import { openComposer } from './composer.ts'
@@ -73,6 +73,30 @@ function addMark(mark: Mark): void {
   openComposer({ element, offset: { x: corner.x - box.left, y: corner.y - box.top }, marks, after: { kind: 'drawing', tool } })
 }
 
+/**
+ * How far a stacked comment's marks have to move to sit on their element again. Marks are kept in page coordinates,
+ * so when the page reflows (the dock opening, a resize) the element moves away from them; the comment's click offset
+ * is where the marks' top-right corner was on the element.
+ */
+function driftOf(comment: DraftComment): { x: number; y: number } {
+  const { element, marks } = comment
+  const offset = element?.clickOffset
+  const found = element && offset && marks?.length ? findBySelector(element.selector) : null
+  if (!offset || !marks?.length || !found) return { x: 0, y: 0 }
+  const box = found.getBoundingClientRect()
+  const corner = cornerOf(marks)
+  return { x: box.left + offset.x - corner.x, y: box.top + offset.y - corner.y }
+}
+
+/** A stacked comment's marks, moved with their element. */
+function savedMarks(comment: DraftComment): SVGElement {
+  const { x, y } = driftOf(comment)
+  const group = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+  group.setAttribute('transform', `translate(${x} ${y})`)
+  group.append(...(comment.marks ?? []).map((mark) => drawMark(mark, 'mark saved')))
+  return group
+}
+
 /** Draws the marks of the comment being written, the one being drawn, and those of comments in the stack. */
 export function renderMarks(): void {
   ink.classList.toggle('active', acceptsMarks())
@@ -81,7 +105,7 @@ export function renderMarks(): void {
   const current = mode.kind === 'commenting' ? mode.marks : []
   const drawing = stroke ? markOf(stroke) : null
   ink.replaceChildren(
-    ...drafts.flatMap((comment) => (comment.marks ?? []).map((mark) => drawMark(mark, 'mark saved'))),
+    ...drafts.map(savedMarks),
     ...current.map((mark) => drawMark(mark, 'mark')),
     ...(drawing ? [drawMark(drawing, 'mark')] : [])
   )
