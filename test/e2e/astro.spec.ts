@@ -38,7 +38,7 @@ test('an Astro page gets the overlay, and its island is located in the server HT
   await page.goto(siteUrl)
   await expect(page.locator('dib-overlay')).toBeAttached()
   // The island hydrated (Astro drops its ssr attribute then): it counts.
-  await expect(page.locator('astro-island')).not.toHaveAttribute('ssr')
+  await expect(page.locator('astro-island', { has: page.locator('.counter') })).not.toHaveAttribute('ssr')
   await page.locator('.counter button').click()
   await expect(page.locator('.counter p')).toHaveText('Cups ordered: 1')
   await expect(page.locator('.counter button')).toHaveAttribute('data-dib-src', /Counter\.tsx:\d+:\d+$/)
@@ -58,4 +58,35 @@ test('an Astro page gets the overlay, and its island is located in the server HT
     replies: [{ commentId: sent!.id, status: 'done', message: 'The button says "Order a coffee" now.' }],
   })
   await expect(dock()).toContainText('The button says "Order a coffee" now.')
+})
+
+test('alternatives in an Astro island keep their switcher on Before, though Astro passes it in through <astro-slot>', async () => {
+  await page.goto(siteUrl)
+  // The group sits far down the page, and its switcher follows it on screen.
+  await page.evaluate(() => document.querySelector('section')!.scrollIntoView({ block: 'center' }))
+  const bar = page.locator('dib-overlay .variant[data-group="tagline"]')
+  await expect(bar).toBeVisible()
+  // Before is the markup Astro passed into the island, inside <astro-slot>, which has no box of its own.
+  await bar.getByRole('button', { name: 'Before', exact: true }).click()
+  await expect(page.locator('dib-variants[data-group="tagline"] astro-slot .tagline')).toBeVisible()
+  await expect(bar).toBeVisible()
+  await bar.getByRole('button', { name: 'After', exact: true }).click()
+  await expect(page.locator('.tagline-louder')).toBeVisible()
+  await bar.getByRole('button', { name: 'Before', exact: true }).click()
+
+  // "Show on page" in the dock takes the reader to the group, wherever its content is.
+  await page.evaluate(() => scrollTo(0, 0))
+  await page.keyboard.press('Alt+Shift+C')
+  await comment('h1', 'Try a louder tagline')
+  await page.keyboard.press('Escape')
+  if (await page.locator('dib-dock .launcher').isVisible()) await page.locator('dib-dock .launcher').click()
+  await dock().getByTestId('send').click()
+  await expect.poll(() => doorbells.at(-1)).toMatch(/ready, 1 comment\./)
+  const batch = JSON.parse(await callTool(shim, 'live_get_batch')) as Batch
+  await callTool(shim, 'live_reply', {
+    batchId: batch.id,
+    replies: [{ commentId: batch.comments[0]!.id, status: 'variants', message: 'One louder tagline is up.', group: 'tagline' }],
+  })
+  await dock().getByTestId('show-group').click()
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(500)
 })

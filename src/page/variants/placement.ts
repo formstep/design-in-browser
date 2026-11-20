@@ -13,9 +13,19 @@ const CONTENT_TAGS = new Set(['img', 'svg', 'video', 'canvas', 'iframe', 'input'
 export const toPage = (spot: Spot): Spot => ({ left: spot.left + window.scrollX, top: spot.top + window.scrollY })
 export const fromPage = (spot: Spot): Spot => ({ left: spot.left - window.scrollX, top: spot.top - window.scrollY })
 
-/** The window box of a group: its rendered children, since the wrapper itself has `display: contents`. */
+/**
+ * The elements a group shows: the wrapper's children, looking through any that render only their own children
+ * (`display: contents`), such as the wrapper itself or Astro's <astro-slot> around content passed into an island.
+ */
+export function shownElements(wrapper: Element): Element[] {
+  return [...wrapper.children].flatMap((child) => (getComputedStyle(child).display === 'contents' ? shownElements(child) : [child]))
+}
+
+/** The window box of a group: what it shows. */
 export function boxOf(wrapper: Element): DOMRect | null {
-  const boxes = [...wrapper.children].map((child) => child.getBoundingClientRect()).filter((box) => box.width > 0 || box.height > 0)
+  const boxes = shownElements(wrapper)
+    .map((element) => element.getBoundingClientRect())
+    .filter((box) => box.width > 0 || box.height > 0)
   if (boxes.length === 0) return null
   const left = Math.min(...boxes.map((box) => box.left))
   const top = Math.min(...boxes.map((box) => box.top))

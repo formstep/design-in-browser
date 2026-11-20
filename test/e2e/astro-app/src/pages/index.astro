@@ -1,5 +1,6 @@
 ---
 import { Counter } from '../components/Counter.tsx'
+import { TaglineVariants } from '../components/TaglineVariants.tsx'
 ---
 
 <html lang="en">
@@ -10,5 +11,10 @@ import { Counter } from '../components/Counter.tsx'
   <body>
     <h1>Bean There Coffee</h1>
     <Counter client:load />
+    <section style="margin-top: 1400px; margin-bottom: 400px">
+      <TaglineVariants client:only="react">
+        <p class="tagline">Fresh roasts every morning.</p>
+      </TaglineVariants>
+    </section>
   </body>
 </html>

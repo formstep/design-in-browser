@@ -216,6 +216,8 @@ test('marks of a comment in the stack move with their element when the dock push
   await page.keyboard.press('Escape')
 
   const mark = page.locator('dib-overlay .ink rect.mark.saved')
+  // The overlay draws the stacked comment's mark on its next frame.
+  await expect(mark).toBeVisible()
   const offsetFromCard = async () => {
     const markBox = (await mark.boundingBox())!
     const cardBox = (await card.boundingBox())!

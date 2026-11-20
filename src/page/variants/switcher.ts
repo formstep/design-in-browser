@@ -11,7 +11,7 @@ import { el, query } from '../ui/dom.ts'
 import { keepKeys } from '../ui/events.ts'
 import { addStyles } from '../ui/shadow-host.ts'
 import { bar } from './bar.ts'
-import { boxOf, fromPage, onScreen, placeBar, placeCard, toPage, type Spot } from './placement.ts'
+import { boxOf, fromPage, onScreen, placeBar, placeCard, shownElements, toPage, type Spot } from './placement.ts'
 import switcherCss from './switcher.css'
 import { showRangeValue, syncControls, tweaksCard } from './tweaks-card.ts'
 
@@ -209,7 +209,8 @@ async function use(group: string): Promise<void> {
   const label = meta.labels[index] ?? ''
   const specs = meta.tweaks[index]
   const tweaks = chosenTweaks(group, index, specs)
-  const first = wrapperOf(group)?.firstElementChild ?? null
+  const wrapper = wrapperOf(group)
+  const [first = null] = wrapper ? shownElements(wrapper) : []
   const details = tweaks.map((tweak) => describe(tweak, specs?.[tweak.id])).join(', ')
   const comment = newComment({
     text: `Use “${label}” for ${group}${details ? ` (${details})` : ''}`,
