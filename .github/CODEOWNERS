@@ -1,0 +1,5 @@
+# Default owner for everything in the repository
+* @formstep
+
+# Workflows and repo configuration always need the owner's review
+/.github/ @formstep
