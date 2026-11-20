@@ -123,8 +123,11 @@ export type ReplyStatus = 'done' | 'question' | 'skipped' | 'variants'
 /** `note`: a note the agent left on the page, wanting no answer (a note that wants one is a `question`). */
 export type CommentStatus = 'pending' | ReplyStatus | 'note'
 
-/** Where an agent's note points: an element by CSS selector, or by the source location the plugin stamped on it. */
-export type NoteAnchor = { selector: string } | { source: string }
+/**
+ * Where an agent's note points: an element by the source location the plugin stamped on it, by CSS selector, or by
+ * both, the source tried first.
+ */
+export type NoteAnchor = { source: string; selector?: string } | { selector: string }
 
 /** Once sent, a comment's screenshot is a file in the journal instead of a data URL. */
 export type BatchComment = Omit<DraftComment, 'screenshot'> & {

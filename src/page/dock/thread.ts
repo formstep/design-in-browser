@@ -92,7 +92,7 @@ function answerForm(batch: Batch, comment: BatchComment): HTMLFormElement {
 
 /** Where an agent's note points, as the agent named it. */
 const anchorText = (comment: BatchComment) =>
-  comment.anchor ? ('selector' in comment.anchor ? comment.anchor.selector : comment.anchor.source) : ''
+  comment.anchor ? ('source' in comment.anchor ? comment.anchor.source : comment.anchor.selector) : ''
 
 function reply(batch: Batch, comment: BatchComment, index: number, answered: Map<string, string>): HTMLElement {
   // The numbered disc ties a reply to its comment; only a question or a skip gets a visible label. A note says

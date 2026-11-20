@@ -74,8 +74,10 @@ function find(selector: string): Element | null {
   }
 }
 
-const findAnchor = (anchor: NoteAnchor) =>
-  'selector' in anchor ? find(anchor.selector) : find(`[${SOURCE_ATTRIBUTE}="${CSS.escape(anchor.source)}"]`)
+function findAnchor(anchor: NoteAnchor): Element | null {
+  const bySource = 'source' in anchor ? find(`[${SOURCE_ATTRIBUTE}="${CSS.escape(anchor.source)}"]`) : null
+  return bySource ?? (anchor.selector ? find(anchor.selector) : null)
+}
 
 /** Where a comment's pin goes: the element the user clicked, or the element an agent's note points at. */
 function placeOf(comment: DraftComment & { anchor?: NoteAnchor }): Pick<PinModel, 'find' | 'offset'> | null {

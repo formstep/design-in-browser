@@ -240,7 +240,7 @@ server.registerTool(
   {
     title: 'Leave notes on the page',
     description:
-      'Leave notes on elements of a page in the browser, without being asked: what you changed and where, something the user should check, or a question. Each note shows as a pin on its element and in the dock. A note with question: true gets an answer field; the answer reaches you in a later batch as a comment with inReplyTo pointing at the note, which you then reply to with live_reply like any question. Point at an element by its CSS selector, or by its source location (path:line:column, as in element.sources) when the page has them.',
+      'Leave notes on elements of a page in the browser, without being asked: what you changed and where, something the user should check, or a question. Each note shows as a pin on its element and in the dock. A note with question: true gets an answer field; the answer reaches you in a later batch as a comment with inReplyTo pointing at the note, which you then reply to with live_reply like any question. Point at an element by its source location (path:line:column, as in element.sources), by a CSS selector, or both; the source is tried first.',
     inputSchema: {
       url: z.string().url().describe("The page, as a full URL such as a comment's page.url: http://localhost:5173/pricing."),
       notes: z
@@ -259,9 +259,8 @@ server.registerTool(
   async ({ url, notes }) => {
     try {
       const anchored = notes.map(({ selector, source, note, question }) => {
-        if (selector && source) throw new Error('Give each note a selector or a source, not both.')
-        const anchor = selector ? { selector } : source ? { source } : null
-        if (!anchor) throw new Error('Give each note a selector or a source.')
+        const anchor = source ? { source, ...(selector ? { selector } : {}) } : selector ? { selector } : null
+        if (!anchor) throw new Error('Give each note a source or a selector.')
         return { anchor, note, question: question ?? false }
       })
       const batch = await (await daemon()).call('note', { sessionId, url, notes: anchored })

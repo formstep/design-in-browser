@@ -385,6 +385,8 @@ test('the agent leaves notes on a page: they never ring, and a question among th
     notes: [
       { selector: 'main > h1', note: 'The headline is 40px now.' },
       { source: 'src/Pricing.tsx:12:7', note: 'Keep the subtitle?', question: true },
+      // Agents often know both; the source is tried first, the selector after.
+      { source: 'src/Pricing.tsx:3:5', selector: 'main', note: 'Both ways to find it.' },
     ],
   })
   const updated = await devServer.inbox.next((m) => m.type === 'batch-updated' && m.batch.projectRoot === notesProject)
@@ -396,6 +398,7 @@ test('the agent leaves notes on a page: they never ring, and a question among th
     [
       ['note', 'The headline is 40px now.', { selector: 'main > h1' }, ''],
       ['question', 'Keep the subtitle?', { source: 'src/Pricing.tsx:12:7' }, ''],
+      ['note', 'Both ways to find it.', { source: 'src/Pricing.tsx:3:5', selector: 'main' }, ''],
     ]
   )
   await new Promise((resolve) => setTimeout(resolve, 300))
