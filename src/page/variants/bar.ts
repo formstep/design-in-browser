@@ -44,7 +44,11 @@ function segment(label: string, name: string, pressed: boolean, className = 'seg
 export function bar(model: BarModel): HTMLElement {
   const { group, labels, index } = model
   const element = el('div', { className: 'variant-bar', attrs: { role: 'toolbar', 'aria-label': `Versions of ${group}` } })
-  const name = el('span', { className: 'variant-group', html: icon('layers', 14) }, [group])
+  const name = el(
+    'span',
+    { className: 'variant-group', html: icon('layers', 14), attrs: { title: 'Drag to move · double-click to put back' } },
+    [group]
+  )
   if (model.pick) {
     element.append(
       name,

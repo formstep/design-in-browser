@@ -8,6 +8,7 @@ import { sendComment, type PageState } from '../store.ts'
 import { button, el, iconNode } from '../ui/dom.ts'
 import { submitOnEnter } from '../ui/events.ts'
 import { elementName, when } from '../ui/format.ts'
+import { setMarkersHidden } from '../ui/markers.ts'
 import { shownElements } from '../variants/placement.ts'
 
 /** What the replies need besides their own batch: answers given, dismissals, and picks of alternatives. */
@@ -57,6 +58,8 @@ export function answerPlaces(state: PageState): Map<string, string> {
 function showOnPage(group: string): HTMLElement {
   const link = button({ className: 'show-group', textContent: 'Show on page', attrs: { 'data-testid': 'show-group' } })
   link.addEventListener('click', () => {
+    // Its switcher is what the link shows: everything on the page comes back if it was hidden.
+    setMarkersHidden(false)
     const wrapper = document.querySelector(`dib-variants[data-group="${CSS.escape(group)}"]`)
     const [first] = wrapper ? shownElements(wrapper) : []
     first?.scrollIntoView({ block: 'center', behavior: 'smooth' })

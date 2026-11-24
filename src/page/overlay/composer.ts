@@ -6,6 +6,7 @@ import { newComment } from '../comments.ts'
 import { agentName, sendComment, sendTarget } from '../store.ts'
 import { query } from '../ui/dom.ts'
 import { elementName } from '../ui/format.ts'
+import { dragFrom } from '../ui/drag.ts'
 import { keepKeys, submitOnEnter } from '../ui/events.ts'
 import { clamp, pointOn } from '../ui/geometry.ts'
 import { usableWidth } from '../ui/layout.ts'
@@ -36,6 +37,12 @@ const hint = query<HTMLSpanElement>(root, '.hint')
 let request: Request = 'comment'
 let alternativeCount = 2
 let namedAgent = ''
+/** How far the user dragged this card from its spot beside the pin. A new card starts beside its pin again. */
+let shift = { x: 0, y: 0 }
+/** Where the card last showed, and where it would be without the drag: a drag past the edge keeps only what shows. */
+let shown = { x: 0, y: 0, left: 0, top: 0 }
+/** A card put away while everything on the page was hidden, with what was typed, to bring back when it shows. */
+let stashed: { mode: Commenting; request: Request; text: string; shift: { x: number; y: number } } | null = null
 
 function setRequest(next: Request): void {
   request = next
@@ -76,6 +83,7 @@ export function openComposer(next: Omit<Commenting, 'kind'>): void {
   setMode({ kind: 'commenting', ...next })
   showTarget(next.element)
   errorLine.hidden = true
+  shift = { x: 0, y: 0 }
   setRequest('comment')
   textarea.value = ''
   attachShot.checked = false
@@ -86,6 +94,26 @@ export function openComposer(next: Omit<Commenting, 'kind'>): void {
   composingPin.hidden = false
   renderComposer()
   textarea.focus()
+}
+
+/** Puts the card away while everything on the page is hidden, keeping what was typed for `restoreComposer`. */
+export function stashComposer(): void {
+  const mode = getMode()
+  if (mode.kind !== 'commenting') return
+  stashed = { mode, request, text: textarea.value, shift }
+}
+
+/** Brings back a card put away by `stashComposer`, with its text, where it was. */
+export function restoreComposer(): void {
+  const card = stashed
+  stashed = null
+  if (!card || !card.mode.element.isConnected) return
+  const { element, offset, marks, after } = card.mode
+  openComposer({ element, offset, marks, after })
+  setRequest(card.request)
+  textarea.value = card.text
+  shift = card.shift
+  placeComposer()
 }
 
 /** Closes the card: back to picking, or out when the card was opened from outside picking. */
@@ -107,7 +135,10 @@ export function placeComposer(): void {
   const right = point.x + PIN + 8
   const left = right + CARD_WIDTH > usableWidth() - 8 ? Math.max(8, point.x - CARD_WIDTH - 8) : right
   const top = clamp(point.y - PIN, 8, innerHeight - height - 8)
-  composer.style.transform = `translate(${left}px, ${top}px)`
+  const x = clamp(left + shift.x, 8, usableWidth() - CARD_WIDTH - 8)
+  const y = clamp(top + shift.y, 8, innerHeight - height - 8)
+  shown = { x, y, left, top }
+  composer.style.transform = `translate(${x}px, ${y}px)`
 }
 
 /** The marks' bounds with a margin around them, clipped to the window: what a screenshot shows. */
@@ -234,6 +265,21 @@ composer.addEventListener('submit', (event) => {
 })
 submitOnEnter(textarea, () => void submit())
 textarea.addEventListener('input', placeComposer)
+// Dragged by its surface outside the fields and buttons, so it can step off what it would cover.
+composer.addEventListener('pointerdown', (event) => {
+  const from = shift
+  dragFrom(event, {
+    start: () => composer.classList.add('dragging'),
+    move: (dx, dy) => {
+      shift = { x: from.x + dx, y: from.y + dy }
+      placeComposer()
+    },
+    end: () => {
+      composer.classList.remove('dragging')
+      shift = { x: shown.x - shown.left, y: shown.y - shown.top }
+    },
+  })
+})
 keepKeys(composer)
 
 onPick(({ element, offset }) => {

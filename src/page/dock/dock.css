@@ -66,6 +66,15 @@
   background: var(--control);
 }
 
+/* Dragged aside, it keeps its spot (dock.ts); while dragged it shows it is held. */
+.launcher {
+  touch-action: none;
+}
+
+.launcher.dragging {
+  cursor: grabbing;
+}
+
 .launcher-count {
   min-width: 18px;
   padding: 0 5px;

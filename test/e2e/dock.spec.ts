@@ -98,7 +98,7 @@ test('finished comments drop their pins, and the rest hide from the header until
   await expect(toggle).toHaveAttribute('aria-pressed', 'false')
   await toggle.click()
   await expect(toggle).toHaveAttribute('aria-pressed', 'true')
-  await expect(toggle).toHaveAccessibleName('Show markers on the page')
+  await expect(toggle).toHaveAccessibleName('Show everything on the page')
   // The pins' layer is an empty box: whether it shows is its hidden attribute.
   const layer = page.locator('dib-overlay .pins')
   await expect(layer).toHaveAttribute('hidden', '')

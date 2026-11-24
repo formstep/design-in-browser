@@ -9,6 +9,7 @@ import { fillIcons } from '../icons.ts'
 import { isPicking, onModeChange, togglePicker } from '../overlay/mode.ts'
 import { agentName, defaultSession, onStateChange, pluginOutdated, readState, sendComment, sendOp, type PageState } from '../store.ts'
 import { el, iconNode, query } from '../ui/dom.ts'
+import { dragFrom } from '../ui/drag.ts'
 import { frameScheduler, keepKeys, submitOnEnter } from '../ui/events.ts'
 import { registerUiHost, setReservedRight } from '../ui/layout.ts'
 import { markersHidden, onMarkersHiddenChange, setMarkersHidden } from '../ui/markers.ts'
@@ -23,12 +24,15 @@ const DOCK_WIDTH = 380
 const FULL_WIDTH_BELOW = 560
 const dockWidth = () => (innerWidth <= FULL_WIDTH_BELOW ? innerWidth : DOCK_WIDTH)
 const OPEN_KEY = 'design-in-browser:dock-open'
+const LAUNCHER_KEY = 'design-in-browser:launcher-spot'
+const LAUNCHER_GAP = 8
 const PICK_SHORTCUT = /mac/i.test(navigator.platform) ? '⌥⇧C' : 'Alt+Shift+C'
+const HIDE_SHORTCUT = /mac/i.test(navigator.platform) ? '⌥⇧H' : 'Alt+Shift+H'
 
 const { host, root } = createShadowHost('dib-dock', dockCss)
 registerUiHost(host)
 root.innerHTML = `
-<button type="button" class="launcher" data-testid="launcher" aria-label="Open Design in Browser" title="Comments (⌥⇧D)">
+<button type="button" class="launcher" data-testid="launcher" aria-label="Open Design in Browser" title="Comments (⌥⇧D) · drag to move">
   <span data-icon="comment" data-size="18"></span><span class="launcher-count"></span>
 </button>
 <aside class="dock" aria-label="Design in Browser" hidden>
@@ -44,7 +48,7 @@ root.innerHTML = `
     </div>
     <span class="state" data-testid="status" aria-live="polite"></span>
     <button type="button" class="icon-button start-over" data-testid="start-over" aria-label="Start over" title="Start over" hidden><span data-icon="restart" data-size="15"></span></button>
-    <button type="button" class="icon-button markers" data-testid="markers" aria-pressed="false" aria-label="Hide markers on the page" title="Hide markers on the page"><span data-icon="eye" data-size="15"></span></button>
+    <button type="button" class="icon-button markers" data-testid="markers" aria-pressed="false" aria-label="Hide everything on the page" title="Hide everything on the page"><span data-icon="eye" data-size="15"></span></button>
     <button type="button" class="icon-button close" aria-label="Close" title="Close (⌥⇧D)"><span data-icon="close" data-size="15"></span></button>
   </header>
   <div class="confirm-scrim" hidden>
@@ -152,6 +156,58 @@ function setOpen(open: boolean): void {
 }
 
 launcher.addEventListener('click', () => setOpen(true))
+
+// The launcher can be dragged off what it covers. Its spot is kept as its distance from the bottom-right corner, in
+// this browser, so it holds across reloads and stays in the same corner as the window resizes.
+type Inset = { right: number; bottom: number }
+function storedInset(): Inset | null {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(LAUNCHER_KEY) ?? 'null')
+    if (typeof stored !== 'object' || stored === null) return null
+    const { right, bottom } = stored as Record<string, unknown>
+    return typeof right === 'number' && typeof bottom === 'number' ? { right, bottom } : null
+  } catch {
+    return null
+  }
+}
+let launcherInset = storedInset()
+function placeLauncher(): void {
+  if (!launcherInset) {
+    launcher.style.right = launcher.style.bottom = ''
+    return
+  }
+  // Always whole inside the window, however it was resized since.
+  const width = launcher.offsetWidth || 40
+  const height = launcher.offsetHeight || 40
+  const clampTo = (value: number, max: number) => Math.min(Math.max(value, LAUNCHER_GAP), Math.max(LAUNCHER_GAP, max - LAUNCHER_GAP))
+  launcher.style.right = `${clampTo(launcherInset.right, innerWidth - width)}px`
+  launcher.style.bottom = `${clampTo(launcherInset.bottom, innerHeight - height)}px`
+}
+launcher.addEventListener('pointerdown', (event) => {
+  const box = launcher.getBoundingClientRect()
+  const from = { right: innerWidth - box.right, bottom: innerHeight - box.bottom }
+  dragFrom(event, {
+    fromControl: true,
+    start: () => launcher.classList.add('dragging'),
+    move: (dx, dy) => {
+      launcherInset = { right: from.right - dx, bottom: from.bottom - dy }
+      placeLauncher()
+    },
+    end: () => {
+      launcher.classList.remove('dragging')
+      // Kept where it shows, so a spot past the edge doesn't come back after a resize.
+      const shown = launcher.getBoundingClientRect()
+      launcherInset = { right: Math.round(innerWidth - shown.right), bottom: Math.round(innerHeight - shown.bottom) }
+      try {
+        localStorage.setItem(LAUNCHER_KEY, JSON.stringify(launcherInset))
+      } catch {
+        // Not kept past this page: it stays where it was dragged until a reload.
+      }
+    },
+  })
+})
+window.addEventListener('resize', placeLauncher)
+placeLauncher()
 // The dock is never wider than the window; what it covers follows a resize.
 window.addEventListener('resize', () => {
   if (!dock.hasAttribute('hidden')) reserveDock(true)
@@ -160,14 +216,14 @@ $<HTMLButtonElement>('.close').addEventListener('click', () => setOpen(false))
 
 const renderStartOver = startOverControls(root, message)
 
-// Hides the pins and drawings on the page, to see it as it is; the comments and replies stay here.
+// Hides the pins, drawings and switchers on the page, to see it as it is; the comments and replies stay here.
 const markersButton = $<HTMLButtonElement>('.markers')
 function renderMarkersButton(): void {
   const hidden = markersHidden()
-  const label = hidden ? 'Show markers on the page' : 'Hide markers on the page'
+  const label = hidden ? 'Show everything on the page' : 'Hide everything on the page'
   markersButton.setAttribute('aria-pressed', String(hidden))
   markersButton.setAttribute('aria-label', label)
-  markersButton.title = label
+  markersButton.title = `${label} (${HIDE_SHORTCUT})`
   markersButton.replaceChildren(iconNode(hidden ? 'eyeOff' : 'eye', 15))
 }
 markersButton.addEventListener('click', () => setMarkersHidden(!markersHidden()))

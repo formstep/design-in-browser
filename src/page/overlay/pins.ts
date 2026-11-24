@@ -10,6 +10,7 @@ import { dismissButton } from '../dismiss.ts'
 import { icon } from '../icons.ts'
 import { defaultSession, readState, sendComment, type PageState } from '../store.ts'
 import { el, findBySelector, query } from '../ui/dom.ts'
+import { dragFrom } from '../ui/drag.ts'
 import { keepKeys } from '../ui/events.ts'
 import { when } from '../ui/format.ts'
 import { clamp, pointOn, type Point } from '../ui/geometry.ts'
@@ -61,6 +62,8 @@ const statusGlyph: Record<CommentStatus, string> = {
 
 const pins = query<HTMLDivElement>(root, '.pins')
 let models = new Map<string, PinModel>()
+/** Threads the user dragged off their pin, by how far, so the card opens there again. */
+const shifts = new Map<string, Point>()
 
 function findAnchor(anchor: NoteAnchor): Element | null {
   const bySource = 'source' in anchor ? findBySelector(`[${SOURCE_ATTRIBUTE}="${CSS.escape(anchor.source)}"]`) : null
@@ -156,7 +159,8 @@ function buildThread(pin: PinModel, thread: HTMLElement): void {
           ]),
         ]),
   ])
-  thread.replaceChildren(...parts, ...answerField(pin), ...dismissIfOpen(pin))
+  const grip = el('div', { className: 'thread-grip', attrs: { title: 'Drag to move · double-click to put back', 'aria-hidden': 'true' } })
+  thread.replaceChildren(grip, ...parts, ...answerField(pin), ...dismissIfOpen(pin))
 }
 
 /** Closes an open question or a note without answering it. */
@@ -221,7 +225,19 @@ export function renderPins(): void {
     wrap.style.transform = `translate(${x}px, ${y}px)`
     wrap.classList.toggle('flip-x', x + PIN + 8 + CARD_WIDTH > usableWidth())
     placeThread(thread, y)
+    shiftThread(thread, shifts.get(pin.key))
   }
+}
+
+/** Moves a thread the user dragged by `shift`, kept 8px inside the window and off the dock. Returns how far it went. */
+function shiftThread(thread: HTMLElement, shift: Point | undefined): Point | undefined {
+  thread.style.transform = ''
+  if (!shift) return undefined
+  const box = thread.getBoundingClientRect()
+  const x = clamp(shift.x, 8 - box.left, usableWidth() - 8 - box.right)
+  const y = clamp(shift.y, 8 - box.top, innerHeight - 8 - box.bottom)
+  thread.style.transform = `translate(${x}px, ${y}px)`
+  return { x, y }
 }
 
 /** Opens the card downward from the pin when it fits, else upward, and always keeps it 8px inside the window. */
@@ -279,6 +295,35 @@ pins.addEventListener('click', (event) => {
     closeThreads(pinButton.parentElement)
     pinButton.parentElement.classList.toggle('open')
   }
+})
+// A thread is dragged by its top edge or a turn's name line, so its replies can still be selected; a double-click
+// there puts it back beside its pin. While dragged it stays open, since the pointer leaves the pin.
+const threadHandle = '.thread-grip, .entry-head'
+pins.addEventListener('pointerdown', (event) => {
+  const target = event.target as Element
+  const wrap = target.closest<HTMLElement>('.pin-wrap')
+  const key = wrap?.dataset.key
+  if (!wrap || !key || !target.closest(threadHandle)) return
+  const thread = query<HTMLElement>(wrap, '.thread')
+  const from = shifts.get(key) ?? { x: 0, y: 0 }
+  dragFrom(event, {
+    start: () => {
+      closeThreads(wrap)
+      wrap.classList.add('open', 'dragging')
+    },
+    move: (dx, dy) => {
+      // Kept as far as it went, so dragging back from past the edge moves it at once.
+      const went = shiftThread(thread, { x: from.x + dx, y: from.y + dy })
+      if (went) shifts.set(key, went)
+    },
+    end: () => wrap.classList.remove('dragging'),
+  })
+})
+pins.addEventListener('dblclick', (event) => {
+  const target = event.target as Element
+  const wrap = target.closest<HTMLElement>('.pin-wrap')
+  if (!wrap || !target.closest(threadHandle) || !shifts.delete(wrap.dataset.key ?? '')) return
+  query<HTMLElement>(wrap, '.thread').style.transform = ''
 })
 pins.addEventListener('submit', (event) => {
   event.preventDefault()
