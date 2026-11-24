@@ -6,7 +6,7 @@ import { frameScheduler } from '../ui/events.ts'
 import { onReservedRightChange } from '../ui/layout.ts'
 import { markersHidden, onMarkersHiddenChange, setMarkersHidden } from '../ui/markers.ts'
 import { mountVariants, onGroupsChange, renderVariants, syncFromState } from '../variants/switcher.ts'
-import { leaveComposer, renderComposer } from './composer.ts'
+import { leaveComposer, renderComposer, restoreComposer, stashComposer } from './composer.ts'
 import { renderMarks } from './drawing.ts'
 import { getMode, onModeChange, setMode, togglePicker } from './mode.ts'
 import { closeThreads, renderPins } from './pins.ts'
@@ -28,6 +28,13 @@ window.addEventListener(
       event.preventDefault()
       event.stopImmediatePropagation()
       togglePicker()
+      return
+    }
+    // Everything this package puts over the page steps aside, to see the page as it is, until pressed again.
+    if (event.altKey && event.shiftKey && event.code === 'KeyH') {
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      setMarkersHidden(!markersHidden())
       return
     }
     if (event.key !== 'Escape') return
@@ -53,7 +60,16 @@ onModeChange((mode) => {
   if (mode.kind !== 'idle' && markersHidden()) setMarkersHidden(false)
   scheduleRender()
 })
-onMarkersHiddenChange(scheduleRender)
+// Hidden from the dock or with Alt+Shift+H: picking while nothing shows would take clicks meant for the page, so it
+// stops, and a comment being written comes back with its text when everything shows again.
+onMarkersHiddenChange(() => {
+  if (!markersHidden()) restoreComposer()
+  else if (getMode().kind !== 'idle') {
+    stashComposer()
+    setMode({ kind: 'idle' })
+  }
+  scheduleRender()
+})
 onReservedRightChange(scheduleRender)
 onStateChange(() => {
   syncFromState(readState())

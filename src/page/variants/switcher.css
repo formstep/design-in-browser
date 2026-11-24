@@ -39,6 +39,14 @@
   background: var(--card);
   box-shadow: var(--shadow-float);
   white-space: nowrap;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+/* Dragged by the bar outside its buttons; a double-click there puts it back. */
+.variant.dragging .variant-bar {
+  cursor: grabbing;
 }
 
 .variant-group {

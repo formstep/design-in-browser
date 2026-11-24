@@ -191,3 +191,14 @@ textarea::placeholder {
 .shot-check {
   margin-top: 10px;
 }
+
+/* The card moves off what it covers: dragged by its surface outside the fields and buttons. */
+.target,
+.hint {
+  cursor: grab;
+}
+
+.composer.dragging,
+.composer.dragging * {
+  cursor: grabbing;
+}

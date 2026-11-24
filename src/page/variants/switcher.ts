@@ -8,10 +8,12 @@ import { captureElement, capturePage } from '../capture.ts'
 import { isPick, newComment } from '../comments.ts'
 import { agentName, readState, sendComment, sendOp, type PageState } from '../store.ts'
 import { el, query } from '../ui/dom.ts'
+import { dragFrom } from '../ui/drag.ts'
 import { keepKeys } from '../ui/events.ts'
+import { markersHidden } from '../ui/markers.ts'
 import { addStyles } from '../ui/shadow-host.ts'
 import { bar } from './bar.ts'
-import { boxOf, fromPage, onScreen, placeBar, placeCard, shownElements, toPage, type Spot } from './placement.ts'
+import { boxOf, fromPage, inWindow, onScreen, placeBar, placeCard, shownElements, toPage, type Spot } from './placement.ts'
 import switcherCss from './switcher.css'
 import { showRangeValue, syncControls, tweaksCard } from './tweaks-card.ts'
 
@@ -34,6 +36,13 @@ const lastAlternative = new Map<string, number>()
  * has a different shape.
  */
 const placed = new Map<string, { bar: Spot; card?: Spot }>()
+/**
+ * Switchers the user dragged aside, by where they went from their group's top-left corner, so they follow the group
+ * as the page scrolls and stay off what the user looks at. A double-click on the bar gives the spot back to placement.
+ */
+const moved = new Map<string, { dx: number; dy: number }>()
+/** The group whose switcher is being dragged. */
+let dragging: string | null = null
 
 /** Puts the switchers' layer into the overlay's shadow root. */
 export function mountVariants(overlayRoot: ShadowRoot): void {
@@ -43,6 +52,8 @@ export function mountVariants(overlayRoot: ShadowRoot): void {
   root.append(layer)
   layer.addEventListener('click', onClick)
   layer.addEventListener('input', onInput)
+  layer.addEventListener('pointerdown', onPointerDown)
+  layer.addEventListener('dblclick', onDoubleClick)
   keepKeys(layer)
 }
 
@@ -122,6 +133,8 @@ function nodeFor(group: string): HTMLElement {
 
 export function renderVariants(): void {
   if (!layer) return
+  // Hidden with the markers, to see the page as it is; the version shown stays.
+  layer.hidden = markersHidden()
   const state = readState()
   const groups = bridge().groups
   for (const node of [...layer.children] as HTMLElement[]) if (!groups.has(node.dataset.group ?? '')) node.remove()
@@ -171,9 +184,14 @@ function place(group: string, node: HTMLElement, box: DOMRect, wrapper: Element)
   const barWidth = fullWidth(node)
   // Held while in use: the pointer or keyboard focus inside, or the tweaks card open (tweaking reshapes the group
   // under it). A clicked button keeps focus too, but that must not pin the bar over the version you look at next.
-  const inUse = node.matches(':hover') || node.querySelector(':focus-visible') !== null || card !== null
+  const inUse = dragging === group || node.matches(':hover') || node.querySelector(':focus-visible') !== null || card !== null
   const held = inUse ? placed.get(group) : undefined
-  const barSpot = held ? onScreen(fromPage(held.bar), barWidth) : placeBar(box, barWidth, wrapper)
+  const offset = moved.get(group)
+  const barSpot = held
+    ? onScreen(fromPage(held.bar), barWidth)
+    : offset
+      ? onScreen({ left: box.left + offset.dx, top: box.top + offset.dy }, barWidth)
+      : placeBar(box, barWidth, wrapper)
   const cardSpot = card ? (held?.card ? fromPage(held.card) : placeCard(barSpot, barWidth, box, card, wrapper)) : undefined
   placed.set(group, { bar: toPage(barSpot), card: cardSpot && toPage(cardSpot) })
   node.style.transform = `translate(${barSpot.left}px, ${barSpot.top}px)`
@@ -181,6 +199,53 @@ function place(group: string, node: HTMLElement, box: DOMRect, wrapper: Element)
     card.style.left = `${cardSpot.left - barSpot.left}px`
     card.style.top = `${cardSpot.top - barSpot.top}px`
   }
+}
+
+/** Drags a switcher by its bar, outside its buttons; an open tweaks card comes along. */
+function onPointerDown(event: PointerEvent): void {
+  const target = event.target as Element
+  const node = target.closest<HTMLElement>('.variant')
+  const group = node?.dataset.group
+  if (!node || !group || !target.closest('.variant-bar')) return
+  let origin: { bar: Spot; card?: Spot } | undefined
+  dragFrom(event, {
+    start: () => {
+      const held = placed.get(group)
+      if (!held) return
+      origin = { bar: fromPage(held.bar), card: held.card && fromPage(held.card) }
+      dragging = group
+      node.classList.add('dragging')
+    },
+    move: (dx, dy) => {
+      const wrapper = wrapperOf(group)
+      const box = wrapper ? boxOf(wrapper) : null
+      if (!origin || !box) return
+      const bar = inWindow({ left: origin.bar.left + dx, top: origin.bar.top + dy }, fullWidth(node))
+      const shift = { left: bar.left - origin.bar.left, top: bar.top - origin.bar.top }
+      const card = origin.card && { left: origin.card.left + shift.left, top: origin.card.top + shift.top }
+      placed.set(group, { bar: toPage(bar), card: card && toPage(card) })
+      moved.set(group, { dx: bar.left - box.left, dy: bar.top - box.top })
+      renderVariants()
+    },
+    end: () => {
+      dragging = null
+      node.classList.remove('dragging')
+      // An open tweaks card came along; now it finds its own spot by the bar again, inside the window.
+      const held = placed.get(group)
+      if (held) placed.set(group, { bar: held.bar })
+      requestAnimationFrame(renderVariants)
+    },
+  })
+}
+
+/** A double-click on the bar, outside its buttons, puts a dragged switcher back where placement would put it. */
+function onDoubleClick(event: MouseEvent): void {
+  const target = event.target as Element
+  const group = target.closest<HTMLElement>('.variant')?.dataset.group
+  if (!group || !target.closest('.variant-bar') || target.closest('button') || !moved.has(group)) return
+  moved.delete(group)
+  placed.delete(group)
+  renderVariants()
 }
 
 function show(group: string, index: number): void {

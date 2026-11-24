@@ -232,3 +232,36 @@
   font-size: 12px;
   line-height: 17px;
 }
+
+/* The thread's top edge and its name lines drag the card off what it covers; the replies stay selectable. */
+.thread-grip {
+  display: grid;
+  place-items: center;
+  height: 12px;
+  margin: -12px -14px 0;
+  cursor: grab;
+}
+
+.thread-grip::after {
+  content: '';
+  width: 28px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--ink-3);
+  opacity: 0;
+  transition: opacity 120ms;
+}
+
+.thread:hover .thread-grip::after {
+  opacity: 1;
+}
+
+.entry-head {
+  cursor: grab;
+  user-select: none;
+}
+
+.pin-wrap.dragging .thread,
+.pin-wrap.dragging .thread * {
+  cursor: grabbing;
+}

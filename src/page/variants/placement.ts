@@ -39,6 +39,11 @@ export function onScreen(spot: Spot, width: number): Spot {
   return { left: clamp(spot.left, GAP, usableWidth() - width - GAP), top: spot.top }
 }
 
+/** A spot dragged by hand: the whole bar stays in the window and out from under the dock. */
+export function inWindow(spot: Spot, width: number): Spot {
+  return { left: clamp(spot.left, GAP, usableWidth() - width - GAP), top: clamp(spot.top, GAP, innerHeight - BAR_HEIGHT - GAP) }
+}
+
 function fits(area: Area): boolean {
   return area.left >= GAP && area.top >= GAP && area.left + area.width <= usableWidth() - GAP && area.top + area.height <= innerHeight - GAP
 }
